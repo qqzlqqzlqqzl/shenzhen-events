@@ -1,0 +1,18 @@
+PASS weekend_defaults_hide_long_running
+PASS weekend_show_long_uses_effective_weekend_date
+PASS time_sort_roundtrip
+PASS month_calendar_is_start_based_not_spanning_bars
+PASS month_calendar_separates_long_running
+PASS calendar_mobile_no_overflow
+{
+  "checks": {
+    "weekend_defaults_hide_long_running": true,
+    "weekend_show_long_uses_effective_weekend_date": true,
+    "time_sort_roundtrip": true,
+    "month_calendar_is_start_based_not_spanning_bars": true,
+    "month_calendar_separates_long_running": true,
+    "calendar_mobile_no_overflow": true
+  },
+  "errors": [],
+  "page_errors_empty": true
+}
