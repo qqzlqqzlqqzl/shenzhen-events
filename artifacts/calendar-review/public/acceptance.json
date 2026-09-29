@@ -1,0 +1,60 @@
+{
+  "checks": {
+    "weekend_default_removes_old_long_ranges": true,
+    "weekend_long_item_uses_effective_weekend_date": true,
+    "server_side_time_sort_and_url_roundtrip": true,
+    "month_calendar_has_no_spanning_long_bars": true,
+    "month_calendar_separates_long_running_panel": true,
+    "mobile_calendar_no_overflow": true,
+    "baseline_routes_and_weekend_counter": true
+  },
+  "errors": [],
+  "tested_base": "https://106.53.40.6",
+  "candidate": "a409285aff8039997d81ceb52ffc699c53d18e3c",
+  "weekend_default": 17,
+  "weekend_with_long": 39,
+  "routes": {
+    "/": 200,
+    "/inbox/": 200,
+    "/newapi": 302,
+    "/blog": 302,
+    "/events/": 200
+  },
+  "stats": {
+    "upcoming": 62,
+    "recommended": 12,
+    "weekend": 17,
+    "sources": 9,
+    "working_sources": 8,
+    "normal_sources": 6,
+    "partial_sources": 3,
+    "raw": 149,
+    "pending": 0,
+    "long_running": 23,
+    "last_updated": "2026-09-29T22:28:41+08:00",
+    "categories": [
+      "机器人",
+      "硬件创客",
+      "AI与开源",
+      "产品与创业",
+      "汽车",
+      "展览文化",
+      "户外生活"
+    ],
+    "districts": [
+      "南山",
+      "福田",
+      "宝安",
+      "龙岗",
+      "龙华",
+      "罗湖",
+      "盐田",
+      "光明",
+      "坪山",
+      "大鹏",
+      "深汕"
+    ],
+    "timezone": "Asia/Shanghai"
+  },
+  "page_errors_empty": true
+}
