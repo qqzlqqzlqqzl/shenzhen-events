@@ -1,0 +1,12 @@
+.private/
+.venv/
+data/
+logs/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env*
+*.sqlite*
+*.pem
+*.key
+artifacts/private*

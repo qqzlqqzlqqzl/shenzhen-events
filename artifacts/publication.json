@@ -1,0 +1,18 @@
+{
+  "before": {
+    "/etc/nginx/conf.d/toolbox-https.conf": "c92634b5a790551d8b12bd011d59921a5da345d5edf2c03c33781a7e240d9e0b",
+    "/var/www/server-portal/index.html": "47736b9ec45f5405ca3bab23300374069f49b082679bd07f4c2877d6337cf029",
+    "/home/ubuntu/server-portal/index.html": "47736b9ec45f5405ca3bab23300374069f49b082679bd07f4c2877d6337cf029"
+  },
+  "after": {
+    "/etc/nginx/conf.d/toolbox-https.conf": "8a2e79720ae0e0ee16ab497e4c16be96c55b2148d789a37e53c12027eab7e823",
+    "/var/www/server-portal/index.html": "b8a71b0f5c6060dc77ca4d8d62cabe02075ab7388b70b5a950ee244e29b8f369",
+    "/home/ubuntu/server-portal/index.html": "b8a71b0f5c6060dc77ca4d8d62cabe02075ab7388b70b5a950ee244e29b8f369"
+  },
+  "routes_preserved": [
+    "/inbox/",
+    "/newapi",
+    "/blog"
+  ],
+  "new_route": "/events/"
+}

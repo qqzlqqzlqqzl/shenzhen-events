@@ -1,0 +1,10 @@
+{"kind": "source", "status": "ok", "source": "lianpu", "count": 50, "changed": 0, "message": "本轮取得 50 条，纳入 50 条；新增或变更 0 条"}
+{"kind": "source", "status": "ok", "source": "techevent", "count": 6, "changed": 0, "message": "本轮取得 6 条，纳入 6 条；新增或变更 0 条"}
+{"kind": "source", "status": "ok", "source": "bendibao", "count": 43, "changed": 0, "message": "本轮取得 43 条，纳入 43 条；新增或变更 0 条"}
+{"kind": "source", "status": "ok", "source": "chaihuo", "count": 9, "changed": 0, "message": "本轮取得 9 条，纳入 9 条；新增或变更 0 条"}
+{"kind": "source", "status": "partial", "source": "huodongxing", "count": 0, "changed": 0, "message": "本轮取得 2 条，纳入 0 条；新增或变更 0 条；当前路由只覆盖全国列表中的深圳条目"}
+{"kind": "source", "status": "ok", "source": "douban", "count": 10, "changed": 0, "message": "本轮取得 15 条，纳入 10 条；新增或变更 0 条"}
+{"kind": "source", "status": "ok", "source": "meetup", "count": 7, "changed": 0, "message": "本轮取得 7 条，纳入 7 条；新增或变更 0 条"}
+{"kind": "source", "status": "partial", "source": "wechat-chaihuo", "count": 10, "changed": 10, "message": "本轮取得 10 条，纳入 10 条；新增或变更 10 条；搜索索引不保证完整和及时"}
+{"kind": "source", "status": "partial", "source": "sogou-discovery", "count": 15, "changed": 15, "message": "本轮取得 16 条，纳入 15 条；新增或变更 15 条；发现结果须确认活动时间后才会进入日历"}
+{"kind": "collect", "status": "ok", "sources_checked": 9, "changed": 25, "aliases_merged": 0}
