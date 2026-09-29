@@ -1,9 +1,9 @@
 """Bounded public-source adapters. Search results are leads, never verified events."""
 from __future__ import annotations
-import ipaddress, json, re, socket, time
+import ipaddress, json, re, socket, time, warnings
 from urllib.parse import urljoin, urlsplit, urlencode
 import requests, feedparser
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 from .core import clean, iso, date_range, canon_url, now, db, stamp
 class SourceError(Exception): pass
 class Blocked(SourceError): pass
@@ -30,7 +30,10 @@ def fetch(url, *, trusted_local=False, max_bytes=1600000):
                 if len(buf)>max_bytes:raise SourceError('页面超过采集大小限制')
             r.close();html=bytes(buf).decode(r.encoding if r.encoding and r.encoding.lower()!='iso-8859-1' else 'utf-8','replace')
         except requests.RequestException as e:raise SourceError(type(e).__name__)
-        soup=BeautifulSoup(html,'html.parser');title=clean(soup.title.get_text() if soup.title else '')
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore',category=XMLParsedAsHTMLWarning)
+            soup=BeautifulSoup(html,'html.parser')
+        title=clean(soup.title.get_text() if soup.title else '')
         if any(x in title.lower() for x in ['captcha','访问验证','安全验证','反爬','请输入验证码']) or '/antispider' in url:raise Blocked('来源要求验证码，未绕过验证')
         return html,soup,url
     raise SourceError('重定向次数超限')
@@ -129,7 +132,7 @@ def sogou(source):
         url=source['url']+'?'+urlencode({'type':2,'query':q,'ie':'utf8'});_,s,_=fetch(url)
         if s.select_one('#seccodeImage,#seccodeInput'):raise Blocked('搜狗要求验证码，已停止此轮发现')
         for li in s.select('.news-list li')[:8]:
-            a=li.select_one('h3 a[href]');author=li.select_one('.account,.s-p a');desc=li.select_one('.txt-info');name=text(author)
+            a=li.select_one('h3 a[href]');author=li.select_one('.account,.s-p .all-time-y2,.s-p a');desc=li.select_one('.txt-info');name=text(author)
             if not a:continue
             link=urljoin(url,a['href']);out.append(skeleton(text(a),link,text(desc),'',organizer=name))
             if name:

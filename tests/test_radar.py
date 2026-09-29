@@ -6,7 +6,7 @@ import pytest
 from bs4 import BeautifulSoup
 from fastapi.testclient import TestClient
 from icalendar import Calendar
-from radar import core, api, worker
+from radar import core, api, worker, collectors
 from radar.collectors import lianpu, bendibao, jsonld, rss, fetch, SourceError
 from radar.calendar import make_calendar
 
@@ -131,3 +131,24 @@ def test_exact_alias_dedup_survives_title_drift(tmp_path):
     assert not core.is_duplicate(a,b)
     core.ingest(source(),a);core.ingest(source('b'),b)
     rows=core.events();assert len(rows)==1;assert len(rows[0]['sources'])==2
+
+def test_reconcile_aliases_merges_existing_rows(tmp_path):
+    a=ev(title='Bridge with Signal 深圳技术社区日',start_at='2027-01-09T09:00:00+08:00',end_at='2027-01-09T17:00:00+08:00')
+    b=ev(title='AWS Community Day Shenzhen 2027',url='https://example.org/other',start_at='2027-01-09T00:00:00+08:00',end_at='2027-01-10T00:00:00+08:00',all_day=True)
+    core.ingest(source(),a);core.ingest(source('b'),b);assert len(core.events())==2
+    (tmp_path/'dedupe_aliases.json').write_text(json.dumps([{'id':'aws-day','date':'2027-01-09','urls':['https://example.com/event/1','https://example.org/other']}]))
+    with core.db() as c:
+        ids=[x['id'] for x in c.execute('select id from events order by origin_priority')]
+        c.execute('insert into preferences(event_id,favorite,hidden) values(?,?,?)',(ids[-1],1,1))
+    merged=core.reconcile_aliases();assert len(merged)==1
+    rows=core.events(include_hidden=True);assert len(rows)==1;assert len(rows[0]['sources'])==2;assert rows[0]['favorite']==1;assert rows[0]['hidden']==1
+
+def test_sogou_discovers_current_account_markup(monkeypatch):
+    html='<ul class="news-list"><li><h3><a href="/link?url=x">深圳机器人工作坊</a></h3><p class="txt-info">深圳南山线下活动</p><div class="s-p"><span class="all-time-y2">深圳创客社区</span></div></li></ul>'
+    soup=BeautifulSoup(html,'html.parser')
+    monkeypatch.setattr(collectors,'fetch',lambda url:('',soup,url));monkeypatch.setattr(collectors.time,'sleep',lambda _:None)
+    out=collectors.sogou({'url':'https://weixin.sogou.com/weixin'})
+    assert len(out)==2 and all(x['organizer']=='深圳创客社区' for x in out)
+    with core.db() as c:
+        row=c.execute('select name,hits from candidates where name=?',('深圳创客社区',)).fetchone()
+        assert row['hits']==2

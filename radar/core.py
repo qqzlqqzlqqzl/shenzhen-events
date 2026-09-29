@@ -107,6 +107,26 @@ def alias_for(e):
         if a.get('date')==day and url in {canon_url(x) for x in a.get('urls',[])}:return a
     return None
 
+def reconcile_aliases():
+    merged=[]
+    with db() as c:
+        for a in dedupe_aliases():
+            urls=[canon_url(x) for x in a.get('urls',[]) if canon_url(x)]
+            if not urls:continue
+            qs=','.join('?' for _ in urls)
+            ids=[r['event_id'] for r in c.execute(f'SELECT DISTINCT event_id FROM event_sources WHERE url IN ({qs})',urls)]
+            if len(ids)<2:continue
+            rows=[dict(c.execute('SELECT * FROM events WHERE id=?',(eid,)).fetchone()) for eid in ids]
+            rows=[r for r in rows if r and (not a.get('date') or (r.get('start_at') or '')[:10]==a['date'])]
+            if len(rows)<2:continue
+            rows.sort(key=lambda r:(r.get('origin_priority',50),r.get('first_seen',''),r['id']));winner=rows[0]['id']
+            for loser in rows[1:]:
+                pref=c.execute('SELECT favorite,hidden FROM preferences WHERE event_id=?',(loser['id'],)).fetchone()
+                if pref:c.execute('INSERT INTO preferences(event_id,favorite,hidden) VALUES(?,?,?) ON CONFLICT(event_id) DO UPDATE SET favorite=MAX(favorite,excluded.favorite),hidden=MAX(hidden,excluded.hidden)',(winner,pref['favorite'],pref['hidden']))
+                c.execute('UPDATE event_sources SET event_id=? WHERE event_id=?',(winner,loser['id']))
+                c.execute('DELETE FROM events WHERE id=?',(loser['id'],));merged.append((winner,loser['id'],a['id']))
+    return merged
+
 def is_duplicate(a,b):
     if not a.get('start_at') or not b.get('start_at') or a['start_at'][:10]!=b['start_at'][:10]:return False
     year=a['start_at'][:4];an,bn=norm(a['title']).replace(year,''),norm(b['title']).replace(year,'');la,lb=norm(a.get('location','')),norm(b.get('location',''))

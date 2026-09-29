@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResp
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
-from .core import ROOT, TZ, config, db, events, init, now, stamp, VERSION, CATEGORIES, DISTRICTS
+from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, DISTRICTS
 from .calendar import make_calendar
 COOKIE='sz_events_session'
 AUTH_URL='http://127.0.0.1:8091/v1/me'
@@ -44,7 +44,7 @@ def require(request):
 
 @asynccontextmanager
 async def lifespan(app):
-    initialize_settings();init();yield
+    initialize_settings();init();reconcile_aliases();yield
 app=FastAPI(title='深圳活动雷达',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
 app.add_middleware(GZipMiddleware,minimum_size=700)
 
