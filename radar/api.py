@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, DISTRICTS, iso
 from .calendar import make_calendar
 COOKIE='sz_events_session'
-AUTH_URL='http://127.0.0.1:8091/v1/me'
+AUTH_URL='http://127.0.0.1:8091/mf/v1/me'
 ATTEMPTS=defaultdict(deque);ATTEMPT_LOCK=threading.Lock()
 
 def initialize_settings():

@@ -95,6 +95,9 @@ def test_private_api_and_csrf():
         auth(c);assert c.get('/events/api/events').status_code==200
         s=c.get('/events/api/status').json();assert 'session_secret' not in json.dumps(s);assert 'model_base' not in json.dumps(s)
 
+def test_miniflux_auth_endpoint_respects_base_path():
+    assert api.AUTH_URL=='http://127.0.0.1:8091/mf/v1/me'
+
 def test_login_delegation_and_cookie(monkeypatch):
     class Result:
         status_code=200
