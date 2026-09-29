@@ -3,7 +3,7 @@
     "http_ok": true,
     "private_login_visible": true,
     "unauthenticated_api_denied": true,
-    "desktop_cards": 13,
+    "desktop_cards": 12,
     "desktop_no_overflow": true,
     "favorite_persists": true,
     "detail_source_links": true,
@@ -25,7 +25,7 @@
   "page_errors": [],
   "tested_base": "https://106.53.40.6",
   "loopback_tls_verification_skipped": false,
-  "load_seconds": 0.9,
+  "load_seconds": 1.0,
   "baseline_routes": {
     "/": 200,
     "/inbox/": 200,
@@ -34,14 +34,14 @@
     "/events/": 200
   },
   "stats": {
-    "upcoming": 63,
-    "recommended": 13,
+    "upcoming": 62,
+    "recommended": 12,
     "weekend": 39,
     "sources": 9,
     "working_sources": 9,
-    "raw": 149,
+    "raw": 199,
     "pending": 0,
-    "last_updated": "2026-09-29T21:35:35+08:00",
+    "last_updated": "2026-09-29T22:28:41+08:00",
     "categories": [
       "机器人",
       "硬件创客",
