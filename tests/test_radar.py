@@ -123,3 +123,11 @@ def test_unproved_ai_date_stays_review(monkeypatch):
     with core.db() as c:id=c.execute('SELECT id FROM raw_items').fetchone()[0]
     monkeypatch.setattr(worker,'ai_batch',lambda rows:[{'id':id,'is_shenzhen_offline':True,'event_date':'2026-10-10','date_evidence':'2026年10月10日','location':'深圳市南山区','topics':['机器人'],'priority':'high'}])
     worker.analyze(1);assert len(core.events(period='review'))==1;assert not core.events()
+
+def test_exact_alias_dedup_survives_title_drift(tmp_path):
+    (tmp_path/'dedupe_aliases.json').write_text(json.dumps([{'id':'aws-day','date':'2027-01-09','urls':['https://example.com/event/1','https://example.org/other']}]))
+    a=ev(title='Bridge with Signal 深圳技术社区日',start_at='2027-01-09T09:00:00+08:00',end_at='2027-01-09T17:00:00+08:00')
+    b=ev(title='AWS Community Day Shenzhen 2027',url='https://example.org/other',start_at='2027-01-09T09:00:00+08:00',end_at='2027-01-09T17:00:00+08:00')
+    assert not core.is_duplicate(a,b)
+    core.ingest(source(),a);core.ingest(source('b'),b)
+    rows=core.events();assert len(rows)==1;assert len(rows[0]['sources'])==2

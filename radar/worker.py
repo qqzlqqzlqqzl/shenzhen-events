@@ -12,6 +12,9 @@ def log(kind,status,details,started=None):
     print(json.dumps({'kind':kind,'status':status,**details},ensure_ascii=False),flush=True)
 
 def collect_all(force=False):
+    retention()
+    if sum(p.stat().st_size for p in (ROOT/'data').glob('*') if p.is_file())>256*1024*1024:
+        log('collect','storage_paused',{'message':'活动数据达到256MB上限，暂停新增采集，已有页面保持可用'});return
     result=[]
     for s in json.loads((ROOT/'sources.json').read_text()):
         with db() as c:h=dict(c.execute('SELECT * FROM source_health WHERE id=?',(s['id'],)).fetchone())
@@ -59,19 +62,19 @@ def ai_batch(rows):
     prompt=json.dumps(data,ensure_ascii=False);estimate=max(4000,int(len(prompt)*1.2)+2000)
     if not reserve(estimate):return None
     session=requests.Session();session.trust_env=False
-    response=session.post(cfg.get('model_base','https://ark.cn-beijing.volces.com/api/v3').rstrip('/')+'/chat/completions',headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},json={'model':cfg.get('model','deepseek-v4-flash-ga-260731'),'messages':[{'role':'system','content':SYSTEM},{'role':'user','content':prompt}],'temperature':0.1,'max_tokens':2600,'response_format':{'type':'json_object'}},timeout=(8,65))
+    response=session.post(cfg.get('model_base','https://ark.cn-beijing.volces.com/api/v3').rstrip('/')+'/chat/completions',headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},json={'model':cfg.get('model','deepseek-v4-flash-ga-260731'),'messages':[{'role':'system','content':SYSTEM},{'role':'user','content':prompt}],'temperature':0.1,'thinking':{'type':'disabled'},'max_tokens':3200,'response_format':{'type':'json_object'}},timeout=(8,65))
     if response.status_code!=200:raise RuntimeError('模型接口 HTTP '+str(response.status_code))
     obj=response.json();content=obj['choices'][0]['message']['content'];result=json.loads(content.strip().removeprefix('```json').removesuffix('```').strip());actual=obj.get('usage',{}).get('total_tokens',estimate)
     with db() as c:c.execute('UPDATE budget SET tokens=MAX(0,tokens+?) WHERE day=?',(int(actual)-estimate,now().date().isoformat()))
     return result.get('items',[])
 
 def analyze(limit=48):
-    with db() as c:rows=[dict(x) for x in c.execute("SELECT r.* FROM raw_items r WHERE r.analysis_state='pending' ORDER BY CASE WHEN r.source_id IN ('lianpu','techevent','wechat-chaihuo','sogou-discovery') THEN 0 ELSE 1 END,r.id LIMIT ?",(limit,))]
-    sources={s['id']:s for s in json.loads((ROOT/'sources.json').read_text())};processed=0
+    with db() as c:rows=[dict(x) for x in c.execute("SELECT r.* FROM raw_items r WHERE r.analysis_state='pending' AND EXISTS (SELECT 1 FROM event_sources es WHERE es.raw_id=r.id) ORDER BY CASE WHEN r.source_id IN ('lianpu','techevent','wechat-chaihuo','sogou-discovery') THEN 0 ELSE 1 END,r.id LIMIT ?",(limit,))]
+    sources={s['id']:s for s in json.loads((ROOT/'sources.json').read_text())};processed=0;failed=False
     for start in range(0,len(rows),6):
         batch=rows[start:start+6]
         try:results=ai_batch(batch)
-        except Exception as exc:log('analysis','error',{'message':str(exc)[:180]});break
+        except Exception as exc:log('analysis','error',{'message':str(exc)[:180]});failed=True;break
         if results is None:log('analysis','budget_paused',{'message':'达到每日模型预算；采集与已有推荐不受影响'});break
         byid={r['id']:r for r in batch}
         for result in results:
@@ -86,7 +89,7 @@ def analyze(limit=48):
                 if priority not in ('high','medium','normal'):priority='normal'
                 if commercial not in ('high','medium','low','unknown'):commercial='unknown'
                 if commercial=='high':priority='normal'
-                eid=link['id'];summary=core.clean(result.get('summary'))[:450];reason=core.clean(result.get('reason'))[:160]
+                eid=link['id'];summary=payload.get('summary','');reason=core.clean(result.get('reason'))[:160]
                 if not weaker and payload.get('start_at'):
                     status='not_event' if result.get('is_shenzhen_offline') is False else payload.get('status','scheduled')
                     c.execute('UPDATE events SET topics=?,priority=?,commercial=?,reason=?,status=?,summary=CASE WHEN ?!=\'\' THEN ? ELSE summary END,ai_state=\'done\' WHERE id=?',(json.dumps(topics or ['其他'],ensure_ascii=False),priority,commercial,reason,status,summary,summary,eid))
@@ -95,17 +98,18 @@ def analyze(limit=48):
                     if result.get('is_shenzhen_offline') is True and date and evidence and evidence in r['body'] and date_start and date_start[:10]==date and loc and loc in r['body'] and ('深圳' in loc or 'shenzhen' in loc.lower()):
                         district=next((d for d in core.DISTRICTS if d in loc),'待确认')
                         c.execute('UPDATE events SET start_at=?,end_at=?,all_day=1,location=?,district=?,status=\'scheduled\',topics=?,priority=?,commercial=?,reason=?,ai_state=\'done\' WHERE id=?',(date_start,date_end,loc,district,json.dumps(topics or ['其他'],ensure_ascii=False),priority,commercial,reason,eid))
-                    else:c.execute('UPDATE events SET ai_state=\'review\' WHERE id=?',(eid,))
+                    else:c.execute('UPDATE events SET ai_state=?,status=? WHERE id=?',('done' if result.get('is_shenzhen_offline') is False else 'review','not_event' if result.get('is_shenzhen_offline') is False else 'needs_review',eid))
                 c.execute('UPDATE raw_items SET analysis_state=\'done\',analysis_version=?,ai_result=? WHERE id=? AND content_hash=?',(VERSION,json.dumps(result,ensure_ascii=False),r['id'],r['content_hash']))
             processed+=1
         time.sleep(1)
-    log('analysis','ok',{'processed':processed,'examined':len(rows)})
+    log('analysis','partial' if failed else 'ok',{'processed':processed,'examined':len(rows)})
 
 def retention():
     cutoff=(now()-timedelta(days=45)).isoformat()
     with db() as c:
         c.execute("DELETE FROM events WHERE COALESCE(end_at,start_at)<? AND id NOT IN (SELECT event_id FROM preferences WHERE favorite=1)",(cutoff,))
         c.execute('DELETE FROM raw_items WHERE collected_at<? AND id NOT IN (SELECT raw_id FROM event_sources)',(cutoff,))
+        c.execute("UPDATE raw_items SET analysis_state='archived' WHERE analysis_state='pending' AND id NOT IN (SELECT raw_id FROM event_sources)")
         c.execute('DELETE FROM runs WHERE id NOT IN (SELECT id FROM runs ORDER BY id DESC LIMIT 400)');c.execute('DELETE FROM candidates WHERE last_seen<?',(cutoff,))
     for p in (ROOT/'logs').glob('*.log'):
         if p.stat().st_size>2*1024*1024:

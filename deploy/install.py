@@ -23,6 +23,8 @@ def backup(path):
 def services():
     for p in ['data','logs','.private']:
         (ROOT/p).mkdir(exist_ok=True);os.chown(ROOT/p,1000,1001)
+    for job in ['collect','analyze']:
+        logfile=ROOT/'logs'/(job+'.log');logfile.touch(exist_ok=True);os.chown(logfile,1000,1001);os.chmod(logfile,0o600)
     common=f'''User=ubuntu
 Group=ubuntu
 WorkingDirectory={ROOT}
@@ -58,7 +60,7 @@ Description=Shenzhen Radar {job} (bounded independent worker)
 After=network-online.target shenzhen-events.service
 [Service]
 Type=oneshot
-{common}{environment}ExecStart={ROOT}/.venv/bin/python -m radar.worker {job} --limit 36
+{common}{environment}ExecStart={ROOT}/.venv/bin/python -m radar.worker {job} --limit 120
 TimeoutStartSec=8min
 StandardOutput=append:{ROOT}/logs/{job}.log
 StandardError=append:{ROOT}/logs/{job}.log

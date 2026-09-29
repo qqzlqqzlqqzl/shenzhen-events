@@ -94,10 +94,25 @@ def init():
         ''')
         for s in json.loads((ROOT/'sources.json').read_text()):c.execute('INSERT INTO source_health(id,name,url) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,url=excluded.url',(s['id'],s['name'],s.get('public_url',s['url'])))
 
+def dedupe_aliases():
+    p=ROOT/'dedupe_aliases.json'
+    if not p.exists():return []
+    try:return json.loads(p.read_text())
+    except (ValueError,OSError):return []
+
+def alias_for(e):
+    if not e.get('start_at'):return None
+    url=canon_url(e.get('url',''));day=e['start_at'][:10]
+    for a in dedupe_aliases():
+        if a.get('date')==day and url in {canon_url(x) for x in a.get('urls',[])}:return a
+    return None
+
 def is_duplicate(a,b):
     if not a.get('start_at') or not b.get('start_at') or a['start_at'][:10]!=b['start_at'][:10]:return False
-    an,bn=norm(a['title']),norm(b['title']);la,lb=norm(a.get('location','')),norm(b.get('location',''))
-    if min(len(la),len(lb))>5 and la not in lb and lb not in la and ratio(la,lb)<45:return False
+    year=a['start_at'][:4];an,bn=norm(a['title']).replace(year,''),norm(b['title']).replace(year,'');la,lb=norm(a.get('location','')),norm(b.get('location',''))
+    da=next((d for d in DISTRICTS if d in la),None);db_=next((d for d in DISTRICTS if d in lb),None)
+    if da and db_ and da!=db_:return False
+    if min(len(la),len(lb))>5 and la not in lb and lb not in la and ratio(la,lb)<80:return False
     if not a.get('all_day') and not b.get('all_day') and a['start_at'][11:16]!=b['start_at'][11:16]:return False
     return an==bn or (min(len(an),len(bn))>=10 and ratio(an,bn)>=93)
 
@@ -114,8 +129,13 @@ def ingest(source,e,body=None):
         link=c.execute('SELECT event_id FROM event_sources WHERE source_id=? AND url=?',(source['id'],e['url'])).fetchone()
         if link:eid=link['event_id']
         else:
-            eid=None
-            if e['start_at']:
+            eid=None;alias=alias_for(e)
+            if alias:
+                urls=[canon_url(x) for x in alias.get('urls',[]) if canon_url(x)]
+                if urls:
+                    qs=','.join('?' for _ in urls);row=c.execute(f'SELECT event_id FROM event_sources WHERE url IN ({qs}) LIMIT 1',urls).fetchone()
+                    eid=row['event_id'] if row else hashlib.sha256(('alias|'+alias['id']).encode()).hexdigest()[:20]
+            if not eid and e['start_at']:
                 for row in c.execute('SELECT * FROM events WHERE substr(start_at,1,10)=?',(e['start_at'][:10],)):
                     if is_duplicate(e,dict(row)):eid=row['id'];break
             eid=eid or hashlib.sha256((source['id']+'|'+e['url']).encode()).hexdigest()[:20]
@@ -156,4 +176,5 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         if recommended and (e['priority'] not in ('high','medium') or e['commercial']=='high'):continue
         if favorites and not e['favorite']:continue
         e['stale']=(current-datetime.fromisoformat(e['last_seen'])).days>=7;out.append(e)
+    if recommended:out.sort(key=lambda e:(e['start_at']<current.isoformat(),0 if e['priority']=='high' else 1,e['start_at'],e['id']))
     return out
