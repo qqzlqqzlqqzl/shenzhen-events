@@ -1,0 +1,72 @@
+{
+  "checks": {
+    "public_filter_reload": true,
+    "public_deep_link_and_escape": true,
+    "public_calendar_range_loaded": true,
+    "public_source_status_loaded": true,
+    "no_empty_partial_counted_normal": true,
+    "public_expiry_clears_dialog": true,
+    "exactly_50_duplicate_raw_rows_removed": true,
+    "favorite_count_preserved": true
+  },
+  "page_errors": [],
+  "tested_commit": "abf9acfe47a0525830b869bc6489d37f7ca8d1bc",
+  "stats": {
+    "upcoming": 62,
+    "recommended": 12,
+    "weekend": 39,
+    "sources": 9,
+    "working_sources": 8,
+    "normal_sources": 6,
+    "partial_sources": 3,
+    "raw": 149,
+    "pending": 0,
+    "last_updated": "2026-09-29T22:28:41+08:00",
+    "categories": [
+      "机器人",
+      "硬件创客",
+      "AI与开源",
+      "产品与创业",
+      "汽车",
+      "展览文化",
+      "户外生活"
+    ],
+    "districts": [
+      "南山",
+      "福田",
+      "宝安",
+      "龙岗",
+      "龙华",
+      "罗湖",
+      "盐田",
+      "光明",
+      "坪山",
+      "大鹏",
+      "深汕"
+    ],
+    "timezone": "Asia/Shanghai"
+  },
+  "before_repair": {
+    "raw": 199,
+    "events": 185,
+    "favorites": 0,
+    "pending": 0
+  },
+  "after_repair": {
+    "raw": 149,
+    "events": 137,
+    "favorites": 0,
+    "pending": 0
+  },
+  "services": [
+    "active",
+    "active",
+    "active"
+  ],
+  "web_memory_bytes": 45510656,
+  "original_application_processes": [
+    "2247458 Sun Sep 27 17:06:54 2026 MainThread",
+    "2267215 Sun Sep 27 18:16:49 2026 new-api",
+    "2945287 Tue Sep 29 16:53:37 2026 python"
+  ]
+}

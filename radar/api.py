@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResp
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
-from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, DISTRICTS
+from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, DISTRICTS, iso
 from .calendar import make_calendar
 COOKIE='sz_events_session'
 AUTH_URL='http://127.0.0.1:8091/v1/me'
@@ -95,17 +95,24 @@ def logout(request:Request):
 @app.get('/events/api/session')
 def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
-def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',free:bool=False,recommended:bool=False,favorites:bool=False,offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500)):
+def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',free:bool=False,recommended:bool=False,favorites:bool=False,offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
     require(request)
-    if period not in ('upcoming','week','weekend','review','past'):raise HTTPException(400,'无效日期筛选')
-    rows=events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites)
+    if period not in ('upcoming','week','weekend','review','past','saved','calendar'):raise HTTPException(400,'无效日期筛选')
+    begin,finish=None,None
+    if period=='calendar':
+        begin,finish=iso(start),iso(end)
+        if not begin or not finish:raise HTTPException(400,'日历起止日期无效')
+        span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
+        if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'日历范围需在93天内')
+    if period=='saved':favorites=True
+    rows=events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish)
     return {'items':rows[offset:offset+limit],'total':len(rows),'offset':offset,'has_more':len(rows)>offset+limit}
 @app.get('/events/api/stats')
 def stats(request:Request):
     require(request);up=events();rec=[e for e in up if e['priority'] in ('high','medium') and e['commercial']!='high']
     with db() as c:
         health=[dict(x) for x in c.execute('SELECT * FROM source_health')];raw=c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0];pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0]
-    return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend')),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') for s in health),'raw':raw,'pending':pending,'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(CATEGORIES),'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
+    return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend')),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(CATEGORIES),'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
 @app.get('/events/api/status')
 def status(request:Request):
     require(request);cfg=config()
@@ -123,16 +130,24 @@ def preference(event_id:str,body:Preference,request:Request):
         c.execute('INSERT OR IGNORE INTO preferences(event_id) VALUES(?)',(event_id,))
         if body.favorite is not None:c.execute('UPDATE preferences SET favorite=? WHERE event_id=?',(int(body.favorite),event_id))
         if body.hidden is not None:c.execute('UPDATE preferences SET hidden=? WHERE event_id=?',(int(body.hidden),event_id))
-    return {'ok':True}
+        state=dict(c.execute('SELECT favorite,hidden FROM preferences WHERE event_id=?',(event_id,)).fetchone())
+    return {'ok':True,'favorite':bool(state['favorite']),'hidden':bool(state['hidden'])}
 @app.get('/events/calendar.ics')
 def calendar(request:Request,token:str='',favorites:bool=False,recommended:bool=False):
     if not read_session(request.cookies.get(COOKIE,'')) and not hmac.compare_digest(token,config().get('feed_token','__invalid__')):raise HTTPException(401,'日历订阅需要私人链接')
     return Response(make_calendar(events(favorites=favorites,recommended=recommended)),media_type='text/calendar; charset=utf-8',headers={'Content-Disposition':'attachment; filename="shenzhen-events.ics"'})
 @app.get('/events/api/event/{event_id}.ics')
 def one_event(event_id:str,request:Request):
-    require(request);rows=[e for e in events() if e['id']==event_id]
-    if not rows:raise HTTPException(404,'活动不存在或已经结束')
+    require(request);rows=events(period='record',event_id=event_id,include_hidden=True)
+    if not rows:raise HTTPException(404,'活动不存在')
+    if not rows[0]['start_at'] or rows[0]['status']!='scheduled':raise HTTPException(409,'此活动没有可导出的已确认日程')
     return Response(make_calendar(rows),media_type='text/calendar; charset=utf-8',headers={'Content-Disposition':'attachment; filename="event.ics"'})
+@app.get('/events/api/event/{event_id}')
+def event_detail(event_id:str,request:Request):
+    require(request)
+    rows=events(period='record',event_id=event_id,include_hidden=True)
+    if not rows:raise HTTPException(404,'活动已不存在或已清理')
+    return rows[0]
 @app.get('/events')
 def redirect():return RedirectResponse('/events/',status_code=308)
 @app.get('/events/')

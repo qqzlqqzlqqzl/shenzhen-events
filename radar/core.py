@@ -7,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from rapidfuzz.fuzz import ratio
+from . import source_identity
 ROOT = Path(os.getenv('RADAR_ROOT', Path(__file__).resolve().parents[1]))
 TZ = ZoneInfo('Asia/Shanghai')
 CATEGORIES = {'机器人': ['机器人','机械臂','ros2','robot','具身'], '硬件创客':['创客','maker','硬件','嵌入式','esp32','3d打印','3d 打印','电机','芯片'], 'AI与开源':['ai','人工智能','开源','开发者','linux','rust','python','黑客松','hackathon','gosim','agent','云计算'], '产品与创业':['创业','产品','出海','电商','增长','一人公司'], '汽车':['汽车','赛车','车展'], '展览文化':['展览','艺术','博物馆','市集','音乐','文化','灯光','展馆'], '户外生活':['公园','徒步','户外','运动','马拉松','游园','亲子']}
@@ -85,6 +86,7 @@ def init():
         CREATE TABLE IF NOT EXISTS raw_items(id INTEGER PRIMARY KEY,source_id TEXT NOT NULL,url TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,content_hash TEXT NOT NULL,payload TEXT NOT NULL,collected_at TEXT NOT NULL,analysis_state TEXT NOT NULL DEFAULT 'pending',analysis_version TEXT,ai_result TEXT,UNIQUE(source_id,url));
         CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,title TEXT,title_norm TEXT,start_at TEXT,end_at TEXT,all_day INTEGER,location TEXT,district TEXT,organizer TEXT,summary TEXT,topics TEXT,priority TEXT,reason TEXT,commercial TEXT,cost_text TEXT,cost_free INTEGER,url TEXT,status TEXT,origin_priority INTEGER DEFAULT 50,first_seen TEXT,last_seen TEXT,ai_state TEXT DEFAULT 'pending');
         CREATE INDEX IF NOT EXISTS idx_events_time ON events(start_at);
+        CREATE INDEX IF NOT EXISTS idx_raw_source_title ON raw_items(source_id,title);
         CREATE TABLE IF NOT EXISTS event_sources(event_id TEXT REFERENCES events(id) ON DELETE CASCADE,source_id TEXT,url TEXT,raw_id INTEGER,seen_at TEXT,PRIMARY KEY(source_id,url));
         CREATE TABLE IF NOT EXISTS preferences(event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,favorite INTEGER DEFAULT 0,hidden INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS source_health(id TEXT PRIMARY KEY,name TEXT,url TEXT,status TEXT DEFAULT 'pending',message TEXT DEFAULT '',last_attempt TEXT,last_success TEXT,raw_count INTEGER DEFAULT 0,event_count INTEGER DEFAULT 0,failure_count INTEGER DEFAULT 0,next_attempt TEXT);
@@ -140,11 +142,12 @@ def ingest(source,e,body=None):
     e=normalize_event(e)
     if not e:return False
     body=clean(body or e['summary'])[:14000];payload=json.dumps(e,ensure_ascii=False,sort_keys=True)
-    h=hashlib.sha256((payload+'\n'+body).encode()).hexdigest();ts=stamp()
+    h=source_identity.content_hash(source,e,body);ts=stamp()
     with db() as c:
-        old=c.execute('SELECT * FROM raw_items WHERE source_id=? AND url=?',(source['id'],e['url'])).fetchone();changed=not old or old['content_hash']!=h
+        old=source_identity.find_existing(c,source,e,body);changed=not old or source_identity.content_hash(source,json.loads(old['payload']),old['body'])!=h
+        if old:source_identity.refresh_url(c,old,e['url'])
         if old:
-            c.execute('UPDATE raw_items SET title=?,body=?,payload=?,collected_at=?,content_hash=?,analysis_state=CASE WHEN content_hash!=? THEN \'pending\' ELSE analysis_state END WHERE id=?',(e['title'],body,payload,ts,h,h,old['id']));rid=old['id']
+            c.execute('UPDATE raw_items SET title=?,body=?,payload=?,collected_at=?,content_hash=?,analysis_state=CASE WHEN ? THEN \'pending\' ELSE analysis_state END WHERE id=?',(e['title'],body,payload,ts,h,int(changed),old['id']));rid=old['id']
         else:rid=c.execute('INSERT INTO raw_items(source_id,url,title,body,content_hash,payload,collected_at) VALUES(?,?,?,?,?,?,?)',(source['id'],e['url'],e['title'],body,h,payload,ts)).lastrowid
         link=c.execute('SELECT event_id FROM event_sources WHERE source_id=? AND url=?',(source['id'],e['url'])).fetchone()
         if link:eid=link['event_id']
@@ -167,7 +170,7 @@ def ingest(source,e,body=None):
         c.execute('INSERT INTO event_sources VALUES(?,?,?,?,?) ON CONFLICT(source_id,url) DO UPDATE SET event_id=excluded.event_id,raw_id=excluded.raw_id,seen_at=excluded.seen_at',(eid,source['id'],e['url'],rid,ts))
     return changed
 
-def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False):
+def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None):
     current=now();day=current.date();from_dt=current;to_dt=None
     if period=='week':to_dt=datetime.combine(day+timedelta(days=7-day.weekday()),datetime.min.time(),TZ)
     if period=='weekend':
@@ -178,9 +181,16 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         for r in c.execute('SELECT es.event_id,es.url,sh.name,es.source_id FROM event_sources es JOIN source_health sh ON sh.id=es.source_id'):links.setdefault(r['event_id'],[]).append(dict(r))
     out=[]
     for e in rows:
+        if event_id and e['id']!=event_id:continue
         if not include_hidden and e['hidden']:continue
         if period=='review':
             if e['status']!='needs_review':continue
+        elif period in ('saved','record'):
+            pass
+        elif period=='calendar':
+            if not e['start_at'] or e['status']!='scheduled':continue
+            end=e['end_at'] or iso(datetime.fromisoformat(e['start_at'])+timedelta(seconds=1))
+            if end<=range_start or e['start_at']>=range_end:continue
         elif period=='past':
             if not e['start_at'] or (e['end_at'] or e['start_at'])>=current.isoformat():continue
         else:

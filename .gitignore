@@ -10,3 +10,6 @@ __pycache__/
 *.pem
 *.key
 artifacts/private*
+
+# A review worktree may reuse the installed virtual environment via a symlink.
+.venv

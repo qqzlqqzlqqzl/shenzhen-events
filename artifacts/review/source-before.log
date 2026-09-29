@@ -1,0 +1,23 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+__________ test_transient_sogou_link_does_not_duplicate_or_reanalyze ___________
+
+    def test_transient_sogou_link_does_not_duplicate_or_reanalyze():
+        s={'id':'sogou-discovery','priority':30};e=ev(url='https://weixin.sogou.com/link?url=A&token=one',published_at='2026-09-29',organizer='测试主办方')
+        assert core.ingest(s,e)
+        with core.db() as c:c.execute("UPDATE raw_items SET analysis_state='done'")
+>       assert not core.ingest(s,{**e,'url':'https://weixin.sogou.com/link?url=B&token=two'})
+E       AssertionError: assert not True
+E        +  where True = <function ingest at 0x7792e65d9260>({'id': 'sogou-discovery', 'priority': 30}, {'title': '深圳开源机器人机械臂实践工作坊', 'url': 'https://weixin.sogou.com/link?url=B&token=two', 'start_at': '2026-10-06T23:00:11.693283+08:00', 'end_at': '2026-10-07T02:00:11.693283+08:00', ...})
+E        +    where <function ingest at 0x7792e65d9260> = core.ingest
+
+tests/test_radar.py:213: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /home/ubuntu/shenzhen-events-review/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_radar.py::test_transient_sogou_link_does_not_duplicate_or_reanalyze
+1 failed, 1 passed, 38 deselected, 1 warning in 1.01s

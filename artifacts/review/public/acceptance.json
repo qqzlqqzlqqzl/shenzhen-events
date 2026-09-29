@@ -1,0 +1,71 @@
+{
+  "checks": {
+    "http_ok": true,
+    "private_login_visible": true,
+    "unauthenticated_api_denied": true,
+    "desktop_cards": 12,
+    "desktop_no_overflow": true,
+    "favorite_persists": true,
+    "detail_source_links": true,
+    "search_empty_state": true,
+    "free_filter": true,
+    "weekend_cards": 36,
+    "fullcalendar_loaded": true,
+    "source_cards": 9,
+    "mobile_no_overflow": true,
+    "mobile_calendar_list": true,
+    "portal_links": {
+      "/inbox/": 1,
+      "/newapi": 1,
+      "/blog": 1,
+      "/events/": 1
+    }
+  },
+  "console_errors": [],
+  "page_errors": [],
+  "tested_base": "https://106.53.40.6",
+  "loopback_tls_verification_skipped": false,
+  "load_seconds": 0.85,
+  "baseline_routes": {
+    "/": 200,
+    "/inbox/": 200,
+    "/newapi": 302,
+    "/blog": 302,
+    "/events/": 200
+  },
+  "stats": {
+    "upcoming": 62,
+    "recommended": 12,
+    "weekend": 39,
+    "sources": 9,
+    "working_sources": 8,
+    "normal_sources": 6,
+    "partial_sources": 3,
+    "raw": 149,
+    "pending": 0,
+    "last_updated": "2026-09-29T22:28:41+08:00",
+    "categories": [
+      "机器人",
+      "硬件创客",
+      "AI与开源",
+      "产品与创业",
+      "汽车",
+      "展览文化",
+      "户外生活"
+    ],
+    "districts": [
+      "南山",
+      "福田",
+      "宝安",
+      "龙岗",
+      "龙华",
+      "罗湖",
+      "盐田",
+      "光明",
+      "坪山",
+      "大鹏",
+      "深汕"
+    ],
+    "timezone": "Asia/Shanghai"
+  }
+}

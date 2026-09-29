@@ -152,3 +152,91 @@ def test_sogou_discovers_current_account_markup(monkeypatch):
     with core.db() as c:
         row=c.execute('select name,hits from candidates where name=?',('深圳创客社区',)).fetchone()
         assert row['hits']==2
+
+# Regression cases from interaction review, issues #3/#4/#5.
+def test_saved_past_and_cancelled_remain_visible():
+    core.ingest(source(),ev(start_at='2026-01-01',end_at='2026-01-02'))
+    core.ingest(source(),ev(url='https://example.com/cancel',status='cancelled'))
+    with core.db() as c:
+        for r in c.execute('SELECT id FROM events').fetchall():
+            c.execute('INSERT INTO preferences(event_id,favorite) VALUES(?,1)',(r['id'],))
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client)
+        r=client.get('/events/api/events?period=saved&favorites=true')
+        assert r.status_code==200 and r.json()['total']==2
+
+def test_calendar_range_includes_past_excludes_end_boundary():
+    core.ingest(source(),ev(start_at='2026-01-09T23:00:00+08:00',end_at='2026-01-10T01:00:00+08:00'))
+    core.ingest(source(),ev(url='https://example.com/out',start_at='2026-01-11',end_at='2026-01-12'))
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client)
+        r=client.get('/events/api/events',params={'period':'calendar','start':'2026-01-10','end':'2026-01-11'})
+        assert r.status_code==200 and r.json()['total']==1
+        for a,b in [('invalid','2026-01-02'),('2026-02-01','2026-01-01'),('2026-01-01','2028-01-01')]:
+            assert client.get('/events/api/events',params={'period':'calendar','start':a,'end':b}).status_code==400
+
+def test_preference_response_is_authoritative():
+    core.ingest(source(),ev());eid=core.events()[0]['id']
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client);r=client.post('/events/api/preferences/'+eid,headers={'X-Radar-Request':'1'},json={'favorite':True})
+        assert r.json()['favorite'] is True and r.json()['hidden'] is False
+
+def test_detail_endpoint_can_open_past_record():
+    core.ingest(source(),ev(start_at='2026-01-01',end_at='2026-01-02'))
+    with core.db() as c:eid=c.execute('SELECT id FROM events').fetchone()['id']
+    with TestClient(api.app,base_url='https://testserver') as client:
+        assert client.get('/events/api/event/'+eid).status_code==401
+        auth(client);r=client.get('/events/api/event/'+eid)
+        assert r.status_code==200 and r.json()['id']==eid
+        assert client.get('/events/api/event/not-existing').status_code==404
+        assert client.get('/events/api/event/'+eid+'.ics').status_code==200
+
+def test_health_count_does_not_claim_empty_partial_is_working():
+    with core.db() as c:
+        c.execute("UPDATE source_health SET status='ok',raw_count=3 WHERE id='a'")
+        c.execute("UPDATE source_health SET status='partial',raw_count=0 WHERE id='b'")
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client);s=client.get('/events/api/stats').json()
+        assert s['working_sources']==1 and s['partial_sources']==1
+
+def test_cross_midnight_ics_never_invents_event_duration():
+    core.ingest(source(),ev(start_at='2027-01-09T23:00:00+08:00',end_at='2027-01-10T01:00:00+08:00'))
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client);eid=core.events()[0]['id'];r=client.get('/events/api/event/'+eid+'.ics')
+        parsed=Calendar.from_ical(r.content).walk('VEVENT')[0]
+        assert parsed.decoded('dtend')-parsed.decoded('dtstart')==timedelta(hours=2)
+
+def test_transient_sogou_link_does_not_duplicate_or_reanalyze():
+    s={'id':'sogou-discovery','priority':30};e=ev(url='https://weixin.sogou.com/link?url=A&token=one',published_at='2026-09-29',organizer='测试主办方')
+    assert core.ingest(s,e)
+    with core.db() as c:c.execute("UPDATE raw_items SET analysis_state='done'")
+    assert not core.ingest(s,{**e,'url':'https://weixin.sogou.com/link?url=B&token=two'})
+    with core.db() as c:
+        assert c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0]==1
+        assert c.execute('SELECT COUNT(*) FROM events').fetchone()[0]==1
+        assert c.execute('SELECT analysis_state FROM raw_items').fetchone()[0]=='done'
+        assert 'token=two' in c.execute('SELECT url FROM event_sources').fetchone()[0]
+
+def test_distinct_explicit_publication_dates_are_not_collapsed():
+    s={'id':'sogou-discovery','priority':30};e=ev(start_at=None,end_at=None,url='https://weixin.sogou.com/link?url=A',published_at='2026-09-29')
+    core.ingest(s,e);core.ingest(s,{**e,'url':'https://weixin.sogou.com/link?url=B','published_at':'2026-09-30'})
+    with core.db() as c:assert c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0]==2
+
+def test_search_duplicate_repair_is_conservative_idempotent_and_preserves_favorite(monkeypatch):
+    from radar import source_identity,repair_sources
+    source_data={'id':'sogou-discovery','priority':30}
+    e=ev(start_at=None,end_at=None,url='https://weixin.sogou.com/link?url=A',published_at='2026-09-29')
+    with monkeypatch.context() as m:
+        m.setattr(source_identity,'is_search',lambda *args:False)
+        core.ingest(source_data,e);core.ingest(source_data,{**e,'url':'https://weixin.sogou.com/link?url=B'})
+    with core.db() as c:
+        ids=[r['id'] for r in c.execute('SELECT id FROM events')]
+        assert len(ids)==2
+        c.execute('INSERT INTO preferences(event_id,favorite,hidden) VALUES(?,1,1)',(ids[-1],))
+    assert repair_sources.repair()['duplicate_raw_rows']==1
+    assert repair_sources.repair(True)['duplicate_raw_rows']==1
+    assert repair_sources.repair()['duplicate_raw_rows']==0
+    with core.db() as c:
+        assert c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0]==1
+        assert c.execute('SELECT COUNT(*) FROM event_sources').fetchone()[0]==1
+        assert tuple(c.execute('SELECT favorite,hidden FROM preferences').fetchone())==(1,1)
