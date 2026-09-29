@@ -1,27 +1,156 @@
 'use strict';
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let view='discover',offset=0,total=0,sequence=0,calendar=null,controller=null;const records=new Map();
-const views={discover:['为你发现','优先看创客、硬件、AI实践与开源；其他兴趣也保留在全部活动中。'],week:['这一周，去见见新想法','按举办时间整理，本周内仍可参加的线下活动。'],weekend:['把周末留给有趣的事','本周六、周日举办或仍在进行的活动。'],all:['深圳，还有这些活动','保留不同兴趣，不只看技术圈。'],favorites:['我的收藏','先把感兴趣的收好；收藏会同步保存在服务器。'],calendar:['把好奇心，放进日程','月历按照北京时间显示；点击活动查看详情。'],status:['来源与状态','看得见采集情况，也看得见暂时没有拿到的信息。'],review:['待确认的活动线索','缺少可核实时间或地点的内容，不进入近期活动与日历。'],past:['过往活动','历史记录不代表当前还能报名。']};
-async function api(path,options={}){const r=await fetch('/events/api/'+path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json','X-Radar-Request':'1',...(options.headers||{})}});if(r.status===401&&path!=='login'){showLogin();throw new Error('登录已过期，请重新登录。')}const data=await r.json();if(!r.ok)throw new Error(typeof data.detail==='string'?data.detail:'请求失败，请稍后重试。');return data}
-function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>$('#toast').hidden=true,3200)}
-function showLogin(){$('#workspace').hidden=true;$('#login-panel').hidden=false;$('#logout').hidden=true}
-async function enter(){$('#login-panel').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;await stats();await load()}
-function timeText(value,withTime=true){if(!value)return '未更新';const d=new Date(value);return new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',...(withTime?{hour:'2-digit',minute:'2-digit',hour12:false}:{})}).format(d)}
-function dateParts(e){if(!e.start_at)return {day:'?',sub:'时间\n待确认'};const d=new Date(e.start_at);const day=new Intl.DateTimeFormat('en',{timeZone:'Asia/Shanghai',day:'2-digit'}).format(d);const month=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'short'}).format(d);const week=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',weekday:'short'}).format(d);return {day,sub:month+' · '+week+'\n'+(e.all_day?'当天时段以原文为准':new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hour12:false}).format(d))}}
-function fullTime(e){if(!e.start_at)return '举办时间尚待核实';let end=e.end_at?new Date(e.end_at):null;if(e.all_day&&end)end=new Date(end.getTime()-86400000);const start=timeText(e.start_at,!e.all_day);return start+(end&&end.toISOString().slice(0,10)!==new Date(e.start_at).toISOString().slice(0,10)?' — '+timeText(end,!e.all_day):(!e.all_day&&e.end_at?' — '+new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(e.end_at)):''))+(e.all_day?' · 具体时段见原文':'')}
-async function stats(){try{const s=await api('stats');$('#count-recommended').textContent=s.recommended;$('#count-upcoming').textContent=s.upcoming;$('#count-weekend').textContent=s.weekend;$('#update-note').textContent=`${s.working_sources}/${s.sources} 个来源有返回 · ${s.last_updated?timeText(s.last_updated)+' 更新':'尚未采集'}`;if($('#category').options.length===1){for(const v of s.categories)$('#category').add(new Option(v,v));for(const v of s.districts)$('#district').add(new Option(v+'区',v));$('#district').add(new Option('地区待确认','待确认'))}}catch(e){$('#update-note').textContent=e.message}}
-function query(){const p=new URLSearchParams({q:$('#search').value.trim(),district:$('#district').value,tag:$('#category').value,free:$('#free').checked,offset,limit:view==='calendar'?500:36});p.set('period',['week','weekend','review','past'].includes(view)?view:'upcoming');if(view==='discover')p.set('recommended','true');if(view==='favorites')p.set('favorites','true');return p}
-function card(e){const d=dateParts(e),tags=e.topics||[];const ongoing=e.start_at&&new Date(e.start_at)<new Date();return `<article class="event-card" data-event="${esc(e.id)}"><div class="card-top"><div class="date-chip"><b>${esc(d.day)}</b><span>${esc(d.sub)}</span></div><button class="bookmark ${e.favorite?'saved':''}" data-save="${esc(e.id)}" aria-label="${e.favorite?'取消收藏':'收藏活动'}" aria-pressed="${!!e.favorite}">${e.favorite?'★':'☆'}</button></div><div class="card-divider"></div><div class="card-main"><div class="card-tags">${tags.slice(0,2).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}${ongoing?'<span class="tag secondary-tag">进行中 · 排期见原文</span>':''}${e.cost_free?'<span class="tag secondary-tag">免费</span>':''}${e.status==='needs_review'?'<span class="tag warn">待确认</span>':''}${e.stale?'<span class="tag warn">信息可能已变化</span>':''}</div><h3><button class="title-button" data-open="${esc(e.id)}">${esc(e.title)}</button></h3><p class="card-summary">${esc(e.summary||e.reason||'详情请查看活动原始发布页。')}</p><div class="event-meta"><span class="meta-icon">⌖</span><span>${esc(e.location||'地点待确认')}</span></div><div class="event-meta"><span class="meta-icon">◇</span><span>${esc(e.cost_text||'费用未注明')}${e.organizer?' · '+esc(e.organizer):''}</span></div></div><div class="card-footer"><span class="source-label">${esc(e.sources?.[0]?.name||'公开活动来源')}${e.sources?.length>1?' +'+(e.sources.length-1)+' 个来源':''}</span><button class="quiet card-cta" data-open="${esc(e.id)}">看看详情 <span>↗</span></button></div></article>`}
-async function load(append=false){const seq=++sequence;if(controller)controller.abort();controller=new AbortController();if(!append){offset=0;records.clear()}$('#notice').hidden=true;$('#more').hidden=true;$('#status-panel').hidden=view!=='status';$('#calendar-panel').hidden=view!=='calendar';$('#event-list').hidden=['status','calendar'].includes(view);$('#filter-panel').hidden=view==='status';$('#view-title').textContent=views[view][0];$('#view-subtitle').textContent=views[view][1];$('#result-count').textContent='';$$('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));if(view==='status'){await loadStatus();return}if(!append&&view!=='calendar')$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('');try{const p=query();if(append)p.set('offset',offset);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence)return;total=res.total;for(const e of res.items)records.set(e.id,e);$('#result-count').textContent=`${total} 个活动`;if(view==='calendar'){renderCalendar([...records.values()]);return}if(!res.items.length&&!append){$('#event-list').innerHTML=`<div class="empty"><b>${view==='favorites'?'还没有收藏活动':'这组条件下暂时没有活动'}</b>${view==='favorites'?'点活动卡片右上角的星号，慢慢攒下想去的地方。':'不拿过期活动凑数。可以换个条件，或去全部活动看看。'}<br><button class="secondary" data-action="browse-all">查看全部活动 →</button></div>`}else{if(!append)$('#event-list').innerHTML='';$('#event-list').insertAdjacentHTML('beforeend',res.items.map(card).join(''))}offset+=res.items.length;$('#more').hidden=!res.has_more}catch(e){if(e.name==='AbortError')return;$('#notice').hidden=false;$('#notice').textContent=e.message;if(!append)$('#event-list').innerHTML=''}}
-function renderCalendar(items){const fcItems=items.map(e=>({id:e.id,title:e.title,start:e.all_day?e.start_at.slice(0,10):e.start_at.slice(0,19),end:e.end_at?(e.all_day?e.end_at.slice(0,10):e.end_at.slice(0,19)):undefined,allDay:!!e.all_day}));if(!window.FullCalendar){$('#calendar').innerHTML='<div class="notice">日历组件未能加载，活动列表仍可使用。</div>';return}if(calendar){calendar.removeAllEvents();calendar.addEventSource(fcItems);calendar.updateSize();return}calendar=new FullCalendar.Calendar($('#calendar'),{initialView:innerWidth<620?'listMonth':'dayGridMonth',locale:'zh-cn',timeZone:'UTC',firstDay:1,height:'auto',buttonText:{today:'今天',month:'月',week:'周',list:'列表'},headerToolbar:{left:'prev,next today',center:'title',right:'dayGridMonth,listMonth'},events:fcItems,eventClick:i=>{i.jsEvent.preventDefault();openDetail(i.event.id)},dayMaxEvents:3,noEventsContent:'这个月暂时没有活动。'});calendar.render()}
-function openDetail(id){const e=records.get(id);if(!e)return;$('#detail-body').innerHTML=`<div class="card-tags">${(e.topics||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><h2 class="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p><p><b>费用</b>${esc(e.cost_text)}</p>${e.organizer?`<p><b>主办</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}<div class="detail-actions"><a class="primary" href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">查看原文 / 报名 ↗</a>${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">加入日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;if(!$('#detail').open)$('#detail').showModal()}
-const states={ok:'正常采集',partial:'部分覆盖',empty:'暂无结果',error:'采集失败',blocked:'访问受限',pending:'等待采集'};
-async function loadStatus(){try{const s=await api('status');if(view!=='status')return;$('#status-panel').innerHTML=`<p class="status-intro">定时低频检查公开页面，失败自动退避，不绕过验证码。一个来源可访问，不等于它已经完整返回活动；公众号搜索结果也可能延迟。</p><div class="status-summary"><span>今日模型用量 <b>${Number(s.budget.tokens).toLocaleString()} / ${Number(s.limits.daily_tokens).toLocaleString()}</b> tokens</span><span>模型请求 <b>${s.budget.calls} / ${s.limits.daily_calls}</b></span><span>活动数据库 <b>${(s.db_bytes/1048576).toFixed(2)} MB</b></span><span>过往活动保留 <b>${s.retention_days} 天</b></span></div><div class="status-actions"><button id="copy-ics" class="secondary">复制我的收藏日历订阅链接</button><button class="secondary" data-change-view="review">查看待确认线索</button><button class="secondary" data-change-view="past">查看过往活动</button><button class="secondary" id="refresh-status">刷新状态</button></div><div class="source-grid">${s.sources.map(x=>`<article class="source-card"><header><h3><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.name)} ↗</a></h3><span class="status-label ${esc(x.status)}">${esc(states[x.status]||x.status)}</span></header><p>${esc(x.message||'首次采集尚未运行')}</p><small>最近检查 ${esc(timeText(x.last_attempt))} · 最近成功 ${esc(timeText(x.last_success))}<br>下次检查不早于 ${esc(timeText(x.next_attempt))}</small></article>`).join('')}</div><div class="section-heading"><div><h2>发现的公众号线索</h2><p>候选来源不等于已验证的长期订阅，先积累有用的活动证据。</p></div><span class="result-count">${s.candidates.length} 个候选</span></div>${s.candidates.length?`<div class="table-wrap"><table><thead><tr><th>公众号 / 发布者</th><th>发现关键词</th><th>命中</th></tr></thead><tbody>${s.candidates.map(c=>`<tr><td><a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.name)} ↗</a></td><td>${esc(c.query)}</td><td>${c.hits}</td></tr>`).join('')}</tbody></table></div>`:'<p class="status-intro">尚未发现可记录的候选公众号。</p>'}<div class="section-heading"><div><h2>最近运行记录</h2><p>只保留运行结果，不记录密码、模型密钥或原始请求。</p></div></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>任务</th><th>结果</th></tr></thead><tbody>${s.runs.map(r=>{let d={};try{d=JSON.parse(r.details)}catch{}return `<tr><td>${esc(timeText(r.finished_at))}</td><td>${esc(({source:'来源采集',collect:'采集汇总',analysis:'内容分析'})[r.kind]||r.kind)}</td><td>${esc(d.message||('状态 '+r.status+(d.processed!==undefined?' · 已处理 '+d.processed+' 条':'')))}</td></tr>`}).join('')}</tbody></table></div>`;$('#copy-ics').onclick=async()=>{const link=new URL(s.ics_url,location.origin).href;try{await navigator.clipboard.writeText(link);toast('已复制私人收藏日历链接，请勿公开分享。')}catch{prompt('私人收藏日历链接（请勿公开分享）',link)}};$('#refresh-status').onclick=()=>{loadStatus();stats()}}catch(e){$('#status-panel').innerHTML=`<div class="notice">${esc(e.message)}</div>`}}
-async function save(id){const e=records.get(id);if(!e)return;try{await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({favorite:!e.favorite})});e.favorite=e.favorite?0:1;toast(e.favorite?'已收藏，其他设备登录后也能看到。':'已取消收藏。');for(const b of $$('[data-save]'))if(b.dataset.save===id){if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-pressed',String(!!e.favorite));b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}if(view==='favorites'&&!e.favorite){if($('#detail').open)$('#detail').close();await load()}}catch(err){toast(err.message)}}
-$('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit');b.disabled=true;b.textContent='正在验证…';$('#login-error').textContent='';try{await api('login',{method:'POST',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});$('#password').value='';await enter()}catch(err){$('#login-error').textContent=err.message}finally{b.disabled=false;b.textContent='打开我的雷达 →'}};
-$('#logout').onclick=async()=>{try{await api('logout',{method:'POST'});showLogin()}catch(e){toast(e.message)}};
-document.addEventListener('click',e=>{const saveButton=e.target.closest('[data-save]');if(saveButton){save(saveButton.dataset.save);return}const open=e.target.closest('[data-open]');if(open){openDetail(open.dataset.open);return}const tab=e.target.closest('[data-view],[data-change-view]');if(tab){view=tab.dataset.view||tab.dataset.changeView;load();return}if(e.target.closest('[data-action="browse-all"]')){view='all';$('#search').value='';$('#district').value='';$('#category').value='';$('#free').checked=false;load()}});
-$('#close-detail').onclick=()=>$('#detail').close();$('#detail').addEventListener('click',e=>{if(e.target===$('#detail')){const r=$('#detail').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('#detail').close()}});
-let debounce;$('#search').oninput=()=>{clearTimeout(debounce);debounce=setTimeout(()=>load(),250)};for(const s of ['#district','#category','#free'])$(s).onchange=()=>load();$('#clear-filters').onclick=()=>{$('#search').value='';$('#district').value='';$('#category').value='';$('#free').checked=false;load()};$('#more').onclick=()=>load(true);
-(async()=>{try{await api('session');await enter()}catch{showLogin()}})();
+let view='discover',offset=0,total=0,sequence=0,calendar=null,controller=null;
+let authenticated=false,authEpoch=0,statusTicket=0,statsTicket=0,detailTicket=0,busy=false;
+let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=false,opener=null;
+const records=new Map(),inflight=new Set(),saving=new Set();
+async function api(path,options={}) {
+  const epoch=authEpoch,c=new AbortController(),abort=()=>c.abort();
+  if(options.signal?.aborted)c.abort();else options.signal?.addEventListener('abort',abort,{once:true});
+  inflight.add(c);let timedOut=false;
+  const timer=setTimeout(()=>{timedOut=true;c.abort()},20000);
+  try {
+    const r=await fetch('/events/api/'+path,{credentials:'same-origin',...options,signal:c.signal,headers:{'Content-Type':'application/json','X-Radar-Request':'1',...(options.headers||{})}});
+    if(epoch!==authEpoch)throw new DOMException('Stale session','AbortError');
+    if(r.status===401&&path!=='login'){showLogin('登录已过期，请重新登录。');throw new DOMException('Expired session','AbortError')}
+    let data;try{data=await r.json()}catch{throw new Error('服务器返回异常，请重试。')}
+    if(epoch!==authEpoch)throw new DOMException('Stale session','AbortError');
+    if(!r.ok)throw new Error(typeof data.detail==='string'?data.detail:'请求失败，请重试。');
+    return data;
+  } catch(e) {if(timedOut)throw new Error('请求超时，已有数据未更改，请重试。');throw e}
+  finally {clearTimeout(timer);inflight.delete(c);options.signal?.removeEventListener('abort',abort)}
+}
+function showLogin(message='') {
+  authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
+  clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
+  closeDetail(false);records.clear();saving.clear();calendar?.destroy();calendar=null;calendarRange=null;
+  for(const s of ['#event-list','#status-panel','#calendar','#detail-body'])$(s).replaceChildren();
+  $('#workspace').hidden=true;$('#login-panel').hidden=false;$('#logout').hidden=true;$('#toast').hidden=true;
+  $('#login-error').textContent=message;$('#password').value='';$('#username').focus();
+}
+async function stats() {
+  const epoch=authEpoch,ticket=++statsTicket;
+  try {const s=await api('stats');if(!authenticated||epoch!==authEpoch||ticket!==statsTicket)return;
+    $('#count-recommended').textContent=s.recommended;$('#count-upcoming').textContent=s.upcoming;$('#count-weekend').textContent=s.weekend;
+    $('#update-note').textContent=`${s.normal_sources??0} 个正常来源 · ${s.partial_sources??0} 个部分覆盖 · ${s.last_updated?timeText(s.last_updated)+' 更新':'尚未采集'}`;
+    if($('#category').options.length===1){for(const v of s.categories)$('#category').add(new Option(v,v));for(const v of s.districts)$('#district').add(new Option(v,v));$('#district').add(new Option('地区待确认','待确认'))}
+  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)$('#update-note').textContent=e.message}
+}
+function readURL() {
+  const p=new URLSearchParams(location.search);view=Object.hasOwn(views,p.get('view'))?p.get('view'):'discover';
+  $('#search').value=(p.get('q')||'').slice(0,160);$('#district').value=p.get('district')||'';$('#category').value=p.get('tag')||'';$('#free').checked=p.get('free')==='true';
+  const month=p.get('month')||'';calendarDate=/^\d{4}-\d{2}-\d{2}$/.test(month)&&Number.isFinite(Date.parse(month))?month:RadarUI.dayKey(new Date());
+}
+function urlParams() {
+  const p=new URLSearchParams();if(view!=='discover')p.set('view',view);
+  for(const [k,id] of [['q','search'],['district','district'],['tag','category']]){const v=$('#'+id).value.trim();if(v)p.set(k,v)}
+  if($('#free').checked)p.set('free','true');if(view==='calendar'&&calendarDate)p.set('month',calendarDate);return p;
+}
+function writeURL(mode='push',event=null) {
+  const p=urlParams();if(event)p.set('event',event);const u=location.pathname+(p.size?'?'+p:'');
+  if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);
+}
+function clearFilters(){clearTimeout(debounce);$('#search').value='';$('#district').value='';$('#category').value='';$('#free').checked=false}
+async function enter() {
+  authenticated=true;authEpoch++;$('#login-panel').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;
+  await stats();if(!authenticated)return;readURL();await load();const id=new URLSearchParams(location.search).get('event');if(id&&authenticated)await openDetail(id,false);
+}
+function query(period) {const p=urlParams();p.delete('view');p.delete('month');p.set('period',period||({favorites:'saved',calendar:'calendar',week:'week',weekend:'weekend',review:'review',past:'past'}[view]||'upcoming'));if(view==='discover')p.set('recommended','true');if(view==='favorites')p.set('favorites','true');return p}
+let failedAppend=false;
+function showError(error,append=false){failedAppend=append;$('#notice').hidden=false;$('#notice').replaceChildren();const t=document.createElement('span');t.textContent=error.message||'网络连接失败，请重试。';const b=document.createElement('button');b.className='secondary';b.dataset.action='retry';b.textContent='重试';$('#notice').append(t,b)}
+function showView(){
+  $('#notice').hidden=true;$('#more').hidden=true;$('#status-panel').hidden=view!=='status';$('#calendar-panel').hidden=view!=='calendar';$('#event-list').hidden=['status','calendar'].includes(view);$('#filter-panel').hidden=view==='status';
+  $('#view-title').textContent=views[view][0];$('#view-subtitle').textContent=views[view][1];
+  $$('.tabs button').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
+  $('#active-filters').textContent=[$('#search').value?'关键词：'+$('#search').value:'',$('#district').value,$('#category').value,$('#free').checked?'只看免费':''].filter(Boolean).join(' · ');
+}
+function emptyState(){const filtered=!!$('#active-filters').textContent;return `<div class="empty"><b>${filtered?'当前筛选条件下没有活动':view==='favorites'?'还没有收藏活动':'这里暂时没有活动'}</b><p>${filtered?'试试重置筛选；其他收藏或活动不会被删除。':view==='favorites'?'点击活动卡片的星号即可收藏，过期后仍会保留。':'可以查看其他日期，或去全部活动探索。'}</p><button class="secondary" data-action="${filtered?'reset':'browse-all'}">${filtered?'重置筛选':'查看全部活动 →'}</button></div>`}
+async function load(append=false){
+  if(!authenticated||(append&&busy))return;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;showView();
+  if(view!=='calendar'&&calendar){calendar.destroy();calendar=null;calendarRange=null}
+  if(view==='status'){busy=false;await loadStatus();return}
+  if(view==='calendar'){busy=false;renderCalendar();return}
+  $('#event-list').setAttribute('aria-busy','true');$('#more').disabled=true;$('#more').textContent='正在加载…';
+  if(!append){offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
+  try{const p=query();p.set('offset',offset);p.set('limit',36);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
+    total=res.total;if(!append)$('#event-list').replaceChildren();
+    const fresh=res.items.filter(e=>!records.has(e.id));for(const e of res.items)records.set(e.id,e);
+    if(!res.items.length&&!append)$('#event-list').innerHTML=emptyState();else $('#event-list').insertAdjacentHTML('beforeend',fresh.map(card).join(''));
+    offset+=res.items.length;$('#result-count').textContent=`${total} 个活动`;$('#more').hidden=!res.has_more;
+  }catch(e){if(e.name==='AbortError'||seq!==sequence||!authenticated)return;if(!append){$('#event-list').replaceChildren();$('#result-count').textContent='加载失败'}showError(e,append);if(append)$('#more').hidden=false}
+  finally{if(seq===sequence){busy=false;$('#event-list').setAttribute('aria-busy','false');$('#more').disabled=false;$('#more').textContent='再看看更多 ↓'}}
+}
+function renderCalendar(){
+  if(!window.FullCalendar){showError(new Error('日历组件未加载，请刷新页面；活动列表仍可使用。'));return}
+  if(calendar){if(RadarUI.dayKey(calendar.getDate())!==calendarDate)calendar.gotoDate(calendarDate);else if(calendarRange)loadCalendar(calendarRange);return}
+  calendar=new FullCalendar.Calendar($('#calendar'),{initialDate:calendarDate,initialView:innerWidth<620?'listMonth':'dayGridMonth',locale:'zh-cn',timeZone:'UTC',now:RadarUI.dayKey(new Date()),firstDay:1,height:'auto',buttonText:{today:'今天',month:'月',week:'周',list:'列表'},headerToolbar:{left:'prev,next today',center:'title',right:'dayGridMonth,listMonth'},dayMaxEvents:3,noEventsContent:'这个月暂无已确认活动。',
+    datesSet:info=>{calendarDate=calendar.getDate().toISOString().slice(0,10);writeURL('replace',detailId);loadCalendar(info)},eventClick:i=>{i.jsEvent.preventDefault();openDetail(i.event.id)}
+  });calendar.render();
+}
+async function loadCalendar(info){
+  if(!authenticated||view!=='calendar')return;calendarRange=info;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;
+  $('#notice').hidden=true;$('#calendar').setAttribute('aria-busy','true');$('#result-count').textContent='正在加载当前日期';calendar.removeAllEvents();records.clear();
+  try{let cursor=0;const data=[];
+    while(true){const p=query('calendar');p.set('start',info.startStr.slice(0,10));p.set('end',info.endStr.slice(0,10));p.set('offset',cursor);p.set('limit',500);
+      const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated||view!=='calendar')return;
+      data.push(...res.items);cursor+=res.items.length;if(!res.has_more)break;if(!res.items.length||cursor>=10000)throw new Error('该范围活动过多，请用地区或兴趣缩小筛选。');
+    }
+    for(const e of data)records.set(e.id,e);
+    calendar.addEventSource([...records.values()].map(e=>({id:e.id,title:e.title,start:e.all_day?e.start_at.slice(0,10):e.start_at.slice(0,19),end:e.end_at?(e.all_day?e.end_at.slice(0,10):e.end_at.slice(0,19)):undefined,allDay:!!e.all_day})));
+    $('#result-count').textContent=`当前日期范围 ${records.size} 个活动`;calendar.updateSize();
+  }catch(e){if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent='日历加载失败';showError(e)}}
+  finally{if(seq===sequence){busy=false;$('#calendar').setAttribute('aria-busy','false')}}
+}
+function renderDetail(e){
+  const state=RadarUI.lifecycle(e);const ended=state==='已结束'||e.status==='cancelled'||e.status==='not_event';
+  $('#detail-body').innerHTML=`<div class="card-tags">${(e.topics||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p><p><b>费用</b>${esc(e.cost_text||'费用未注明')}</p>${e.organizer?`<p><b>主办</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}<div class="detail-actions"><a class="primary" href="${esc(RadarUI.safeUrl(e.url))}" target="_blank" rel="noopener noreferrer">${ended?'查看历史原文':'查看原文 / 报名'} ↗</a>${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：<a href="${esc(RadarUI.safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
+}
+async function openDetail(id,push=true){
+  if(!authenticated)return;const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
+  try{const e=records.get(id)||await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
+    records.set(id,e);detailId=id;renderDetail(e);paintFavorite(id);if(push)writeURL('push',id);
+    if(!$('#detail').open)$('#detail').showModal();document.body.classList.add('modal-open');$('#close-detail').focus();
+  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch){toast(e.message);writeURL('replace');detailId=null}}
+}
+function closeDetail(updateHistory=true){
+  detailTicket++;const had=detailId;detailId=null;if($('#detail').open)$('#detail').close();document.body.classList.remove('modal-open');
+  if(updateHistory&&had){if(history.state?.radarModal)history.back();else writeURL('replace')}
+  if(authenticated&&opener?.isConnected)opener.focus();opener=null;
+}
+function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}}
+async function save(id){
+  const e=records.get(id);if(!e||saving.has(id)||!authenticated)return;const epoch=authEpoch,target=!e.favorite;saving.add(id);paintFavorite(id);
+  try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({favorite:target})});if(!authenticated||epoch!==authEpoch)return;
+    e.favorite=result.favorite;const current=records.get(id);if(current)current.favorite=result.favorite;
+    toast(result.favorite?'已收藏，其他设备登录后也能看到。':'已取消收藏。');
+    if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=`${total} 个活动`;if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
+  }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast(err.message)}finally{saving.delete(id);if(authenticated&&epoch===authEpoch)paintFavorite(id)}
+}
+function navigate(next,reset=false){clearTimeout(debounce);closeDetail(false);view=Object.hasOwn(views,next)?next:'discover';if(reset)clearFilters();writeURL();load()}
+function applyFilters(mode='push'){clearTimeout(debounce);closeDetail(false);writeURL(mode);load()}
+function restoreNavigation(){if(!authenticated)return;const before=urlParams().toString();closeDetail(false);readURL();const after=urlParams().toString();const id=new URLSearchParams(location.search).get('event');if(before!==after)load().then(()=>{if(id)openDetail(id,false)});else if(id)openDetail(id,false)}
+addEventListener('popstate',restoreNavigation);
+$('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit');if(b.disabled)return;b.disabled=true;b.textContent='正在验证…';$('#login-error').textContent='';try{await api('login',{method:'POST',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});$('#password').value='';await enter()}catch(err){if(err.name!=='AbortError')$('#login-error').textContent=err.message}finally{b.disabled=false;b.textContent='打开我的雷达 →'}};
+$('#logout').onclick=async()=>{const b=$('#logout');b.disabled=true;try{await api('logout',{method:'POST'});showLogin()}catch(e){if(e.name!=='AbortError')toast(e.message)}finally{b.disabled=false}};
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button,[data-open]');if(!b||b.disabled)return;
+  if(b.dataset.save){save(b.dataset.save);return}if(b.dataset.open){openDetail(b.dataset.open);return}
+  if(b.dataset.view||b.dataset.changeView){navigate(b.dataset.view||b.dataset.changeView);return}
+  const action=b.dataset.action;
+  if(action==='browse-all'){navigate('all',true);return}
+  if(action==='reset'){clearFilters();applyFilters();return}
+  if(action==='retry-status'){loadStatus();return}
+  if(action==='retry'){view==='calendar'&&calendarRange?loadCalendar(calendarRange):load(failedAppend)}
+});
+$('#close-detail').onclick=()=>closeDetail();$('#detail').addEventListener('cancel',e=>{e.preventDefault();closeDetail()});
+$('#detail').addEventListener('click',e=>{if(e.target===$('#detail')){const r=$('#detail').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDetail()}});
+$('#search').addEventListener('compositionstart',()=>{composing=true;clearTimeout(debounce)});
+$('#search').addEventListener('compositionend',()=>{composing=false;clearTimeout(debounce);debounce=setTimeout(()=>applyFilters(),250)});
+$('#search').oninput=e=>{clearTimeout(debounce);if(!composing&&!e.isComposing)debounce=setTimeout(()=>applyFilters(),250)};
+$('#search').onkeydown=e=>{if(e.key==='Enter'&&!composing&&!e.isComposing){e.preventDefault();applyFilters()}};
+for(const s of ['#district','#category','#free'])$(s).onchange=()=>applyFilters();
+$('#clear-filters').onclick=()=>{clearFilters();applyFilters()};$('#more').onclick=()=>load(true);
+$('#refresh-data').onclick=()=>{stats();load()};
+matchMedia('(max-width:619px)').addEventListener('change',e=>{if(calendar&&view==='calendar')calendar.changeView(e.matches?'listMonth':'dayGridMonth')});
+addEventListener('pageshow',e=>{if(e.persisted)(async()=>{try{await api('session');await enter()}catch{showLogin()}})()});
+addEventListener('pagehide',e=>{if(e.persisted)showLogin()});
+(async()=>{try{await api('session');await enter()}catch(e){if(!authenticated)showLogin()}})();

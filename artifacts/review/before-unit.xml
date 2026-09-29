@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="38" time="4.679" timestamp="2026-09-29T22:44:21.816646+08:00" hostname="VM-0-4-ubuntu"><testcase classname="tests.test_radar" name="test_shanghai_conversion" time="0.064" /><testcase classname="tests.test_radar" name="test_explicit_dates[2026.10.14-2026.10.16-expected0]" time="0.064" /><testcase classname="tests.test_radar" name="test_explicit_dates[2026\u5e7410\u670814\u65e5 \u2013 16\u65e5-expected1]" time="0.052" /><testcase classname="tests.test_radar" name="test_explicit_dates[2026/09/12-expected2]" time="0.048" /><testcase classname="tests.test_radar" name="test_dates_unknown_or_invalid[9\u670829\u65e5]" time="0.055" /><testcase classname="tests.test_radar" name="test_dates_unknown_or_invalid[\u6628\u5929]" time="0.054" /><testcase classname="tests.test_radar" name="test_dates_unknown_or_invalid[2026-02-31]" time="0.063" /><testcase classname="tests.test_radar" name="test_dates_unknown_or_invalid[\u6682\u65e0\u65f6\u95f4]" time="0.070" /><testcase classname="tests.test_radar" name="test_dates_unknown_or_invalid[2026\u5e7410\u670816\u65e5-2026\u5e7410\u670814\u65e5]" time="0.048" /><testcase classname="tests.test_radar" name="test_url_safety" time="0.060" /><testcase classname="tests.test_radar" name="test_cost_unknown_is_not_free" time="0.055" /><testcase classname="tests.test_radar" name="test_cross_source_dedup" time="0.084" /><testcase classname="tests.test_radar" name="test_same_url_update_keeps_identity_and_preferences" time="0.084" /><testcase classname="tests.test_radar" name="test_no_false_merges[changes0]" time="0.058" /><testcase classname="tests.test_radar" name="test_no_false_merges[changes1]" time="0.055" /><testcase classname="tests.test_radar" name="test_no_false_merges[changes2]" time="0.047" /><testcase classname="tests.test_radar" name="test_missing_or_past_dates_not_upcoming" time="0.063" /><testcase classname="tests.test_radar" name="test_sunday_weekend_includes_sunday" time="0.072" /><testcase classname="tests.test_radar" name="test_ics_exclusive_end_and_stable_uid" time="0.076" /><testcase classname="tests.test_radar" name="test_lianpu_uses_machine_dates" time="0.063" /><testcase classname="tests.test_radar" name="test_bendibao_event_date_label" time="0.057" /><testcase classname="tests.test_radar" name="test_jsonld_not_article_date" time="0.046" /><testcase classname="tests.test_radar" name="test_rss_publication_not_event_date" time="0.056" /><testcase classname="tests.test_radar" name="test_ssrf_localhost_rejected" time="0.046" /><testcase classname="tests.test_radar" name="test_private_api_and_csrf" time="0.071" /><testcase classname="tests.test_radar" name="test_login_delegation_and_cookie" time="0.094" /><testcase classname="tests.test_radar" name="test_favorite_roundtrip" time="0.112" /><testcase classname="tests.test_radar" name="test_budget_hard_cap" time="0.098" /><testcase classname="tests.test_radar" name="test_unproved_ai_date_stays_review" time="1.079" /><testcase classname="tests.test_radar" name="test_exact_alias_dedup_survives_title_drift" time="0.078" /><testcase classname="tests.test_radar" name="test_reconcile_aliases_merges_existing_rows" time="0.084" /><testcase classname="tests.test_radar" name="test_sogou_discovers_current_account_markup" time="0.075" /><testcase classname="tests.test_radar" name="test_saved_past_and_cancelled_remain_visible" time="0.094"><failure message="assert (400 == 200)&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">def test_saved_past_and_cancelled_remain_visible():
+        core.ingest(source(),ev(start_at='2026-01-01',end_at='2026-01-02'))
+        core.ingest(source(),ev(url='https://example.com/cancel',status='cancelled'))
+        with core.db() as c:
+            for r in c.execute('SELECT id FROM events').fetchall():
+                c.execute('INSERT INTO preferences(event_id,favorite) VALUES(?,1)',(r['id'],))
+        with TestClient(api.app,base_url='https://testserver') as client:
+            auth(client)
+            r=client.get('/events/api/events?period=saved&amp;favorites=true')
+&gt;           assert r.status_code==200 and r.json()['total']==2
+E           assert (400 == 200)
+E            +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests/test_radar.py:166: AssertionError</failure></testcase><testcase classname="tests.test_radar" name="test_calendar_range_includes_past_excludes_end_boundary" time="0.077"><failure message="assert (400 == 200)&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">def test_calendar_range_includes_past_excludes_end_boundary():
+        core.ingest(source(),ev(start_at='2026-01-09T23:00:00+08:00',end_at='2026-01-10T01:00:00+08:00'))
+        core.ingest(source(),ev(url='https://example.com/out',start_at='2026-01-11',end_at='2026-01-12'))
+        with TestClient(api.app,base_url='https://testserver') as client:
+            auth(client)
+            r=client.get('/events/api/events',params={'period':'calendar','start':'2026-01-10','end':'2026-01-11'})
+&gt;           assert r.status_code==200 and r.json()['total']==1
+E           assert (400 == 200)
+E            +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests/test_radar.py:174: AssertionError</failure></testcase><testcase classname="tests.test_radar" name="test_preference_response_is_authoritative" time="0.081"><failure message="KeyError: 'favorite'">def test_preference_response_is_authoritative():
+        core.ingest(source(),ev());eid=core.events()[0]['id']
+        with TestClient(api.app,base_url='https://testserver') as client:
+            auth(client);r=client.post('/events/api/preferences/'+eid,headers={'X-Radar-Request':'1'},json={'favorite':True})
+&gt;           assert r.json()['favorite'] is True and r.json()['hidden'] is False
+                   ^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'favorite'
+
+tests/test_radar.py:182: KeyError</failure></testcase><testcase classname="tests.test_radar" name="test_detail_endpoint_can_open_past_record" time="0.060"><failure message="AssertionError: assert 404 == 401&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code&#10; +    where &lt;Response [404 Not Found]&gt; = get(('/events/api/event/' + 'dade54b9fbe994717bab'))&#10; +      where get = &lt;starlette.testclient.TestClient object at 0x7203d94cf710&gt;.get">def test_detail_endpoint_can_open_past_record():
+        core.ingest(source(),ev(start_at='2026-01-01',end_at='2026-01-02'))
+        with core.db() as c:eid=c.execute('SELECT id FROM events').fetchone()['id']
+        with TestClient(api.app,base_url='https://testserver') as client:
+&gt;           assert client.get('/events/api/event/'+eid).status_code==401
+E           AssertionError: assert 404 == 401
+E            +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+E            +    where &lt;Response [404 Not Found]&gt; = get(('/events/api/event/' + 'dade54b9fbe994717bab'))
+E            +      where get = &lt;starlette.testclient.TestClient object at 0x7203d94cf710&gt;.get
+
+tests/test_radar.py:188: AssertionError</failure></testcase><testcase classname="tests.test_radar" name="test_health_count_does_not_claim_empty_partial_is_working" time="0.072"><failure message="assert (2 == 1)">def test_health_count_does_not_claim_empty_partial_is_working():
+        with core.db() as c:
+            c.execute("UPDATE source_health SET status='ok',raw_count=3 WHERE id='a'")
+            c.execute("UPDATE source_health SET status='partial',raw_count=0 WHERE id='b'")
+        with TestClient(api.app,base_url='https://testserver') as client:
+            auth(client);s=client.get('/events/api/stats').json()
+&gt;           assert s['working_sources']==1 and s['partial_sources']==1
+E           assert (2 == 1)
+
+tests/test_radar.py:200: AssertionError</failure></testcase><testcase classname="tests.test_radar" name="test_cross_midnight_ics_never_invents_event_duration" time="0.078" /></testsuite></testsuites>
