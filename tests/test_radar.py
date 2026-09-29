@@ -243,3 +243,37 @@ def test_search_duplicate_repair_is_conservative_idempotent_and_preserves_favori
         assert c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0]==1
         assert c.execute('SELECT COUNT(*) FROM event_sources').fetchone()[0]==1
         assert tuple(c.execute('SELECT favorite,hidden FROM preferences').fetchone())==(1,1)
+
+def test_weekend_long_running_uses_window_date_and_can_be_hidden(monkeypatch):
+    monkeypatch.setattr(core,'now',lambda:datetime(2026,9,29,12,0,tzinfo=core.TZ))
+    core.ingest(source(),ev(title='长期展览',start_at='2026-05-30',end_at='2026-10-10',all_day=True))
+    rows=core.events(period='weekend',hide_long=False)
+    assert len(rows)==1 and rows[0]['long_running'] is True
+    assert rows[0]['display_at'].startswith('2026-10-03')
+    assert rows[0]['period_label']=='本周末仍开放'
+    assert core.events(period='weekend',hide_long=True)==[]
+
+def test_short_multiday_event_is_not_long_running(monkeypatch):
+    monkeypatch.setattr(core,'now',lambda:datetime(2026,9,29,12,0,tzinfo=core.TZ))
+    core.ingest(source(),ev(title='三日创客大会',start_at='2026-10-02',end_at='2026-10-05',all_day=True))
+    rows=core.events(period='weekend',hide_long=True)
+    assert len(rows)==1 and rows[0]['long_running'] is False
+
+def test_time_sort_uses_effective_display_date(monkeypatch):
+    monkeypatch.setattr(core,'now',lambda:datetime(2026,9,29,12,0,tzinfo=core.TZ))
+    core.ingest(source(),ev(title='长期展览',start_at='2026-05-30',end_at='2026-10-10',all_day=True))
+    core.ingest(source(),ev(title='周六工作坊',url='https://example.com/workshop',start_at='2026-10-03T10:00:00+08:00',end_at='2026-10-03T12:00:00+08:00'))
+    asc=core.events(period='weekend',hide_long=False,sort='asc')
+    desc=core.events(period='weekend',hide_long=False,sort='desc')
+    assert [x['title'] for x in asc]==['长期展览','周六工作坊']
+    assert [x['title'] for x in desc]==['周六工作坊','长期展览']
+
+def test_listing_supports_long_filter_and_time_sort(monkeypatch):
+    monkeypatch.setattr(core,'now',lambda:datetime(2026,9,29,12,0,tzinfo=core.TZ))
+    core.ingest(source(),ev(title='长期展览',start_at='2026-05-30',end_at='2026-10-10',all_day=True))
+    core.ingest(source(),ev(title='周六工作坊',url='https://example.com/workshop',start_at='2026-10-03T10:00:00+08:00',end_at='2026-10-03T12:00:00+08:00'))
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client)
+        r=client.get('/events/api/events?period=weekend&hide_long=true&sort=asc')
+        assert r.status_code==200 and [x['title'] for x in r.json()['items']]==['周六工作坊']
+        assert client.get('/events/api/events?sort=wrong').status_code==400

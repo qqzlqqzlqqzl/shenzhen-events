@@ -19,3 +19,31 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 .dialog-close{position:sticky;top:-20px;float:right;z-index:1;background:#fffefa;border-radius:50%;min-width:44px;min-height:44px;margin-top:-20px;margin-right:-14px}
 @media(max-width:620px){.bookmark{width:44px;height:44px}.section-heading{flex-wrap:wrap}.result-count{white-space:normal}.top-actions button{min-height:40px}#notice{flex-wrap:wrap}}
 @media(max-width:360px){.brand{font-size:15px;min-width:0}.brand small{display:none}.brand-mark{flex-shrink:0}.top-actions{flex-shrink:0;white-space:nowrap;gap:3px}.hub-link{white-space:nowrap}}
+
+/* Calendar clarity + long-running activity controls. */
+.long-check{white-space:nowrap;font-size:11px;display:flex;align-items:center;gap:6px;color:var(--muted)}
+#sort{min-width:132px}
+.tag.long-tag{background:#e6efd5;color:#58733f;border:1px solid #d2dfb7}
+.calendar-guide{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:4px 2px 18px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+.calendar-guide strong{display:block;font-size:13px;margin-bottom:6px}
+.calendar-guide span{display:block;font-size:10px;line-height:1.7;color:var(--muted)}
+.calendar-legend{display:flex;gap:15px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.calendar-legend>span{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.legend-dot{width:8px;height:8px;border-radius:50%;background:#52745d;display:inline-block}
+.legend-long{width:17px;height:7px;border-radius:999px;background:#d6e5b8;display:inline-block}
+#calendar-long{margin:0 0 20px;padding:16px;border:1px solid #d9e2cf;border-radius:15px;background:#f7faef}
+.calendar-long-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}
+.calendar-long-head b{font-size:12px}.calendar-long-head span{display:block;font-size:10px;color:var(--muted);margin-top:4px}
+.calendar-long-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.calendar-long-item{border:1px solid #dce5d2;background:#fffefa;border-radius:10px;padding:11px 12px;text-align:left;color:var(--ink);min-width:0}
+.calendar-long-item:hover{border-color:#acc296;background:#fbfdf7}
+.calendar-long-item strong{display:block;font-size:11px;line-height:1.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calendar-long-item span{display:block;font-size:9px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calendar-long-more{font-size:10px;color:var(--muted);padding:8px 3px}
+.fc .fc-daygrid-event{background:transparent!important;border:0!important;color:var(--ink)!important;padding:1px 2px!important}
+.fc .fc-daygrid-event-dot{border-color:#567b62!important}
+.fc .fc-daygrid-event:hover{background:#edf3e5!important;border-radius:5px}
+.fc .fc-more-link{font-size:10px;color:#53715e;font-weight:600}
+.fc .fc-daygrid-day-frame{min-height:92px}
+@media(max-width:1000px){.calendar-long-list{grid-template-columns:1fr}}
+@media(max-width:620px){.long-check{font-size:10px}.calendar-guide{display:block}.calendar-legend{justify-content:flex-start;margin-top:10px}.calendar-long-list{grid-template-columns:1fr}.fc .fc-daygrid-day-frame{min-height:70px}}

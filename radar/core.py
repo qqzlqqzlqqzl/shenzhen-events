@@ -12,7 +12,8 @@ ROOT = Path(os.getenv('RADAR_ROOT', Path(__file__).resolve().parents[1]))
 TZ = ZoneInfo('Asia/Shanghai')
 CATEGORIES = {'机器人': ['机器人','机械臂','ros2','robot','具身'], '硬件创客':['创客','maker','硬件','嵌入式','esp32','3d打印','3d 打印','电机','芯片'], 'AI与开源':['ai','人工智能','开源','开发者','linux','rust','python','黑客松','hackathon','gosim','agent','云计算'], '产品与创业':['创业','产品','出海','电商','增长','一人公司'], '汽车':['汽车','赛车','车展'], '展览文化':['展览','艺术','博物馆','市集','音乐','文化','灯光','展馆'], '户外生活':['公园','徒步','户外','运动','马拉松','游园','亲子']}
 DISTRICTS = ['南山','福田','宝安','龙岗','龙华','罗湖','盐田','光明','坪山','大鹏','深汕']
-VERSION = 'radar-v1.0'
+VERSION = 'radar-v1.1'
+LONG_RUNNING_DAYS = 14
 def now(): return datetime.now(TZ)
 def stamp(): return now().isoformat(timespec='seconds')
 def config():
@@ -170,8 +171,14 @@ def ingest(source,e,body=None):
         c.execute('INSERT INTO event_sources VALUES(?,?,?,?,?) ON CONFLICT(source_id,url) DO UPDATE SET event_id=excluded.event_id,raw_id=excluded.raw_id,seen_at=excluded.seen_at',(eid,source['id'],e['url'],rid,ts))
     return changed
 
-def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None):
+def span_days(e):
+    if not e.get('start_at') or not e.get('end_at'):return 0.0
+    try:return max(0.0,(datetime.fromisoformat(e['end_at'])-datetime.fromisoformat(e['start_at'])).total_seconds()/86400)
+    except ValueError:return 0.0
+
+def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc'):
     current=now();day=current.date();from_dt=current;to_dt=None
+    if sort not in ('asc','desc'):raise ValueError('invalid sort')
     if period=='week':to_dt=datetime.combine(day+timedelta(days=7-day.weekday()),datetime.min.time(),TZ)
     if period=='weekend':
         saturday=day+timedelta(days=(5-day.weekday())%7) if day.weekday()<5 else day-timedelta(days=day.weekday()-5)
@@ -183,6 +190,8 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     for e in rows:
         if event_id and e['id']!=event_id:continue
         if not include_hidden and e['hidden']:continue
+        days=span_days(e);e['span_days']=round(days,1);e['long_running']=days>=LONG_RUNNING_DAYS;e['display_at']=e.get('start_at');e['period_label']=''
+        if hide_long and e['long_running'] and period!='record':continue
         if period=='review':
             if e['status']!='needs_review':continue
         elif period in ('saved','record'):
@@ -198,6 +207,9 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
             end=e['end_at'] or iso(datetime.fromisoformat(e['start_at'])+timedelta(hours=3))
             if end<=from_dt.isoformat():continue
             if to_dt and e['start_at']>=to_dt.isoformat():continue
+            if e['long_running'] and e['start_at']<from_dt.isoformat():
+                e['display_at']=from_dt.isoformat(timespec='seconds')
+                e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
         e['topics']=json.loads(e['topics']);e['sources']=links.get(e['id'],[])
         if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue
         if district and e['district']!=district:continue
@@ -206,5 +218,9 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         if recommended and (e['priority'] not in ('high','medium') or e['commercial']=='high'):continue
         if favorites and not e['favorite']:continue
         e['stale']=(current-datetime.fromisoformat(e['last_seen'])).days>=7;out.append(e)
-    if recommended:out.sort(key=lambda e:(e['start_at']<current.isoformat(),0 if e['priority']=='high' else 1,e['start_at'],e['id']))
+    def key(e):
+        value=e.get('display_at') or e.get('start_at')
+        return (value is None,value or '',e['id'])
+    if sort=='asc':out.sort(key=key)
+    else:out.sort(key=lambda e:((e.get('display_at') or e.get('start_at')) is not None,e.get('display_at') or e.get('start_at') or '',e['id']),reverse=True)
     return out

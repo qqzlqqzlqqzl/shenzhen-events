@@ -95,9 +95,10 @@ def logout(request:Request):
 @app.get('/events/api/session')
 def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
-def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',free:bool=False,recommended:bool=False,favorites:bool=False,offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
+def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
     require(request)
     if period not in ('upcoming','week','weekend','review','past','saved','calendar'):raise HTTPException(400,'无效日期筛选')
+    if sort not in ('asc','desc'):raise HTTPException(400,'无效排序方式')
     begin,finish=None,None
     if period=='calendar':
         begin,finish=iso(start),iso(end)
@@ -105,14 +106,14 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
         span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
         if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'日历范围需在93天内')
     if period=='saved':favorites=True
-    rows=events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish)
+    rows=events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort)
     return {'items':rows[offset:offset+limit],'total':len(rows),'offset':offset,'has_more':len(rows)>offset+limit}
 @app.get('/events/api/stats')
 def stats(request:Request):
-    require(request);up=events();rec=[e for e in up if e['priority'] in ('high','medium') and e['commercial']!='high']
+    require(request);up=events();rec=[e for e in up if e['priority'] in ('high','medium') and e['commercial']!='high'];clean_up=events(hide_long=True)
     with db() as c:
         health=[dict(x) for x in c.execute('SELECT * FROM source_health')];raw=c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0];pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0]
-    return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend')),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(CATEGORIES),'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
+    return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend',hide_long=True)),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'long_running':max(0,len(up)-len(clean_up)),'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(CATEGORIES),'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
 @app.get('/events/api/status')
 def status(request:Request):
     require(request);cfg=config()
