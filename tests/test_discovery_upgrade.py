@@ -80,3 +80,28 @@ def test_derived_details_do_not_requeue_unchanged_source(tmp_path,monkeypatch):
 def test_official_schedule_never_guesses_section_year():
  html='<h1>2026年深圳会展中心展览计划表</h1><table class="zhpq-table"><tr><td>1</td><td>新年购物节</td><td>12月31日 - 01月11日</td><td>甲公司</td></tr></table>'
  assert official_sources.szcec(BeautifulSoup(html,'html.parser'),'https://example.com')==[]
+
+
+def test_reviewed_posters_are_local_and_untrusted_cache_paths_are_ignored(tmp_path):
+ from radar import posters
+ folder=tmp_path/'static/posters';folder.mkdir(parents=True)
+ name='a'*64+'.webp';(folder/name).write_bytes(b'fixture')
+ url='https://example.com/poster.webp'
+ (folder/'manifest.json').write_text(json.dumps({url:name,'https://bad.test/a':'../../secret','https://bad.test/b':'b'*64+'.png'}))
+ d={'images':[url,'https://unknown.test/a',{}],'cached_images':{'https://unknown.test/a':'https://tracker.test/a'}}
+ out=posters.display_details(d,tmp_path)
+ assert out['cached_images']=={url:'/events/static/posters/'+name}
+ assert out['images']==d['images']
+ assert d['cached_images']!=out['cached_images']
+ assert posters.display_details({'images':'invalid'},tmp_path)['cached_images']=={}
+
+
+def test_packaged_workbuddy_poster_hash_and_manifest():
+ import hashlib
+ root=Path(__file__).resolve().parents[1]
+ mapping=json.loads((root/'static/posters/manifest.json').read_text())
+ assert len(mapping)==1
+ for url,name in mapping.items():
+  content=(root/'static/posters'/name).read_bytes()
+  assert hashlib.sha256(content).hexdigest()==name.split('.')[0]
+  assert content[:4]==b'RIFF' and content[8:12]==b'WEBP'

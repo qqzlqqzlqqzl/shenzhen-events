@@ -316,7 +316,8 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
             if e['long_running'] and e['start_at']<from_dt.isoformat():
                 e['display_at']=from_dt.isoformat(timespec='seconds')
                 e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
-        e['details']=json.loads(e.get('details') or '{}')
+        from .posters import display_details
+        e['details']=display_details(json.loads(e.get('details') or '{}'),ROOT)
         e['topics']=resolved_topics(json.loads(e['topics'] or '[]'),e.get('event_type','Event'),e['title'],e['summary'])
         e['event_type']=e.get('event_type') or 'Event';e['event_type_label']='待分类' if e.get('event_type_state')=='pending' else EVENT_TYPES.get(e['event_type'],'其他活动');e['sources']=links.get(e['id'],[])
         if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue

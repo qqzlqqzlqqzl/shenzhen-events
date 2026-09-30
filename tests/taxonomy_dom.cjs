@@ -84,3 +84,15 @@ test('normal signed-in flow prioritizes activities and shows only concise filter
 test('price placeholders are hidden and detail evidence is escaped',async()=>{
  const r=await ready();try{const {w}=r;assert.equal(w.eval('costText({cost_text:"费用未注明"})'),'');assert.equal(w.eval('costText({cost_text:"￥99"})'),'￥99');const html=w.eval('detailExtras({details:{review_notes:"<script>bad</script>",images:"bad"}})');assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.deepEqual(r.errors,[])}finally{r.close()}
 });
+
+test('posters use reviewed same-origin assets and external images stay explicit links',async()=>{
+ const r=await ready();try{const {w}=r,url='https://source.test/poster.webp',local='/events/static/posters/'+'a'.repeat(64)+'.webp';
+ const render=d=>w.eval('detailPosters('+JSON.stringify(d)+')');
+ const good=render({images:[url],cached_images:{[url]:local}});
+ assert.ok(good.includes('src="'+local+'"'));assert.ok(good.includes('href="'+url+'"'));
+ for(const bad of ['https://tracker.test/a','/events/static/posters/../../private','data:image/svg+xml,bad']){
+  const html=render({images:[url],cached_images:{[url]:bad}});assert.ok(!html.includes('<img'));assert.ok(html.includes('查看原文配图'));
+ }
+ assert.equal(render({images:'bad'}),'');assert.deepEqual(r.errors,[]);
+ }finally{r.close()}
+});

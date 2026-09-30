@@ -30,3 +30,14 @@ Scope: issue #38. Root authored the functional changes and reviewed the public-s
 Signed-in users go straight to activities instead of a large marketing hero. Source diagnostics move to a secondary header entry. Filter chips describe the smaller selected/excluded set instead of listing every hidden alternative; card action opens details without implying external navigation. Readability and touch target sizes improved. None-selection, default-all and legacy URLs remain explicit.
 
 Final source review found SZCEC month headers have three cells with blank edge cells. They must be read as the one nonempty month label; missing labels fail closed. This prevents the December 2025 shopping event from being shifted to December 2026. The browser-rendered original row was inspected directly and added to the regression fixture. Zero-count filter options are collapsed under a secondary group while preserving legacy/deep-link selections.
+
+
+## Production poster acceptance fix
+Production acceptance caught the existing CSP intentionally blocking remote img elements.
+Keep the original CSP unchanged. Display only reviewed raster assets packaged under
+static/posters using an exact source-URL manifest; other images remain explicit original-image
+links rather than broken image placeholders. This is not an arbitrary URL proxy and performs
+no server-side or client-side background requests to remote image hosts. WorkBuddy's reviewed
+public poster is packaged with its source attribution. Future reviewed images must be inspected,
+saved under their SHA256 content filename, and entered in the manifest before deployment.
+Do not treat pending image review as successful image ingestion.
