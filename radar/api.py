@@ -120,11 +120,12 @@ def status(request:Request):
     require(request);cfg=config()
     with db() as c:
         sources=[dict(x) for x in c.execute('SELECT * FROM source_health')];runs=[dict(x) for x in c.execute('SELECT * FROM runs ORDER BY id DESC LIMIT 20')];candidates=[dict(x) for x in c.execute('SELECT * FROM candidates ORDER BY hits DESC,last_seen DESC LIMIT 50')];b=c.execute('SELECT * FROM budget WHERE day=?',(now().date().isoformat(),)).fetchone()
+    with db() as c:analysis_pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0]
     pending_jobs=jobs.latest_jobs()
     for source in sources:
         source['coverage']=json.loads(source.get('coverage') or '{}')
         source['retry']=pending_jobs.get(source['id'])
-    return {'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
+    return {'analysis_pending':analysis_pending,'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
 @app.post('/events/api/sources/{source_id}/retry',status_code=202)
 def retry_source(source_id:str,request:Request):
     require(request)

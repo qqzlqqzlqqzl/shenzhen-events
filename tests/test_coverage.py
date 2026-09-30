@@ -166,3 +166,12 @@ def test_enriched_district_survives_non_location_source_change():
     with core.db() as db:db.execute("UPDATE events SET district='福田'")
     core.ingest(source(),{**event,'summary':'活动介绍更新'})
     with core.db() as db:assert db.execute('SELECT district FROM events').fetchone()[0]=='福田'
+
+def test_hdx_login_wall_is_explicit_partial_not_empty_parser(monkeypatch):
+    s=source(kind='hdx');u=s['url'];nxt=coverage.set_query(u,page=2)
+    html='<div class="search-tab-content-item"><a class="item-title" href="/event/123">深圳芯片论坛</a><p class="item-data">2026.10.27-2026.10.27</p><p class="item-dress">广东深圳宝安会展中心</p></div><script>laypage.render({elem:"pagination",count:20,limit:10,curr:1})</script>'
+    stub_fetch(monkeypatch,{u:html,nxt:'<title>活动行</title><form>登录 微信扫码登录 密码登录</form>'})
+    r=coverage.collect_report(s)
+    assert r['status']=='partial' and len(r['items'])==1
+    assert r['coverage']['access_boundary']==nxt and r['coverage']['next_cursor'] is None
+    assert any('要求登录' in text for text in r['coverage']['reasons'])

@@ -36,3 +36,6 @@ Unit/API: artifacts/coverage-review/unit.xml.
 Browser: artifacts/coverage-review/browser/ (23 cases including network failures, races, queue endpoints, strict CSP, 320px mobile and month boundaries).
 Source probes: artifacts/coverage-review/source-probe.json; these are deliberately bounded probes, not a full-source coverage claim.
 Production evidence is appended after candidate deployment.
+
+## Production collection and access boundary
+The candidate checked all nine sources in 169 seconds. Lianpu: 6 pages / 260 unique / 87 within retained scope. Douban: 71 pages / 708 unique admitted (host cards excluded, repeated ticket cards deduplicated). Huodongxing: six anonymous city pages / 65 unique; page seven serves a login form. This provider restriction is explicit partial coverage, not a parser-success or full-inventory claim. No login challenge was bypassed. All other source contracts/counters were persisted.

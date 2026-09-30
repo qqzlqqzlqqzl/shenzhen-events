@@ -205,6 +205,9 @@ def collect_report(source, previous=None):
                 html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
                 items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
                 nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx') else (None,None)
+                if not items and kind=='hdx' and ('login' in final.lower() or ('登录' in c.text(soup) and not soup.select_one('.search-tab-content-list'))):
+                    metrics['access_boundary']=url
+                    raise c.Blocked('后续分页要求登录；已保留公开可读页，未绕过访问限制')
                 if not items and kind!='rss':raise c.SourceError('页面可访问但解析为空')
             metrics['pages_visited']+=1;metrics['page_urls'].append(url);metrics['visible']+=visible;metrics['extracted']+=len(items)
             if total is not None:metrics['source_total']=total
@@ -230,6 +233,9 @@ def collect_report(source, previous=None):
             error=str(exc);blocked=isinstance(exc,c.Blocked)
             metrics['reasons'].append(error);metrics['truncated']=True;metrics['next_cursor']=url if metrics['pages_visited'] else None;break
     else:metrics['truncated']=True
+    if metrics.get('access_boundary'):
+        metrics['next_cursor']=None
+        metrics['reasons'].append('下轮更新公开页；登录后内容不计为已覆盖')
     if not metrics['truncated']:metrics['next_cursor']=None
     items=list(rows.values())[:max_entries];metrics['unique']=len(items)
     if kind in ('rss','douban'):items=enrich_details({**source,'_deadline':started+max_seconds},items,metrics)
