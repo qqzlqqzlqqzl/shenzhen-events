@@ -4,7 +4,7 @@ import ipaddress, json, re, socket, time, warnings
 from urllib.parse import urljoin, urlsplit, urlencode
 import requests, feedparser
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
-from .core import clean, iso, date_range, canon_url, now, db, stamp
+from .core import clean, iso, date_range, canon_url, now, db, stamp, EVENT_TYPES
 class SourceError(Exception): pass
 class Blocked(SourceError): pass
 
@@ -50,7 +50,8 @@ def jsonld(soup,url):
             for a in x:walk(a)
         elif isinstance(x,dict):
             typ=x.get('@type','');types=typ if isinstance(typ,list) else [typ]
-            if any(str(t).endswith('Event') for t in types) and x.get('name'):
+            normalized_types=[str(t).rsplit('/',1)[-1] for t in types]
+            if any(t=='Event' or t in EVENT_TYPES for t in normalized_types) and x.get('name'):
                 loc=x.get('location',{});loc=loc[0] if isinstance(loc,list) and loc else loc
                 locality=''
                 if isinstance(loc,dict) and isinstance(loc.get('address'),dict):locality=loc['address'].get('addressLocality','')
@@ -60,7 +61,8 @@ def jsonld(soup,url):
                 org=x.get('organizer',{});org=org.get('name','') if isinstance(org,dict) else str(org)
                 offers=x.get('offers',{});offers=offers[0] if isinstance(offers,list) and offers else offers;cost='费用未注明'
                 if isinstance(offers,dict) and offers.get('price') is not None:cost='免费' if str(offers['price']) in ('0','0.0','0.00') else str(offers.get('priceCurrency','CNY'))+' '+str(offers['price'])
-                out.append(skeleton(x['name'],x.get('url') or url,text(BeautifulSoup(x.get('description',''),'html.parser')),str(loc),start_at=iso(x.get('startDate')),end_at=iso(x.get('endDate')),organizer=org,city=locality,cost_text=cost,all_day=len(str(x.get('startDate','')))==10,status='cancelled' if 'Cancelled' in str(x.get('eventStatus','')) else 'scheduled'))
+                event_type=next((t for t in normalized_types if t in EVENT_TYPES and t!='Event'),'Event')
+                out.append(skeleton(x['name'],x.get('url') or url,text(BeautifulSoup(x.get('description',''),'html.parser')),str(loc),start_at=iso(x.get('startDate')),end_at=iso(x.get('endDate')),organizer=org,city=locality,cost_text=cost,all_day=len(str(x.get('startDate','')))==10,status='cancelled' if 'Cancelled' in str(x.get('eventStatus','')) else 'scheduled',event_type=event_type))
             for v in x.values():
                 if isinstance(v,(dict,list)):walk(v)
     for script in soup.select('script[type="application/ld+json"]'):

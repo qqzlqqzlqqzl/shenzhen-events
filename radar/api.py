@@ -3,14 +3,14 @@ from __future__ import annotations
 import base64, hashlib, hmac, json, os, secrets, threading, time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from collections import defaultdict, deque
+from collections import defaultdict, deque, Counter
 import requests
 from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
-from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, DISTRICTS, iso
+from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, TOPICS, EVENT_TYPES, DISTRICTS, iso
 from .calendar import make_calendar
 from . import jobs
 COOKIE='sz_events_session'
@@ -96,10 +96,13 @@ def logout(request:Request):
 @app.get('/events/api/session')
 def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
-def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
+def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
     require(request)
     if period not in ('upcoming','week','weekend','review','past','saved','calendar'):raise HTTPException(400,'无效日期筛选')
     if sort not in ('asc','desc'):raise HTTPException(400,'无效排序方式')
+    event_types=list(dict.fromkeys(event_types or []));topics=list(dict.fromkeys(topics or []))
+    if len(event_types)>20 or any(x not in EVENT_TYPES for x in event_types):raise HTTPException(400,'无效活动类型筛选')
+    if len(topics)>20 or any(x not in TOPICS and x!='其他' for x in topics):raise HTTPException(400,'无效主题筛选')
     begin,finish=None,None
     if period=='calendar':
         begin,finish=iso(start),iso(end)
@@ -107,25 +110,32 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
         span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
         if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'日历范围需在93天内')
     if period=='saved':favorites=True
-    rows=events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort)
+    rows=events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics)
     return {'items':rows[offset:offset+limit],'total':len(rows),'offset':offset,'has_more':len(rows)>offset+limit}
 @app.get('/events/api/stats')
 def stats(request:Request):
     require(request);up=events();rec=[e for e in up if e['priority'] in ('high','medium') and e['commercial']!='high'];clean_up=events(hide_long=True)
     with db() as c:
-        health=[dict(x) for x in c.execute('SELECT * FROM source_health')];raw=c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0];pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0]
-    return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend',hide_long=True)),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'long_running':max(0,len(up)-len(clean_up)),'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(CATEGORIES),'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
+        health=[dict(x) for x in c.execute('SELECT * FROM source_health')];raw=c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0];pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0];type_pending=c.execute("SELECT COUNT(*) FROM events WHERE event_type_state='pending' AND status='scheduled'").fetchone()[0]
+    type_counts=Counter(e.get('event_type') or 'Event' for e in up if e.get('event_type_state')!='pending');topic_counts=Counter(t for e in up for t in e.get('topics',[]))
+    type_facets=[{'value':v,'label':label,'count':type_counts.get(v,0)} for v,label in EVENT_TYPES.items() if v!='Event']
+    if type_counts.get('Event'):type_facets.append({'value':'Event','label':'其他活动','count':type_counts['Event']})
+    topic_facets=[{'value':v,'label':v,'count':topic_counts.get(v,0)} for v in TOPICS]
+    if topic_counts.get('其他'):topic_facets.append({'value':'其他','label':'其他主题','count':topic_counts['其他']})
+    return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend',hide_long=True)),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'type_pending':type_pending,'long_running':max(0,len(up)-len(clean_up)),'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(TOPICS),'event_types':type_facets,'topics':topic_facets,'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
 @app.get('/events/api/status')
 def status(request:Request):
     require(request);cfg=config()
     with db() as c:
         sources=[dict(x) for x in c.execute('SELECT * FROM source_health')];runs=[dict(x) for x in c.execute('SELECT * FROM runs ORDER BY id DESC LIMIT 20')];candidates=[dict(x) for x in c.execute('SELECT * FROM candidates ORDER BY hits DESC,last_seen DESC LIMIT 50')];b=c.execute('SELECT * FROM budget WHERE day=?',(now().date().isoformat(),)).fetchone()
-    with db() as c:analysis_pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0]
+    with db() as c:
+        analysis_pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0]
+        type_pending=c.execute("SELECT COUNT(*) FROM events WHERE event_type_state='pending' AND status='scheduled'").fetchone()[0]
     pending_jobs=jobs.latest_jobs()
     for source in sources:
         source['coverage']=json.loads(source.get('coverage') or '{}')
         source['retry']=pending_jobs.get(source['id'])
-    return {'analysis_pending':analysis_pending,'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
+    return {'analysis_pending':analysis_pending,'type_pending':type_pending,'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
 @app.post('/events/api/sources/{source_id}/retry',status_code=202)
 def retry_source(source_id:str,request:Request):
     require(request)

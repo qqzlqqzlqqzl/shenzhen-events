@@ -8,8 +8,9 @@
 - 九个公开来源：联谱、TechEvent、本地宝、柴火官网、活动行 RSSHub、豆瓣同城、Meetup、柴火公众号 RSSHub、搜狗微信发现。
 - 证据优先：文章发布时间不会被当成活动日期；AI 不能证明的日期/地点保持“待确认”。
 - 跨源去重：日期 + 标题/地点保守匹配，并支持精确 URL/date 别名处理品牌标题漂移。
-- 个性化筛选：机器人、硬件创客、AI/开源、产品创业、汽车、展览文化、户外生活。
-- 收藏、搜索、免费/区域/类别过滤、周末视图、FullCalendar 月历、私人 ICS。
+- 标准活动类型：采用 Schema.org Event taxonomy；会议、黑客松、展览、音乐、戏剧、喜剧/脱口秀、体育、社交等不再混成自定义一级分类。
+- 主题标签与活动类型分离：AI/开源、机器人、硬件创客、汽车等只作为主题；活动类型和主题均支持多选组合。
+- 收藏、搜索、免费/区域/多选类型与主题过滤、周末视图、FullCalendar 月历、私人 ICS。
 - 来源健康、失败退避、模型日预算、日志截断、数据库/日志存储上限。
 - 可选高德 Web 服务辅助补全“有场馆但缺行政区”的活动；只补 district，原始地点保持不变。
 - 手机和桌面浏览器验收。
@@ -26,6 +27,8 @@ normalize → evidence checks → conservative dedupe
 optional AMap district enrichment (cached + bounded)
         ↓
 SQLite (WAL)
+        ↓
+Schema.org event type + subject tags
         ↓
 incremental AI classification (new/changed only)
         ↓
