@@ -5,7 +5,7 @@ from radar.source_fields import event_patch
 from radar import core
 
 @pytest.mark.parametrize('label,topic',[
-    ('JavaScript','软件开发'),('Rust','软件开发'),('Testing / QA','软件开发'),
+    ('Hardware / IoT','硬件创客'),('JavaScript','软件开发'),('Rust','软件开发'),('Testing / QA','软件开发'),
     ('Open Source','AI与开源'),('Artificial Intelligence (AI)','AI与开源'),
     ('Product management','产品与创业'),('Business Analysis','产品与创业'),
     ('Tech leadership','学习成长')])

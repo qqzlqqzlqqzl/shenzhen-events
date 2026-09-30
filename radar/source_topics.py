@@ -2,6 +2,7 @@
 import re
 
 GROUPS = {
+    '硬件创客': {'hardware / iot'},
     'AI与开源': {'artificial intelligence (ai)', 'machine learning (ml)', 'open source'},
     '产品与创业': {'product management', 'business analysis', 'cio'},
     '学习成长': {'tech leadership'},
