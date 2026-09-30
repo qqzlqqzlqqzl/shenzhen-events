@@ -105,3 +105,7 @@ test('fresh entry restores previous filters; explicit URLs override and reset pe
 test('invalid or unavailable local storage does not break browsing',async()=>{
  for(const [saved,broken] of [['not json',false],[JSON.stringify({version:2,query:'topic=x'}),false],[null,true]]){const r=await ready('',1,saved,broken);try{assert.equal(titles(r.w).length,4);r.w.document.querySelector('#clear-filters').click();await settle(r.w);assert.deepEqual(r.errors,[])}finally{r.close()}}
 });
+
+test('online mode hides physical district without losing the offline preference',async()=>{
+ const r=await ready('?view=all&attendance=online&district='+encodeURIComponent('南山'));try{assert.equal(r.w.document.querySelector('#district').hidden,true);assert.ok(!r.requests.at(-1).searchParams.has('district'));r.w.document.querySelector('#attendance').value='all';r.w.document.querySelector('#attendance').dispatchEvent(new r.w.Event('change',{bubbles:true}));await settle(r.w);assert.equal(r.w.document.querySelector('#district').hidden,false);assert.deepEqual(r.errors,[])}finally{r.close()}
+});

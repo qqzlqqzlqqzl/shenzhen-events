@@ -209,5 +209,19 @@
     "max_pages": 5,
     "coverage_mode": "page_inventory",
     "city_scope": "深圳"
+  },
+  {
+    "id": "dev-events-online",
+    "name": "dev.events · 全球线上开发者活动聚合",
+    "kind": "devevents",
+    "url": "https://dev.events/ON",
+    "priority": 35,
+    "interval_hours": 12,
+    "max_entries": 1000,
+    "max_pages": 8,
+    "request_delay": 1,
+    "max_seconds": 180,
+    "coverage_mode": "page_inventory",
+    "allow_online": true
   }
 ]
