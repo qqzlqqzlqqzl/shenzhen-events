@@ -62,10 +62,10 @@ check('schema_type_labels_distinguish_entertainment',schema_labels_are_distinct)
 
 def multiselect_semantics_and_url():
     ready()
-    page.locator('#type-filter summary').click()
+    page.locator('#type-filter > summary').click()
     page.locator('[data-facet-kind="type"][data-facet-action="none"]').click();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false');page.get_by_label('喜剧 / 脱口秀').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     page.get_by_label('音乐 / 演唱会').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
-    page.locator('#topic-filter summary').click();expect(page.locator('#type-filter')).to_have_js_property('open',False);expect(page.locator('#topic-filter')).to_have_js_property('open',True);page.locator('[data-facet-kind="topic"][data-facet-action="none"]').click();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false');page.get_by_label('AI与开源').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
+    page.locator('#topic-filter > summary').click();expect(page.locator('#type-filter')).to_have_js_property('open',False);expect(page.locator('#topic-filter')).to_have_js_property('open',True);page.locator('[data-facet-kind="topic"][data-facet-action="none"]').click();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false');page.get_by_label('AI与开源').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     titles=page.locator('.title-button').all_inner_texts();ok(set(titles)=={'AI 脱口秀','AI 音乐会'},str(titles))
     u=page.url;ok(u.count('type=')==2 and 'topic=' in u,u)
     expect(page.locator('#type-summary')).to_have_text('已选 2');expect(page.locator('#topic-summary')).to_have_text('已选 1')
@@ -76,7 +76,7 @@ check('multiselect_or_within_and_across_groups_url_roundtrip',multiselect_semant
 
 def removable_chip_and_history():
     ready('?view=all&type=ComedyEvent&type=MusicEvent&topic=AI%E4%B8%8E%E5%BC%80%E6%BA%90')
-    page.locator('#type-filter summary').click();page.get_by_label('喜剧 / 脱口秀').uncheck();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
+    page.locator('#type-filter > summary').click();page.get_by_label('喜剧 / 脱口秀').uncheck();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     ok(page.locator('.title-button').all_inner_texts()==['AI 音乐会'])
     page.go_back(wait_until='domcontentloaded');expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     ok(set(page.locator('.title-button').all_inner_texts())=={'AI 脱口秀','AI 音乐会'})
@@ -84,7 +84,7 @@ check('selected_chip_removal_and_back_restore',removable_chip_and_history)
 
 def mobile_checkbox_filter():
     page.set_viewport_size({'width':390,'height':844});ready()
-    page.locator('#type-filter summary').focus();page.keyboard.press('Enter');page.locator('#type-options').wait_for(state='visible')
+    page.locator('#type-filter > summary').focus();page.keyboard.press('Enter');page.locator('#type-options').wait_for(state='visible')
     box=page.locator('#type-filter .filter-popover').bounding_box();ok(box and box['x']>=0 and box['x']+box['width']<=390,box)
     ok(page.get_by_label('喜剧 / 脱口秀').is_visible());ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
     page.screenshot(path=str(ART/'mobile-type-filter.png'),full_page=True);page.keyboard.press('Escape');ok(not page.locator('#type-filter').evaluate('(e)=>e.open'))
@@ -109,7 +109,8 @@ check('legacy_topic_urls_keep_the_culture_filter', legacy_topic_url_aliases)
 
 def all_type_facets_can_be_selected():
     ready()
-    page.locator('#type-filter summary').click()
+    page.locator('#type-filter > summary').click()
+    if page.locator('#type-options .facet-extra > summary').count():page.locator('#type-options .facet-extra > summary').click()
     for checkbox in page.locator('#type-options input[type="checkbox"]').all():
         checkbox.check()
         expect(page.locator('#event-list')).to_have_attribute('aria-busy', 'false')
