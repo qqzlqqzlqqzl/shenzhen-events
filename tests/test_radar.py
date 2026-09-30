@@ -152,7 +152,8 @@ def test_sogou_discovers_current_account_markup(monkeypatch):
     soup=BeautifulSoup(html,'html.parser')
     monkeypatch.setattr(collectors,'fetch',lambda url:('',soup,url));monkeypatch.setattr(collectors.time,'sleep',lambda _:None)
     out=collectors.sogou({'url':'https://weixin.sogou.com/weixin'})
-    assert len(out)==2 and all(x['organizer']=='深圳创客社区' for x in out)
+    assert len(out)==2 and all(x['details']['publisher']=='深圳创客社区' for x in out)
+    assert all(not x.get('organizer') for x in out)
     with core.db() as c:
         row=c.execute('select name,hits from candidates where name=?',('深圳创客社区',)).fetchone()
         assert row['hits']==2

@@ -105,3 +105,16 @@ def test_packaged_workbuddy_poster_hash_and_manifest():
   content=(root/'static/posters'/name).read_bytes()
   assert hashlib.sha256(content).hexdigest()==name.split('.')[0]
   assert content[:4]==b'RIFF' and content[8:12]==b'WEBP'
+
+
+def test_wechat_queries_use_current_year_and_publisher_is_not_organizer():
+ from radar import collectors
+ from urllib.parse import urlsplit,parse_qs
+ soup=BeautifulSoup('<ul class="news-list"><li><h3><a href="https://example.com/post">活动</a></h3><p class="txt-info">报名</p></li></ul>','html.parser')
+ source={'url':'https://weixin.sogou.com/weixin','queries':['深圳 工作坊','深圳 展会 2027'],'queries_per_run':2}
+ with patch.object(collectors,'now',return_value=datetime(2026,9,30,tzinfo=core.TZ)),patch.object(collectors,'fetch',return_value=('',soup,'')) as f,patch.object(collectors.time,'sleep'):
+  rows=collectors.sogou(source)
+  queries=[parse_qs(urlsplit(c.args[0]).query)['query'][0] for c in f.call_args_list]
+  assert set(queries)=={'深圳 工作坊 2026','深圳 展会 2027'}
+  assert all(not r.get('organizer') for r in rows)
+  assert all(not r.get('start_at') for r in rows)

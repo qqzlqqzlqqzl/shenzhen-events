@@ -41,3 +41,9 @@ no server-side or client-side background requests to remote image hosts. WorkBud
 public poster is packaged with its source attribution. Future reviewed images must be inspected,
 saved under their SHA256 content filename, and entered in the manifest before deployment.
 Do not treat pending image review as successful image ingestion.
+
+The first 40 WeChat leads were only 50–82-character search excerpts, not full article bodies.
+Root review found many historical posts, recaps, policy news and advertisements. Current-year
+query text now narrows discovery without treating the query year as an event date; explicit
+years remain unchanged. Search account names are publishers, never automatically organizers.
+Missing dates/venues remain review-only; no future activity is invented from relative dates.

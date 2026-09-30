@@ -137,6 +137,9 @@ def sogou(source):
     keywords=source.get('queries') or ['深圳 创客 工作坊','深圳 机器人 活动','南山 开源 沙龙','深圳 AI 黑客松','深圳 嵌入式 技术交流','深圳 开发者 Meetup','深圳 硬件 开放日','深圳 汽车 科技 展览']
     keywords=[clean(x)[:100] for x in keywords if isinstance(x,str) and clean(x)][:40]
     if not keywords:return []
+    # Discovery should favor the current season, not decade-old high-ranked posts.
+    if source.get('current_year',True):
+        keywords=[q if re.search(r'\b20\d{2}\b',q) else f'{q} {now().year}' for q in keywords]
     count=max(1,min(4,int(source.get('queries_per_run',2))))
     slot=(now().timetuple().tm_yday*4+now().hour//6)*count;out=[]
     for q in [keywords[(slot+i)%len(keywords)] for i in range(min(count,len(keywords)))]:
@@ -145,7 +148,7 @@ def sogou(source):
         for li in s.select('.news-list li')[:max(1,min(20,int(source.get('results_per_query',8))))]:
             a=li.select_one('h3 a[href]');author=li.select_one('.account,.s-p .all-time-y2,.s-p a');desc=li.select_one('.txt-info');name=text(author)
             if not a:continue
-            link=urljoin(url,a['href']);out.append(skeleton(text(a),link,text(desc),'',organizer=name))
+            link=urljoin(url,a['href']);out.append(skeleton(text(a),link,text(desc),'',details={'publisher':name}))
             if name:
                 with db() as c:c.execute('INSERT INTO candidates(name,query,url,last_seen) VALUES(?,?,?,?) ON CONFLICT(name) DO UPDATE SET hits=hits+1,last_seen=excluded.last_seen,query=excluded.query,url=excluded.url',(name,q,link,stamp()))
         time.sleep(3)
