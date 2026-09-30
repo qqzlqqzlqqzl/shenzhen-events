@@ -1,0 +1,362 @@
+{
+  "lianpu": {
+    "status": "partial",
+    "coverage": {
+      "version": 1,
+      "mode": "city_pages",
+      "pages_visited": 3,
+      "page_urls": [
+        "https://lianpu.com/city/shenzhen",
+        "https://lianpu.com/city/shenzhen?page=2",
+        "https://lianpu.com/city/shenzhen?page=3"
+      ],
+      "source_total": null,
+      "visible": 150,
+      "extracted": 150,
+      "unique": 150,
+      "shenzhen_candidates": 150,
+      "admitted": 87,
+      "rejected": {
+        "超出历史保留期": 63
+      },
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": true,
+      "next_cursor": "https://lianpu.com/city/shenzhen?page=4",
+      "reasons": [
+        "到达本轮分页上限"
+      ],
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "elapsed_seconds": 2.77,
+      "complete_scope": false
+    },
+    "examples": [
+      {
+        "title": "ZORA - AI实战集训营",
+        "start": "2026-10-03T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "WorkBuddy 智能办公实践沙龙",
+        "start": "2026-10-03T09:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "一人公司 × 副业探索 Coffee Chat · 深圳",
+        "start": "2026-10-07T14:30:00+08:00",
+        "city": "深圳"
+      }
+    ]
+  },
+  "techevent": {
+    "status": "ok",
+    "coverage": {
+      "version": 1,
+      "mode": "page_inventory",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://event.rizumu.me/"
+      ],
+      "source_total": null,
+      "visible": 22,
+      "extracted": 22,
+      "unique": 22,
+      "shenzhen_candidates": 6,
+      "admitted": 6,
+      "rejected": {
+        "其他城市": 16
+      },
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "reasons": [],
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "elapsed_seconds": 0.87,
+      "complete_scope": true
+    },
+    "examples": [
+      {
+        "title": "2026 TCT 深圳 3D 打印展",
+        "start": "2026-10-14T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "德邻杯｜2026 AI 创业大赛",
+        "start": "2026-10-15T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "Anker 首届黑客松挑战赛",
+        "start": "2026-10-16T00:00:00+08:00",
+        "city": "深圳"
+      }
+    ]
+  },
+  "bendibao": {
+    "status": "partial",
+    "coverage": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://m.bendibao.com/xiuxian/index.php"
+      ],
+      "source_total": null,
+      "visible": 43,
+      "extracted": 43,
+      "unique": 43,
+      "shenzhen_candidates": 34,
+      "admitted": 32,
+      "rejected": {
+        "其他城市": 9,
+        "超出历史保留期": 2
+      },
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "reasons": [
+        "仅覆盖这个公开汇总页"
+      ],
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "elapsed_seconds": 1.01,
+      "complete_scope": false
+    },
+    "examples": [
+      {
+        "title": "深圳世界之窗「奇思狂想季」",
+        "start": "2026-09-25T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "深圳世界之窗国庆活动",
+        "start": "2026-09-25T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "小梅沙·名著寻游记",
+        "start": "2026-09-25T00:00:00+08:00",
+        "city": "深圳"
+      }
+    ]
+  },
+  "chaihuo": {
+    "status": "ok",
+    "coverage": {
+      "version": 1,
+      "mode": "page_inventory",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.chaihuo.org/activity/list"
+      ],
+      "source_total": null,
+      "visible": 12,
+      "extracted": 9,
+      "unique": 9,
+      "shenzhen_candidates": 9,
+      "admitted": 3,
+      "rejected": {
+        "其他城市": 3,
+        "超出历史保留期": 6
+      },
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "reasons": [],
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "elapsed_seconds": 4.89,
+      "complete_scope": true
+    },
+    "examples": [
+      {
+        "title": "把 AI 装进一枚\"硬币\" XIAOESP32机器视觉工作坊 把 AI 装进一枚\"硬币\" XIAOESP32机器视觉工作坊 2026/09/12",
+        "start": "2026-09-12T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "一台摄像头 + 20 块钱，能交付什么 AI 视觉方案？ AI 硬件方案落地伙伴招募｜多模态 AI 交互实战课 2026/08/29",
+        "start": "2026-08-29T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "8.17日，柴火创客联合Seeed Studio共同官宣《全球招募AI先锋官》计划，吸引了全国各地不同行业领域小伙伴的关注，我们已陆续收到几十份先锋官申请书。 先锋官首轮答疑宣讲会 2026/08/25",
+        "start": "2026-08-25T00:00:00+08:00",
+        "city": "深圳"
+      }
+    ]
+  },
+  "huodongxing": {
+    "status": "partial",
+    "coverage": {
+      "version": 1,
+      "mode": "city_pages",
+      "pages_visited": 3,
+      "page_urls": [
+        "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3",
+        "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=2",
+        "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=3"
+      ],
+      "source_total": 1881,
+      "visible": 36,
+      "extracted": 36,
+      "unique": 35,
+      "shenzhen_candidates": 35,
+      "admitted": 35,
+      "rejected": {},
+      "duplicates": 1,
+      "parser_unaccounted": 0,
+      "truncated": true,
+      "next_cursor": "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=4",
+      "reasons": [
+        "到达本轮分页上限"
+      ],
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "elapsed_seconds": 3.71,
+      "complete_scope": false
+    },
+    "examples": [
+      {
+        "title": "第二届国产芯片技术创新与市场应用论坛",
+        "start": "2026-10-27T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "【深圳首场】AI 重塑·增长无界-2027 亚马逊创新卖家实战峰会",
+        "start": "2026-10-29T00:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "【AI硬件圈邀请函】亚洲电子生产设备暨微电子工业展览会NEPCON ASIA 2026",
+        "start": "2026-10-27T00:00:00+08:00",
+        "city": "深圳"
+      }
+    ]
+  },
+  "douban": {
+    "status": "partial",
+    "coverage": {
+      "version": 1,
+      "mode": "city_pages",
+      "pages_visited": 3,
+      "page_urls": [
+        "https://www.douban.com/location/shenzhen/events/future-all",
+        "https://www.douban.com/location/shenzhen/events/future-all?start=10",
+        "https://www.douban.com/location/shenzhen/events/future-all?start=20"
+      ],
+      "source_total": null,
+      "visible": 105,
+      "extracted": 90,
+      "unique": 47,
+      "shenzhen_candidates": 47,
+      "admitted": 47,
+      "rejected": {
+        "非活动主办方卡片": 15
+      },
+      "duplicates": 43,
+      "parser_unaccounted": 0,
+      "truncated": true,
+      "next_cursor": "https://www.douban.com/location/shenzhen/events/future-all?start=30",
+      "reasons": [
+        "到达本轮分页上限"
+      ],
+      "detail_attempted": 12,
+      "detail_resolved": 12,
+      "detail_failed": 0,
+      "detail_deferred": 5,
+      "detail_cached": 0,
+      "elapsed_seconds": 18.01,
+      "complete_scope": false
+    },
+    "examples": [
+      {
+        "title": "跨职业社交，来和创业者们一起脑暴",
+        "start": "2026-09-05T14:30:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "周末约一场羽毛球（深圳）",
+        "start": "2026-10-01T14:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "《你的名字-天气之子》新海诚动漫作品钢琴音乐会",
+        "start": "2026-10-24T15:30:00+08:00",
+        "city": "深圳"
+      }
+    ]
+  },
+  "meetup": {
+    "status": "partial",
+    "coverage": {
+      "version": 1,
+      "mode": "discovery_only",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.meetup.com/find/cn--shenzhen/"
+      ],
+      "source_total": null,
+      "visible": 34,
+      "extracted": 34,
+      "unique": 30,
+      "shenzhen_candidates": 11,
+      "admitted": 11,
+      "rejected": {
+        "城市尚未确认": 1,
+        "其他城市": 18
+      },
+      "duplicates": 4,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "reasons": [
+        "仅发现入口中的公开线索"
+      ],
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "elapsed_seconds": 4.5,
+      "complete_scope": false
+    },
+    "examples": [
+      {
+        "title": "Ladies Night at Vila Club ShenZhen",
+        "start": "2026-10-07T21:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "Ladies Night at Vila Club ShenZhen",
+        "start": "2026-10-14T21:00:00+08:00",
+        "city": "深圳"
+      },
+      {
+        "title": "Ladies Night",
+        "start": "2026-09-30T21:00:00+08:00",
+        "city": "深圳"
+      }
+    ]
+  }
+}

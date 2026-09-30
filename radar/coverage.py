@@ -1,0 +1,260 @@
+"""Measured, resumable public-source collection. Counters describe observed scope, not the entire web."""
+from __future__ import annotations
+import hashlib, json, math, re, time
+from collections import Counter
+from datetime import timedelta
+from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
+import feedparser
+from bs4 import BeautifulSoup
+from . import core, collectors as c
+
+
+def set_query(url, **values):
+    p=urlsplit(url);q=dict(parse_qsl(p.query));q.update({k:str(v) for k,v in values.items()})
+    return urlunsplit((p.scheme,p.netloc,p.path,urlencode(q),''))
+
+
+def canonical(url):
+    p=urlsplit(core.canon_url(url));q=[(k,v) for k,v in parse_qsl(p.query) if k not in ('qd','fr','icn')]
+    return urlunsplit((p.scheme,p.netloc,p.path,urlencode(q),''))
+
+
+def city_evidence(e, source):
+    """Prefer structured venue locality, then location. No title-only national prefilter."""
+    loc=core.clean(e.get('location')); explicit=core.clean(e.get('city'))
+    combined=(explicit+' '+loc).casefold().replace('shen zhen','shenzhen')
+    if '深圳' in combined or 'shenzhen' in combined:return '深圳'
+    if explicit and explicit not in ('未知','待确认'):return explicit
+    if any(x in combined for x in ('香港','澳门','hong kong','new territories','kowloon')):return '外市'
+    if any(x in loc for x in ('北京市','上海市','广州市','东莞市','成都市','贵阳市','杭州市')):return '外市'
+    if source.get('city_scope')=='深圳':return '深圳'
+    return '待确认'
+
+
+def hdx(soup,url):
+    out=[]
+    for node in soup.select('.search-tab-content-item'):
+        a=node.select_one('.item-title[href]')
+        if not a:continue
+        label=c.text(node.select_one('.item-data'));start,end=core.date_range(label)
+        loc=c.text(node.select_one('.item-dress'))
+        out.append(c.skeleton(c.text(a),urljoin(url,a['href']),c.text(a),loc,
+            start_at=start,end_at=end,all_day=True,time_label=label,
+            organizer=c.text(node.select_one('.user-name'))))
+    return out
+
+
+def douban_all(soup,url):
+    out=[]
+    for n in soup.select('li.list-entry,.event-item'):
+        title=n.select_one('.title a[href],.event-title a[href],a[itemprop="url"]')
+        if not title:continue
+        link=urljoin(url,title['href'])
+        if not re.match(r'^/event/\d+/?$',urlsplit(link).path):continue
+        def when(prop):
+            v=n.select_one('[itemprop="'+prop+'"]')
+            return core.iso(v.get('content') or v.get('datetime')) if v else None
+        start,end=when('startDate'),when('endDate')
+        out.append(c.skeleton(c.text(title),link,c.text(n),c.text(n.select_one('[itemprop="location"],.loc,.address')),
+            start_at=start,end_at=end,city='深圳',detail_candidate=not start))
+    return out
+
+def microdata_detail(soup,url):
+    start=soup.select_one('[itemprop="startDate"]')
+    if not start:return []
+    date=core.iso(start.get('content') or start.get('datetime'))
+    if not date:return []
+    end=soup.select_one('[itemprop="endDate"]');loc=soup.select_one('[itemprop="location"]')
+    title=soup.select_one('h1,[itemprop="name"]')
+    if not title:return []
+    return [c.skeleton(c.text(title),url,c.text(soup.select_one('#event_desc_page,.related_info,article,main') or soup)[:9000],c.text(loc),
+        start_at=date,end_at=core.iso(end.get('content') or end.get('datetime')) if end else None,
+        all_day=len(str(start.get('content') or start.get('datetime')))==10)]
+
+
+def tech_all(soup,url):
+    out=[]
+    for node in soup.select('a[href^="/event/"]'):
+        title=node.select_one('h3');loc=node.select_one('[i-carbon-location]');dt=node.select_one('[i-carbon-calendar]');org=node.select_one('[i-carbon-group]')
+        if not title:continue
+        city=c.text(loc.parent) if loc else '';start,end=core.date_range(c.text(dt.parent) if dt else '')
+        out.append(c.skeleton(c.text(title),urljoin(url,node['href']),c.text(node.select_one('p')),city,
+            start_at=start,end_at=end,all_day=True,city=city,organizer=c.text(org.parent) if org else ''))
+    return out
+
+
+def next_page(soup,url,kind):
+    """Follow observed paging metadata only; never guess endless page numbers."""
+    if kind=='hdx':
+        script=' '.join(x.get_text() for x in soup.select('script:not([src])'))
+        m=re.search(r"elem:\s*['\"]pagination['\"].*?count:\s*(\d+).*?limit:\s*(\d+).*?curr:\s*(\d+)",script,re.S)
+        if not m:return None,None
+        total,size,page=map(int,m.groups())
+        return (set_query(url,page=page+1) if size and page*size<total else None),total
+    selector='.paginator a[href]' if kind=='douban' else 'a[href]'
+    names=('下一页','下页','后页>','next','下一頁')
+    for a in soup.select(selector):
+        label=c.text(a).casefold()
+        if label not in names and 'next' not in (a.get('rel') or []):continue
+        nxt=urljoin(url,a['href']);old,new=urlsplit(url),urlsplit(nxt)
+        if old.netloc==new.netloc and old.path.rstrip('/')==new.path.rstrip('/'):return nxt,None
+    return None,None
+
+
+def parse_page(source,html,soup,url):
+    kind=source['kind']
+    fn={'lianpu':c.lianpu,'douban':douban_all,'bendibao':c.bendibao,'chaihuo':c.chaihuo,'jsonld':c.jsonld,'tech':tech_all,'hdx':hdx}.get(kind)
+    if not fn:raise c.SourceError('来源类型尚未适配')
+    items=fn(soup,url)
+    selectors={'lianpu':'article','douban':'li.list-entry','bendibao':'.main-single-block[data-url]','chaihuo':'a[href*="/activity/poster"]','tech':'a[href^="/event/"]','hdx':'.search-tab-content-item'}
+    visible=len(soup.select(selectors[kind])) if kind in selectors else len(items)
+    excluded={}
+    if kind=='chaihuo':
+        excluded['其他城市']=sum(any(w in c.text(n) for w in ('成都柴火','贵阳','河北柴火')) for n in soup.select(selectors[kind]))
+    # Some markup contains JSON-LD/sidebars as well as main list rows. Never invent a denominator.
+    if kind=='douban':
+        excluded['非活动主办方卡片']=sum(bool(n.select_one('.title a[href]')) and not re.match(r'^/event/\d+/?$',urlsplit(n.select_one('.title a[href]')['href']).path) for n in soup.select('li.list-entry'))
+    return items,visible,excluded
+
+
+def _detail_fingerprint(e):
+    return hashlib.sha256((e.get('title','')+'|'+e.get('summary','')).encode()).hexdigest()
+
+
+def enrich_details(source, items, metrics):
+    """A persistent rotating queue, not the first eight entries on every run."""
+    if not items:return items
+    limit=max(0,min(100,int(source.get('detail_budget',12))))
+    pending=[];out=[]
+    with core.db() as db:
+        cache={r['url']:dict(r) for r in db.execute('SELECT * FROM detail_cache WHERE source_id=?',(source['id'],))}
+    for e in items:
+        key=canonical(e['url']);e['url']=key;old=cache.get(key);fp=_detail_fingerprint(e)
+        if old and old['fingerprint']==fp and old['next_attempt']>core.stamp():
+            if old['payload']:
+                e={**e,**json.loads(old['payload'])};metrics['detail_cached']+=1
+            elif not e.get('start_at'):metrics['detail_deferred']+=1
+            out.append(e);continue
+        if e.get('start_at'):
+            out.append(e);continue
+        pending.append((old['checked_at'] if old else '',len(out),e,fp));out.append(e)
+    pending.sort(key=lambda x:x[0])
+    for _,idx,e,fp in pending[:limit]:
+        if time.monotonic()>source.get('_deadline',float('inf')):break
+        metrics['detail_attempted']+=1;status='no_date';payload=''
+        try:
+            html,soup,url=c.fetch(e['url'],max_bytes=1000000,proxy=source.get('proxy'))
+            values=c.jsonld(soup,url) or microdata_detail(soup,url)
+            if values:
+                chosen=next((v for v in values if canonical(v['url'])==e['url']),values[0] if len(values)==1 else None)
+                if chosen:
+                    chosen['url']=e['url'];chosen['published_at']=e.get('published_at','');out[idx]={**e,**chosen}
+            else:
+                out[idx]={**e,'summary':c.text(soup.select_one('#js_content,#event_desc_page,article,main') or soup)[:9000]}
+            payload=json.dumps(out[idx],ensure_ascii=False)
+            if out[idx].get('start_at'):metrics['detail_resolved']+=1;status='ok'
+        except c.SourceError as exc:
+            status='blocked' if isinstance(exc,c.Blocked) else 'error';metrics['detail_failed']+=1
+        retry=core.now()+timedelta(hours=24 if payload else 6)
+        with core.db() as db:
+            db.execute('INSERT INTO detail_cache VALUES(?,?,?,?,?,?,?) ON CONFLICT(source_id,url) DO UPDATE SET fingerprint=excluded.fingerprint,payload=excluded.payload,status=excluded.status,checked_at=excluded.checked_at,next_attempt=excluded.next_attempt',
+                (source['id'],e['url'],fp,payload,status,core.stamp(),core.iso(retry)))
+        if status=='blocked':break
+        time.sleep(float(source.get('request_delay',.5)))
+    metrics['detail_deferred']+=max(0,len(pending)-metrics['detail_attempted'])
+    return out
+
+
+def rss_page(source, html, metrics):
+    feed=feedparser.parse(html);entries=list(feed.entries);metrics['feed_total']=len(entries)
+    cap=max(1,min(5000,int(source.get('max_entries',500))))
+    if len(entries)>cap:metrics['truncated']=True;metrics['reasons'].append('订阅条目达到本轮上限')
+    out=[]
+    for item in entries[:cap]:
+        url=canonical(item.get('link',''))
+        if not url:continue
+        e=c.skeleton(core.clean(item.get('title')),url,c.text(BeautifulSoup(item.get('summary',''),'html.parser')),organizer=item.get('author',''))
+        e['published_at']=item.get('published','');out.append(e)
+    return out,len(entries),{}
+
+
+def collect_report(source, previous=None):
+    started=time.monotonic();previous=previous or {};kind=source['kind']
+    metrics={'version':1,'mode':source.get('coverage_mode','single_page'),'pages_visited':0,'page_urls':[],
+        'source_total':None,'visible':0,'extracted':0,'unique':0,'shenzhen_candidates':0,'admitted':0,'rejected':{},
+        'duplicates':0,'parser_unaccounted':0,'truncated':False,'next_cursor':None,'reasons':[],
+        'detail_attempted':0,'detail_resolved':0,'detail_failed':0,'detail_deferred':0,'detail_cached':0}
+    rows={};rejects=Counter();seen_pages=set();signatures=set()
+    max_pages=max(1,min(300,int(source.get('max_pages',1))));max_entries=max(1,min(5000,int(source.get('max_entries',5000))))
+    max_seconds=max(5,min(360,float(source.get('max_seconds',180))))
+    url=source['url'];cursor=previous.get('next_cursor')
+    if cursor:
+        a,b=urlsplit(url),urlsplit(cursor)
+        if a.netloc==b.netloc and a.path==b.path:url=cursor;metrics['reasons'].append('接续上轮分页')
+    error='';blocked=False
+    for page in range(max_pages):
+        if time.monotonic()-started>=max_seconds:
+            metrics['truncated']=True;metrics['next_cursor']=url;metrics['reasons'].append('到达本轮时间上限');break
+        if url in seen_pages:
+            metrics['truncated']=True;metrics['reasons'].append('检测到重复分页链接');break
+        seen_pages.add(url)
+        try:
+            if kind=='sogou':
+                items=c.sogou(source);visible=len(items);excluded={};nxt=None;total=None
+            else:
+                html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
+                items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
+                nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx') else (None,None)
+                if not items and kind!='rss':raise c.SourceError('页面可访问但解析为空')
+            metrics['pages_visited']+=1;metrics['page_urls'].append(url);metrics['visible']+=visible;metrics['extracted']+=len(items)
+            if total is not None:metrics['source_total']=total
+            rejects.update(excluded)
+            metrics['parser_unaccounted']+=max(0,visible-len(items)-sum(excluded.values()))
+            signature=tuple(sorted(canonical(e['url']) for e in items))
+            if signature and signature in signatures:
+                metrics['truncated']=True;metrics['reasons'].append('分页返回重复内容');break
+            signatures.add(signature)
+            for e in items:
+                key=canonical(e['url']);e['url']=key
+                if key in rows:
+                    metrics['duplicates']+=1
+                    if e.get('start_at') and not rows[key].get('start_at'):rows[key]=e
+                else:rows[key]=e
+            if len(rows)>=max_entries:
+                metrics['truncated']=True;metrics['reasons'].append('到达本轮条目上限');metrics['next_cursor']=nxt;break
+            if not nxt:break
+            metrics['next_cursor']=nxt;url=nxt
+            if page+1==max_pages:metrics['truncated']=True;metrics['reasons'].append('到达本轮分页上限');break
+            time.sleep(float(source.get('request_delay',.5)))
+        except c.SourceError as exc:
+            error=str(exc);blocked=isinstance(exc,c.Blocked)
+            metrics['reasons'].append(error);metrics['truncated']=True;metrics['next_cursor']=url if metrics['pages_visited'] else None;break
+    else:metrics['truncated']=True
+    if not metrics['truncated']:metrics['next_cursor']=None
+    items=list(rows.values())[:max_entries];metrics['unique']=len(items)
+    if kind in ('rss','douban'):items=enrich_details({**source,'_deadline':started+max_seconds},items,metrics)
+    admitted=[]
+    for e in items:
+        city=city_evidence(e,source)
+        if city not in ('深圳','待确认'):rejects['其他城市']+=1;continue
+        if city=='待确认' and source.get('scope')=='national':
+            if '深圳' not in (e.get('title','')+e.get('summary','')) and 'shenzhen' not in (e.get('title','')+e.get('summary','')).casefold():rejects['城市尚未确认']+=1;continue
+            e['status']='needs_review';e['start_at']=None;e['end_at']=None
+        if city=='待确认' and kind=='jsonld':rejects['城市尚未确认']+=1;continue
+        e['city']='深圳';metrics['shenzhen_candidates']+=1
+        end=e.get('end_at') or e.get('start_at')
+        if end and end<core.iso(core.now()-timedelta(days=45)):rejects['超出历史保留期']+=1;continue
+        if not e.get('start_at') and len(e.get('summary',''))<40 and not e.get('detail_candidate'):rejects['线索信息不足']+=1;continue
+        e.pop("detail_candidate",None)
+        if not core.normalize_event(e):rejects['无有效标题或链接']+=1;continue
+        admitted.append(e)
+    metrics['admitted']=len(admitted);metrics['rejected']=dict(rejects)
+    partial=metrics['truncated'] or metrics['parser_unaccounted'] or metrics['detail_deferred'] or metrics['detail_failed']
+    if metrics['mode'] in ('search_index','discovery_only','fallback_only','single_page'):
+        metrics['reasons'].append({'search_index':'搜索索引非全量实时','discovery_only':'仅发现入口中的公开线索','fallback_only':'全国订阅仅作兜底','single_page':'仅覆盖这个公开汇总页'}[metrics['mode']])
+        partial=True
+    metrics['elapsed_seconds']=round(time.monotonic()-started,2)
+    status=('blocked' if blocked else 'error') if error and not metrics['pages_visited'] else ('partial' if partial else ('ok' if items else 'empty'))
+    metrics['complete_scope']=status=='ok' and metrics['mode'] in ('city_pages','page_inventory') and not cursor
+    if cursor and status=='ok':status='partial'
+    return {'items':admitted,'coverage':metrics,'status':status,'error':error}

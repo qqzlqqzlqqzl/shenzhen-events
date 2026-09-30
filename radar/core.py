@@ -95,6 +95,13 @@ def init():
         CREATE TABLE IF NOT EXISTS budget(day TEXT PRIMARY KEY,calls INTEGER DEFAULT 0,tokens INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS candidates(name TEXT PRIMARY KEY,query TEXT,url TEXT,hits INTEGER DEFAULT 1,last_seen TEXT);
         ''')
+        if 'coverage' not in {r[1] for r in c.execute('PRAGMA table_info(source_health)')}:
+            c.execute("ALTER TABLE source_health ADD COLUMN coverage TEXT NOT NULL DEFAULT '{}'")
+        c.executescript("""
+        CREATE TABLE IF NOT EXISTS detail_cache(source_id TEXT,url TEXT,fingerprint TEXT,payload TEXT,status TEXT,checked_at TEXT,next_attempt TEXT,PRIMARY KEY(source_id,url));
+        CREATE TABLE IF NOT EXISTS source_jobs(id TEXT PRIMARY KEY,source_id TEXT,state TEXT,requested_at TEXT,updated_at TEXT,message TEXT);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_source_active_job ON source_jobs(source_id) WHERE state IN ('queued','running');
+        """)
         for s in json.loads((ROOT/'sources.json').read_text()):c.execute('INSERT INTO source_health(id,name,url) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,url=excluded.url',(s['id'],s['name'],s.get('public_url',s['url'])))
 
 def dedupe_aliases():
@@ -164,6 +171,7 @@ def ingest(source,e,body=None):
                     if is_duplicate(e,dict(row)):eid=row['id'];break
             eid=eid or hashlib.sha256((source['id']+'|'+e['url']).encode()).hexdigest()[:20]
         prev=c.execute('SELECT * FROM events WHERE id=?',(eid,)).fetchone();rank=source.get('priority',50);r=rules(e['title'],e['summary'])
+        if prev and prev['location']==e['location'] and e['district']=='待确认':e['district']=prev['district']
         if not prev or (changed and rank<=prev['origin_priority']):
             data={'id':eid,'title':e['title'],'title_norm':norm(e['title']),'start_at':e['start_at'],'end_at':e['end_at'],'all_day':int(e['all_day']),'location':e['location'],'district':e['district'],'organizer':e['organizer'],'summary':e['summary'],'topics':json.dumps(e['topics'],ensure_ascii=False),'priority':r['priority'],'reason':r['reason'],'commercial':r['commercial'],'cost_text':e['cost_text'],'cost_free':int(e['cost_free']),'url':e['url'],'status':e['status'],'origin_priority':rank,'first_seen':prev['first_seen'] if prev else ts,'last_seen':ts,'ai_state':'pending'}
             keys=list(data);c.execute(f"INSERT INTO events ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)}) ON CONFLICT(id) DO UPDATE SET "+','.join(f'{k}=excluded.{k}' for k in keys if k not in ('id','first_seen')),tuple(data.values()))
