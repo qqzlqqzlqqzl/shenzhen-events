@@ -69,8 +69,8 @@ def calendar_default():
     grid=page.locator('#calendar').inner_text()
     ok('深圳博物馆新展《宠爱--猫猫狗狗的世界》' not in grid)
     ends=page.evaluate("calendar.getEvents().map(e=>e.end)")
-    ok(all(x is None for x in ends),str(ends[:8]))
-    ok('月历按活动开始日显示' in page.locator('.calendar-guide').inner_text())
+    ok(page.evaluate('calendar.getEvents().every(e=>!e.end||e.end-e.start<14*86400000)'),str(ends[:8]))
+    ok('短期跨日活动连续显示' in page.locator('.calendar-guide').inner_text())
     page.screenshot(path=str(ART/'calendar-default.png'),full_page=True)
 check('month_calendar_has_no_spanning_long_bars',calendar_default)
 def calendar_show_long():
@@ -101,3 +101,4 @@ report['page_errors_empty']=not report['errors']
 browser.close();pw.stop()
 print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)
+

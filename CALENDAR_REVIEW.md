@@ -2,6 +2,8 @@
 
 Scope: Issues #10–#13.
 
+Historical review: the start-only behavior below is superseded for short multi-day events by issue #36; see MULTIDAY_REVIEW.md. The >=14-day long/repeated separation remains in place.
+
 ## Root cause
 
 The event model stores a source-provided start/end interval. Some Shenzhen listings use that interval for a long exhibition/opening period or a repeated series. The old weekend query correctly detected interval overlap, but the card still displayed the original start date; FullCalendar also rendered the whole interval as a multi-week bar. This made May/July starts look like current-weekend events and flooded every calendar day.
@@ -42,3 +44,4 @@ Candidate `a409285` was temporarily deployed only to `shenzhen-events.service` a
 - Existing Inbox/NewAPI/RSSHub processes were not restarted.
 
 Evidence: `artifacts/calendar-review/public/` and `public-run.log`.
+

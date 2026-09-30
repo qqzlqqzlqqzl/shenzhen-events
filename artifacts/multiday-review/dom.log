@@ -1,0 +1,20 @@
+✔ desktop passes source interval, range labels and accessible date text to FullCalendar (379.898159ms)
+✔ cross-month source starts remain in the month; cross-week spans split into two segments (205.652577ms)
+✔ mobile agenda lists Oct 14, 15 and 16 exactly once each (102.64705ms)
+✔ exclusive midnight and unknown end never invent an extra covered date (87.936468ms)
+✔ long-running items remain separate and their full source date range is available (185.358275ms)
+✔ cards show full short-event date range and preserve unknown opening-day disclaimer (119.31799ms)
+✔ mobile agenda keeps native focus, single keyboard/pointer activation and one range label (146.527545ms)
+✔ legacy tag and repeated topic URLs retain the culture selection (404.478161ms)
+✔ type OR, topic OR, cross-group AND and chip removal round-trip through URL state (159.419555ms)
+✔ all 23 known types are preserved in requests and selected chips (396.741787ms)
+✔ browser history restores multi-select state after chip removal (98.746652ms)
+✔ zero-count generic filters survive favorites/past deep links and refresh (135.314209ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1777.295857
