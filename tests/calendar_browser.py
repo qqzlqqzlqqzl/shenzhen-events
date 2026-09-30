@@ -16,6 +16,7 @@ sat=day+timedelta(days=5-day.weekday()) if day.weekday()<5 else day-timedelta(da
 early=now+timedelta(days=2)
 while early.weekday()>=5:early+=timedelta(days=1)
 late=early+timedelta(days=7)
+CALENDAR_QUERY='?view=calendar&month='+early.replace(day=1).date().isoformat()
 def put(title,url,start,end,all_day=False):
     core.ingest({'id':'a','priority':10},{'title':title,'url':url,'start_at':start,'end_at':end,'all_day':all_day,'location':'深圳市南山区测试中心','summary':'隔离浏览器测试。','cost_text':'免费'})
 put('长期博物馆展','https://example.com/long',(now-timedelta(days=100)).date().isoformat(),(now+timedelta(days=100)).date().isoformat(),True)
@@ -80,7 +81,7 @@ def sort_control():
     page.reload(wait_until='domcontentloaded');expect(page.locator('#event-list')).to_have_attribute('aria-busy','false');ok(page.locator('#sort').input_value()=='desc')
 check('time_sort_roundtrip',sort_control)
 def calendar_clean():
-    ready('?view=calendar')
+    ready(CALENDAR_QUERY)
     page.locator('.fc-view-harness').wait_for();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
     ok(page.locator('#calendar-long').is_hidden())
     ok('长期博物馆展' not in page.locator('#calendar').inner_text())
@@ -93,7 +94,7 @@ def calendar_clean():
 check('month_calendar_preserves_short_intervals',calendar_clean)
 
 def calendar_show_long():
-    ready('?view=calendar');page.locator('#hide-long').uncheck();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
+    ready(CALENDAR_QUERY);page.locator('#hide-long').uncheck();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
     page.locator('#calendar-long').wait_for(state='visible')
     ok('长期博物馆展' in page.locator('#calendar-long').inner_text())
     ok('长期博物馆展' not in page.locator('#calendar').inner_text())
@@ -101,7 +102,7 @@ def calendar_show_long():
 check('month_calendar_separates_long_running',calendar_show_long)
 
 def mobile_calendar():
-    page.set_viewport_size({'width':390,'height':844});ready('?view=calendar')
+    page.set_viewport_size({'width':390,'height':844});ready(CALENDAR_QUERY)
     page.locator('.fc-list').wait_for();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
     ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
     page.screenshot(path=str(ART/'mobile-month-list.png'),full_page=True)
