@@ -11,6 +11,7 @@
 - 个性化筛选：机器人、硬件创客、AI/开源、产品创业、汽车、展览文化、户外生活。
 - 收藏、搜索、免费/区域/类别过滤、周末视图、FullCalendar 月历、私人 ICS。
 - 来源健康、失败退避、模型日预算、日志截断、数据库/日志存储上限。
+- 可选高德 Web 服务辅助补全“有场馆但缺行政区”的活动；只补 district，原始地点保持不变。
 - 手机和桌面浏览器验收。
 
 ## 架构
@@ -21,6 +22,8 @@
 RSSHub + bounded source adapters
         ↓
 normalize → evidence checks → conservative dedupe
+        ↓
+optional AMap district enrichment (cached + bounded)
         ↓
 SQLite (WAL)
         ↓
@@ -48,6 +51,7 @@ Nginx /events/
 - `radar/worker.py`：定时采集、AI 分类、预算、保留策略。
 - `radar/api.py`：私有 API 与静态站点。
 - `radar/calendar.py`：ICS 导出。
+- `radar/geocode.py`：可选高德地理编码/POI 区域补全；私有 Key 从 `.private/amap.key` 读取。
 - `static/`：独立活动雷达前端。
 - `sources.json`：来源与抓取频率。
 - `dedupe_aliases.json`：有官方证据的精确跨源别名。

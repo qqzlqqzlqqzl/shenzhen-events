@@ -1,0 +1,234 @@
+[
+  {
+    "id": "79ecf3c60422faa358c7",
+    "title": "“九龙城寨光影之旅”电影场景展",
+    "location": "九龙寨城公园衙门",
+    "start_at": "2025-05-25T00:00:00+08:00",
+    "query": "九龙寨城公园衙门",
+    "status": "not_found"
+  },
+  {
+    "id": "35cb36b06307f06b8083",
+    "title": "M+希克藏品：心灵图景（香港展览）",
+    "location": "西九文化区M+大楼",
+    "start_at": "2025-06-27T00:00:00+08:00",
+    "query": "西九文化区M+大楼",
+    "status": "not_found"
+  },
+  {
+    "id": "d9e50442e1bb9f01bcfb",
+    "title": "天马凌云──故宫博物院藏绘画珍品",
+    "location": "香港故宫文化博物馆",
+    "start_at": "2026-03-20T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "cfb1fbfbbb1530fc9e82",
+    "title": "琳琅──纽约大都会艺术博物馆世界珠宝珍藏",
+    "location": "香港故宫文化博物馆",
+    "start_at": "2026-04-15T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "354a218681347ad44b69",
+    "title": "香港赛马会呈献系列：紫禁城看世界──中外文化交流与互鉴",
+    "location": "香港故宫文化博物馆",
+    "start_at": "2026-06-03T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "770e1d829ffa45e07435",
+    "title": "欣于所遇──黄君实的书画鉴藏与艺术",
+    "location": "香港故宫文化博物馆",
+    "start_at": "2026-06-13T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "74288bc89172f711013e",
+    "title": "流光彰色──故宫博物院藏明代陶瓷选粹",
+    "location": "香港故宫文化博物馆",
+    "start_at": "2026-07-01T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "a352953ec3d00cf5a1eb",
+    "title": "香港故宫文化博物馆导赏服务",
+    "location": "香港故宫文化博物馆",
+    "start_at": "2026-07-04T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "9e250198626ff97fbfbd",
+    "title": "AI 实践者社交交流局",
+    "location": "深圳 / 深圳（具体地址报名后通知）",
+    "start_at": "2026-09-06T15:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "b8ccaf63ef9265483559",
+    "title": "开源 reBot Arm 工作坊",
+    "location": "深圳 / 报名后可知看详细地址",
+    "start_at": "2026-09-13T09:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "d1deac7385ac7e6d9f32",
+    "title": "深圳 SEO 大会",
+    "location": "深圳 / 报名后可知详细地址",
+    "start_at": "2026-09-14T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "ea0f65a04ee47415ebf2",
+    "title": "AI × Web3 开发者与产业创新交流会",
+    "location": "深圳 / 具体地址报名后通知",
+    "start_at": "2026-09-19T14:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "87f3070ee26806c3f187",
+    "title": "EVOTavern 进化酒馆 AGENT 黑客松",
+    "location": "深圳 / 广东·深圳（报名后可知详细地址）",
+    "start_at": "2026-09-21T09:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "70ce57e33b5648f0b7be",
+    "title": "AI × TikTok 出海沙龙",
+    "location": "深圳 / 深圳（报名后可知具体地址）",
+    "start_at": "2026-09-26T09:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "c4c6804ef17853b95981",
+    "title": "Monad Metropolis Hacker House | 深圳",
+    "location": "深圳 / 深圳市（报名成功后由主办方告知具体地点）",
+    "start_at": "2026-09-26T13:30:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "9d19d0d4d04f63654dcc",
+    "title": "深圳企业家创新沙龙《科技成果转化的中国答案100个科技成果转化实战案例》科学家聚会",
+    "location": "深圳 / 报名后可查看详细地址",
+    "start_at": "2026-09-27T13:30:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "4f98e6aac005c7909899",
+    "title": "AI + 外贸增长系统、全域获客超级团队 — AI 社媒获客 & AccioWork 智能工作坊",
+    "location": "深圳 / 广东深圳（报名后可查看详细地址）",
+    "start_at": "2026-09-29T13:30:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "028376a9351474f500db",
+    "title": "2026国庆节香港赛马日",
+    "location": "香港沙田马场",
+    "start_at": "2026-10-01T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "d6ff21778dcb763720c8",
+    "title": "ZORA - AI实战集训营",
+    "location": "深圳 / 深圳（具体地点报名后获取）",
+    "start_at": "2026-10-03T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "3a3deed9edf9276b59df",
+    "title": "WorkBuddy 智能办公实践沙龙",
+    "location": "深圳 / 深圳（报名成功后可见详细地址）",
+    "start_at": "2026-10-03T09:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "a6ed12cb87b6aaac0574",
+    "title": "Shenzhen Social dinner (Special foodies series)",
+    "location": "Shenzhen Lowu PostalAddress New Territories cn Shenzhen Lowu, New Territories",
+    "start_at": "2026-10-03T18:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "0cf19f88bedcd0f41d93",
+    "title": "🐶深圳博物館寵·愛猫狗世界導賞團 🐱 + 朱古力博物館參觀🍫",
+    "location": "Shenzhen Museum PostalAddress Shen Zhen Shi cn G3V6+8M6, Fu Zhong San Lu, 中心城 Fu Tian Qu, Shen Zhen Shi, Guang Dong Sheng, China, 518000, Shen Zhen Shi",
+    "start_at": "2026-10-04T12:30:00+08:00",
+    "query": "Shenzhen Museum",
+    "status": "not_found"
+  },
+  {
+    "id": "140e835fbf8738a0904d",
+    "title": "一人公司 × 副业探索 Coffee Chat · 深圳",
+    "location": "深圳 / 深圳市·宝宝中心｜BLLB咖啡",
+    "start_at": "2026-10-07T14:30:00+08:00",
+    "query": "深圳市·宝宝中心｜BLLB咖啡",
+    "status": "not_found"
+  },
+  {
+    "id": "6901fda28334eaeb98a3",
+    "title": "2026 TCT 深圳 3D 打印展",
+    "location": "深圳",
+    "start_at": "2026-10-14T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "93de07d9638be04ecf78",
+    "title": "德邻杯 AI 创业大赛 | 2026",
+    "location": "深圳 / 报名后可知详细地址",
+    "start_at": "2026-10-15T09:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "38a5a89dd7ad43afbb19",
+    "title": "GOSIM Shenzhen 2026",
+    "location": "深圳",
+    "start_at": "2026-10-16T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "509db0a118c8bea4c212",
+    "title": "HiPM 产品创新力峰会",
+    "location": "深圳 / 报名后可知详细地址",
+    "start_at": "2026-10-16T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "d115ddd3bd1bed143520",
+    "title": "Anker 首届黑客松挑战赛",
+    "location": "深圳",
+    "start_at": "2026-10-16T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  },
+  {
+    "id": "b5578f467abb647b9ffb",
+    "title": "GOSIM Agentic Factory Hackathon 2026",
+    "location": "深圳",
+    "start_at": "2026-10-17T00:00:00+08:00",
+    "query": "",
+    "status": "skipped"
+  }
+]

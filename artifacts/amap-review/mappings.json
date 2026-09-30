@@ -1,0 +1,472 @@
+[
+  {
+    "id": "848ab3b5ca2f0340ad89",
+    "title": "深圳博物馆新展《宠爱--猫猫狗狗的世界》",
+    "location": "深圳博物馆历史民俗馆",
+    "start_at": "2026-05-30T00:00:00+08:00",
+    "query": "博物馆历史民俗馆",
+    "district": "福田",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市福田区深圳博物馆历史民俗馆(北门)"
+  },
+  {
+    "id": "2892d6e26ad397fc0af0",
+    "title": "深圳自然博物馆参观攻略+实拍",
+    "location": "深圳自然博物馆",
+    "start_at": "2026-07-28T00:00:00+08:00",
+    "query": "自然博物馆",
+    "district": "坪山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市坪山区深圳自然博物馆(公交站)"
+  },
+  {
+    "id": "491b8cfa2814a945c6bc",
+    "title": "《在一起，再出发——2026珠宝首饰设计展·深圳》",
+    "location": "深圳珠宝博物馆",
+    "start_at": "2026-07-28T00:00:00+08:00",
+    "query": "珠宝博物馆",
+    "district": "罗湖",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市罗湖区深圳珠宝博物馆"
+  },
+  {
+    "id": "4db01757ae2c75d551b8",
+    "title": "2026深圳罗湖巧克力博物馆",
+    "location": "深圳巧克力博物馆",
+    "start_at": "2026-08-01T00:00:00+08:00",
+    "query": "巧克力博物馆",
+    "district": "罗湖",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市罗湖区深圳巧克力博物馆"
+  },
+  {
+    "id": "fb02adedb0d986a6d8a6",
+    "title": "深圳美术馆当代青年版画创作邀请展",
+    "location": "深圳美术馆老馆(东湖馆)",
+    "start_at": "2026-08-11T00:00:00+08:00",
+    "query": "美术馆老馆(东湖馆)",
+    "district": "罗湖",
+    "method": "poi",
+    "resolved_name": "深圳美术馆(东湖馆)"
+  },
+  {
+    "id": "ba4fc94c6c0e5e9fc175",
+    "title": "8.17日，柴火创客联合Seeed Studio共同官宣《全球招募AI先锋官》计划，吸引了全国各地不同行业领域小伙伴的关注，我们已陆续收到几十份先锋官申请书。 先锋官首轮答疑宣讲会 2026/08/25",
+    "location": "深圳 · 柴火创客（具体地址以原文为准）",
+    "start_at": "2026-08-25T00:00:00+08:00",
+    "query": "柴火创客",
+    "district": "南山",
+    "method": "poi",
+    "resolved_name": "柴火创客空间"
+  },
+  {
+    "id": "f2ac3f55d2126aa614e4",
+    "title": "一台摄像头 + 20 块钱，能交付什么 AI 视觉方案？ AI 硬件方案落地伙伴招募｜多模态 AI 交互实战课 2026/08/29",
+    "location": "深圳 · 柴火创客（具体地址以原文为准）",
+    "start_at": "2026-08-29T00:00:00+08:00",
+    "query": "柴火创客",
+    "district": "南山",
+    "method": "poi",
+    "resolved_name": "柴火创客空间"
+  },
+  {
+    "id": "d48481208cac2206ba26",
+    "title": "AI 量化交易智能体训练营第三期",
+    "location": "深圳 / 深圳湾科技生态园一期一区 2A 栋",
+    "start_at": "2026-09-05T10:00:00+08:00",
+    "query": "深圳湾科技生态园一期一区 2A 栋",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳湾深圳湾科技生态园一期一区"
+  },
+  {
+    "id": "6e00a913df2f23bd38a8",
+    "title": "REBUILD-Z × GEIA 具身智能 AI 黑客松",
+    "location": "深圳 / 大中华喜来登酒店",
+    "start_at": "2026-09-08T00:00:00+08:00",
+    "query": "大中华喜来登酒店",
+    "district": "福田",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市福田区深圳大中华喜来登酒店(正门)"
+  },
+  {
+    "id": "d6fe40764e82b4040750",
+    "title": "Arm Create 2026 深圳站",
+    "location": "深圳 / 深圳湾万丽酒店",
+    "start_at": "2026-09-11T09:00:00+08:00",
+    "query": "深圳湾万丽酒店",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳湾万丽酒店"
+  },
+  {
+    "id": "281c69a7c8355a6fa8bc",
+    "title": "把 AI 装进一枚\"硬币\" XIAOESP32机器视觉工作坊 把 AI 装进一枚\"硬币\" XIAOESP32机器视觉工作坊 2026/09/12",
+    "location": "深圳 · 柴火创客（具体地址以原文为准）",
+    "start_at": "2026-09-12T00:00:00+08:00",
+    "query": "柴火创客",
+    "district": "南山",
+    "method": "poi",
+    "resolved_name": "柴火创客空间"
+  },
+  {
+    "id": "8b6147ddc3157d64b22a",
+    "title": "青云朋友局 · 深圳场",
+    "location": "深圳 / 深圳大学城附近（具体地址将在报名截止后通过邮件提醒）",
+    "start_at": "2026-09-12T00:00:00+08:00",
+    "query": "深圳大学城附近",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳大学城"
+  },
+  {
+    "id": "4f3f268a1605af51c988",
+    "title": "OpenSchool x 腾讯云 AI Claw Demo Day",
+    "location": "深圳 / 腾讯滨海大厦",
+    "start_at": "2026-09-12T14:00:00+08:00",
+    "query": "腾讯滨海大厦",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区腾讯滨海大厦(南门)"
+  },
+  {
+    "id": "71cddc600e154d30b0b6",
+    "title": "南头古城、中山公园、荷兰花卉小镇双节活动",
+    "location": "荷兰花卉小镇",
+    "start_at": "2026-09-17T00:00:00+08:00",
+    "query": "荷兰花卉小镇",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区荷兰花卉小镇"
+  },
+  {
+    "id": "34c0d9a54d5b76acbc1a",
+    "title": "熔金择粹——深圳水贝黄金珠宝艺术展（回顾展）",
+    "location": "深圳珠宝博物馆",
+    "start_at": "2026-09-19T00:00:00+08:00",
+    "query": "珠宝博物馆",
+    "district": "罗湖",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市罗湖区深圳珠宝博物馆"
+  },
+  {
+    "id": "358afa4a76ee3d57bb15",
+    "title": "BAYTECH 2026 国际湾区创科节",
+    "location": "深圳 / 深圳河套科创中心 D 栋",
+    "start_at": "2026-09-19T00:00:00+08:00",
+    "query": "深圳河套科创中心 D 栋",
+    "district": "福田",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市福田区河套科创中心(建设中)"
+  },
+  {
+    "id": "ebf58e4ea4cc3383a718",
+    "title": "惊奇潮玩节",
+    "location": "深圳欢乐谷",
+    "start_at": "2026-09-19T00:00:00+08:00",
+    "query": "欢乐谷",
+    "district": "南山",
+    "method": "poi",
+    "resolved_name": "深圳欢乐谷"
+  },
+  {
+    "id": "7462fbffac5dc0123a9d",
+    "title": "AI 和云原生架构方案研讨",
+    "location": "深圳 / 深圳·腾讯大厦 411 会议室",
+    "start_at": "2026-09-19T14:00:00+08:00",
+    "query": "深圳·腾讯大厦 411 会议室",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区腾讯大厦"
+  },
+  {
+    "id": "ec8c572ad61570ec395f",
+    "title": "超级智能体大会",
+    "location": "深圳 / 深圳湾万丽酒店三层大宴会厅",
+    "start_at": "2026-09-20T09:00:00+08:00",
+    "query": "深圳湾万丽酒店三层大宴会厅",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳湾万丽酒店"
+  },
+  {
+    "id": "92d40b7fc3f664ebe93f",
+    "title": "2026 领星跨境电商峰会",
+    "location": "深圳 / 深圳前海国际会议中心",
+    "start_at": "2026-09-21T10:00:00+08:00",
+    "query": "深圳前海国际会议中心",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区前海国际会议中心"
+  },
+  {
+    "id": "77e43a22ddb5643e1c5d",
+    "title": "AI 演进与产业新机遇：从 Personal AI 到 Physical AI",
+    "location": "深圳 / 深圳深铁皇冠假日酒店",
+    "start_at": "2026-09-22T14:00:00+08:00",
+    "query": "深圳深铁皇冠假日酒店",
+    "district": "南山",
+    "method": "poi",
+    "resolved_name": "深圳深铁皇冠假日酒店·璞肴·中餐厅"
+  },
+  {
+    "id": "536b1b19073b2823106c",
+    "title": "南园亚太非遗文化周",
+    "location": "iN城市广场",
+    "start_at": "2026-09-24T00:00:00+08:00",
+    "query": "iN城市广场",
+    "district": "福田",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市福田区IN城市广场(公交站)"
+  },
+  {
+    "id": "981cf712b3455649d45d",
+    "title": "大梅沙猜灯谜+巨型月球网红打卡点",
+    "location": "大梅沙海滨公园",
+    "start_at": "2026-09-25T00:00:00+08:00",
+    "query": "大梅沙海滨公园",
+    "district": "盐田",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市盐田区大梅沙海滨公园"
+  },
+  {
+    "id": "b40bc576863c04ddf27f",
+    "title": "深圳世界之窗国庆活动",
+    "location": "深圳世界之窗",
+    "start_at": "2026-09-25T00:00:00+08:00",
+    "query": "世界之窗",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区世界之窗(公交站)"
+  },
+  {
+    "id": "c1c5eecb2372a8c52072",
+    "title": "小梅沙·名著寻游记",
+    "location": "深圳小梅沙海洋世界",
+    "start_at": "2026-09-25T00:00:00+08:00",
+    "query": "小梅沙海洋世界",
+    "district": "盐田",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市盐田区小梅沙海洋世界"
+  },
+  {
+    "id": "df0e9d39fe3953abbe91",
+    "title": "深圳世界之窗「奇思狂想季」",
+    "location": "深圳世界之窗",
+    "start_at": "2026-09-25T00:00:00+08:00",
+    "query": "世界之窗",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区世界之窗(公交站)"
+  },
+  {
+    "id": "ee75612fe0052bdc080d",
+    "title": "观澜山水田园文化园金秋奇遇双节游园荟",
+    "location": "观澜山水田园乡村温泉",
+    "start_at": "2026-09-25T00:00:00+08:00",
+    "query": "观澜山水田园乡村温泉",
+    "district": "龙华",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市龙华区深圳观澜山水田园乡村温泉(酷旅专营店)"
+  },
+  {
+    "id": "17b89952f12147ee425d",
+    "title": "AI商业应用沙龙｜OPC获客 · Agent交付 · 品牌出海",
+    "location": "深圳 / 深圳·清华大学研究院园区内",
+    "start_at": "2026-09-27T14:00:00+08:00",
+    "query": "深圳·清华大学研究院园区内",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳清华大学研究院"
+  },
+  {
+    "id": "9a8b6fab244f2b1ac13a",
+    "title": "AI 时代未来教育创新研讨会",
+    "location": "深圳 / 深圳大学 · 致信楼 107 会议室",
+    "start_at": "2026-09-27T14:00:00+08:00",
+    "query": "深圳大学 · 致信楼 107 会议室",
+    "district": "南山",
+    "method": "poi",
+    "resolved_name": "深圳大学(粤海校区)-致信楼"
+  },
+  {
+    "id": "7fd4a075c407127e5bf9",
+    "title": "深圳市文化馆新馆开馆！",
+    "location": "深圳文化馆新馆",
+    "start_at": "2026-09-28T00:00:00+08:00",
+    "query": "文化馆新馆",
+    "district": "龙华",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市龙华区深圳市文化馆新馆(装修中)"
+  },
+  {
+    "id": "af4f6b47016a6caf3c2b",
+    "title": "教育行业 AI 化改造落地工作坊 | 深圳站",
+    "location": "深圳 / 广东深圳前海人寿金融中心",
+    "start_at": "2026-09-29T14:00:00+08:00",
+    "query": "广东深圳前海人寿金融中心",
+    "district": "宝安",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市宝安区前海人寿金融中心"
+  },
+  {
+    "id": "1dedf6ad2909d0cf3411",
+    "title": "深圳海上田园「欢度国庆 乐享假期」主题活动",
+    "location": "深圳海上田园",
+    "start_at": "2026-10-01T00:00:00+08:00",
+    "query": "海上田园",
+    "district": "宝安",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市宝安区海上田园"
+  },
+  {
+    "id": "25cf08df84cb5c8d64ea",
+    "title": "锦绣中华民俗村中秋千灯会、孔明灯祈福、国庆晒秋等",
+    "location": "锦绣中华民俗村",
+    "start_at": "2026-10-01T00:00:00+08:00",
+    "query": "锦绣中华民俗村",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区锦绣中华民俗村"
+  },
+  {
+    "id": "264e025e00c71d17f390",
+    "title": "海洋庆双节",
+    "location": "观澜海洋世界",
+    "start_at": "2026-10-01T00:00:00+08:00",
+    "query": "观澜海洋世界",
+    "district": "龙华",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市龙华区深圳观澜海洋世界"
+  },
+  {
+    "id": "9fe474f26a466c60f200",
+    "title": "G.E.M.邓紫棋IAMGLORIA世界巡回演唱会2.0-深圳站",
+    "location": "深圳大运中心体育场",
+    "start_at": "2026-10-01T00:00:00+08:00",
+    "query": "大运中心体育场",
+    "district": "龙岗",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市龙岗区大运中心(公交站)"
+  },
+  {
+    "id": "20f1c238fd041bdf1937",
+    "title": "2026萧敬腾野生巡回演唱会深圳站",
+    "location": "深圳湾体育中心“春茧”体育场",
+    "start_at": "2026-10-03T00:00:00+08:00",
+    "query": "湾体育中心“春茧”体育场",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳湾体育中心(公交站)"
+  },
+  {
+    "id": "ab573102e4f9af7f6ce2",
+    "title": "Shenzhen Fire (Financial Independence, Retire Early) 🔥",
+    "location": "Hilton Shenzhen Futian PostalAddress Shenzhen cn Tower B, Great China International Finance Centre, Futian District, Shenzhen, Shenzhen",
+    "start_at": "2026-10-03T12:00:00+08:00",
+    "query": "Hilton Shenzhen Futian",
+    "district": "福田",
+    "method": "text",
+    "resolved_name": ""
+  },
+  {
+    "id": "6119cffb939b16b89b36",
+    "title": "Share a book, a movie or a story",
+    "location": "Leizhen Mansion PostalAddress Shenzhen cn No.40, Fuming Road Futian, Shenzhen, Guangdong China, No.40, Fuming Road Futian, Shenzhen, Guangdong China, Shenzhen",
+    "start_at": "2026-10-03T19:00:00+08:00",
+    "query": "Leizhen Mansion",
+    "district": "福田",
+    "method": "text",
+    "resolved_name": ""
+  },
+  {
+    "id": "b3f089edd4df812d557c",
+    "title": "6/8-14:30 Woollen Felt DIY -Find Your Childhood",
+    "location": "Le Select (Chegongmiao Exit C in Futian District) PostalAddress Shenzhen cn Tairan 2nd Rd. & Tairan 9th Rd., Shenzhen",
+    "start_at": "2026-10-04T14:30:00+08:00",
+    "query": "Le Select (Chegongmiao Exit C in Futian District)",
+    "district": "福田",
+    "method": "text",
+    "resolved_name": ""
+  },
+  {
+    "id": "5070a1dc4df05b8faa2f",
+    "title": "Discuss about one topic and make life better",
+    "location": "Shenzhen North Railway Station PostalAddress Shenzhen cn Shenzhen North Railway Station, Shenzhen",
+    "start_at": "2026-10-04T19:00:00+08:00",
+    "query": "Shenzhen North Railway Station",
+    "district": "龙华",
+    "method": "poi",
+    "resolved_name": "ONE NAIL SALON深圳北站店"
+  },
+  {
+    "id": "ef1160120aa94b1bf08c",
+    "title": "AI 应用榜 —— AI 智能体 ( 工具 ）榜单征集",
+    "location": "深圳 / 深圳湾科技生态园一期一区 2 A 栋",
+    "start_at": "2026-10-11T14:00:00+08:00",
+    "query": "深圳湾科技生态园一期一区 2 A 栋",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳湾深圳湾科技生态园一期一区"
+  },
+  {
+    "id": "bc40a76e593d47f957c1",
+    "title": "2026张杰1982开往「未·LIVE」演唱会深圳站",
+    "location": "深圳大运中心体育场",
+    "start_at": "2026-10-16T00:00:00+08:00",
+    "query": "大运中心体育场",
+    "district": "龙岗",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市龙岗区大运中心(公交站)"
+  },
+  {
+    "id": "91c5179a79472f78ac70",
+    "title": "梁静茹Best巡回演唱会深圳站",
+    "location": "深圳湾体育中心“春茧”体育馆",
+    "start_at": "2026-10-17T00:00:00+08:00",
+    "query": "湾体育中心“春茧”体育馆",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳湾体育中心(公交站)"
+  },
+  {
+    "id": "9773a76fbc1323920cef",
+    "title": "林宥嘉《超级管家》世界巡回演唱会深圳站",
+    "location": "深圳湾体育中心“春茧”体育场",
+    "start_at": "2026-10-31T00:00:00+08:00",
+    "query": "湾体育中心“春茧”体育场",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳湾体育中心(公交站)"
+  },
+  {
+    "id": "0a5b4fca64272dfb6e39",
+    "title": "杨丞琳《房间里的大象》世界巡回演唱会",
+    "location": "深圳体育中心体育场",
+    "start_at": "2026-12-02T00:00:00+08:00",
+    "query": "体育中心体育场",
+    "district": "福田",
+    "method": "poi",
+    "resolved_name": "深圳市体育中心体育馆主馆"
+  },
+  {
+    "id": "d0a4d15c724bc147678b",
+    "title": "2026周传雄念念不忘再遇见plus演唱会深圳站",
+    "location": "深圳湾体育中心“春茧”体育场",
+    "start_at": "2026-12-31T00:00:00+08:00",
+    "query": "湾体育中心“春茧”体育场",
+    "district": "南山",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市南山区深圳湾体育中心(公交站)"
+  },
+  {
+    "id": "9bdce13138bc66a7eb3e",
+    "title": "2027王嘉尔深圳演唱会",
+    "location": "深圳大运中心体育馆",
+    "start_at": "2027-01-30T00:00:00+08:00",
+    "query": "大运中心体育馆",
+    "district": "龙岗",
+    "method": "geocode",
+    "resolved_name": "广东省深圳市龙岗区大运中心体育馆(公交站)"
+  }
+]
