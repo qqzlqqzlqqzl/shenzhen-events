@@ -186,7 +186,9 @@ def status_metrics_and_budget():
     assert_true(page.locator('#result-count').is_hidden() and page.locator('#result-count').inner_text()=='')
     assert_true(page.locator('#active-filters').is_hidden())
     assert_true(page.locator('.coverage-flow dd').all_inner_texts()==['22','22','22','6','6','6'])
-    page.locator('.analysis-budget summary').click();assert_true('不是人民币金额' in page.locator('.analysis-budget').inner_text())
+    assert_true('外部模型自动分析已停用' in page.locator('.analysis-budget').inner_text())
+    assert_true('自动采集继续运行' in page.locator('.analysis-budget').inner_text())
+    assert_true(page.locator('.analysis-budget summary').count()==0)
     page.screenshot(path=str(ART/'source-coverage-budget.png'),full_page=True)
 check('status_clears_list_count_and_explains_coverage_budget',status_metrics_and_budget)
 
