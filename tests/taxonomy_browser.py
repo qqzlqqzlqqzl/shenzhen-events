@@ -119,6 +119,27 @@ def all_type_facets_can_be_selected():
     ok(page.locator('.event-card').count() == 5)
 check('all_offered_type_facets_are_valid_together', all_type_facets_can_be_selected)
 
+def remembered_filters_after_fresh_entry():
+    ready('?view=all&topic='+__import__('urllib.parse',fromlist=['quote']).quote('机器人'))
+    ok(page.locator('#topic-options input:checked').count()==1)
+    page.goto(BASE+'/events/',wait_until='domcontentloaded')
+    expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
+    ok(page.get_by_label('机器人',exact=True).is_checked())
+    ok(page.locator('#topic-options input:checked').count()==1)
+    ready('?view=all')
+    ok(page.locator('#topic-summary').inner_text()=='全部')
+    page.locator('#clear-filters').click();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
+check('remember_filters_fresh_entry_explicit_url_reset',remembered_filters_after_fresh_entry)
+
+def responsive_card_columns():
+    for width,columns in [(390,1),(900,2),(1196,3),(1440,4),(1920,4)]:
+        page.set_viewport_size({'width':width,'height':1000});ready('?view=all')
+        actual=page.locator('#event-list').evaluate('(e)=>getComputedStyle(e).gridTemplateColumns.split(" ").length')
+        ok(actual==columns,f'{width}: {actual} columns')
+        ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+    page.screenshot(path=str(ART/'responsive-four-columns.png'),full_page=True)
+check('responsive_one_two_three_four_columns',responsive_card_columns)
+
 report['page_errors_empty']=not report['errors'];(ART/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 br.close();pw.stop();print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)

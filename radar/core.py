@@ -102,13 +102,23 @@ def resolved_topics(values,event_type='Event',title='',summary=''):
     if event_type in ('CourseInstance','EducationEvent'):return ['学习成长']
     return rules(title,summary)['topics'] if title or summary else ['其他']
 
+ATTENDANCE_LABELS={'offline':'线下','online':'线上','hybrid':'线上＋线下','unknown':'参加方式待确认'}
+def event_attendance(e):
+    d=e.get('details') if isinstance(e.get('details'),dict) else {}
+    mode=d.get('attendance')
+    if mode in ATTENDANCE_LABELS:return mode
+    loc=clean(e.get('location')).casefold()
+    if loc in ('线上','线上活动','在线','online','virtual','online event'):return 'online'
+    return 'offline' if loc and loc not in ('待确认','地点待确认','地点待定') else 'unknown'
+
 def normalize_event(e):
     e=dict(e);e['title']=clean(e.get('title'))[:220];e['url']=canon_url(e.get('url',''))
     if not e['title'] or not e['url']:return None
     e['start_at']=iso(e.get('start_at'));e['end_at']=iso(e.get('end_at'))
     if e['end_at'] and e['start_at'] and e['end_at']<e['start_at']:e['end_at']=None
     e['location']=clean(e.get('location'))[:250];e['summary']=clean(e.get('summary'))[:3500]
-    e['district']=next((d for d in DISTRICTS if d in e['location']),'待确认')
+    districts={d for d in DISTRICTS if d in e['location']}
+    e['district']=next(iter(districts)) if len(districts)==1 and not any(x in e['location'] for x in ('、','→','↔')) else '待确认'
     e['organizer']=clean(e.get('organizer'))[:200]
     e['details']=e.get('details') if isinstance(e.get('details'),dict) else {}
     e['cost_text']=clean(e.get('cost_text'))[:100] or '费用未注明';e['cost_free']=e['cost_text'] in ('免费','0元','免费参加')
@@ -276,7 +286,7 @@ def span_days(e):
     try:return max(0.0,(datetime.fromisoformat(e['end_at'])-datetime.fromisoformat(e['start_at'])).total_seconds()/86400)
     except ValueError:return 0.0
 
-def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None):
+def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None,attendance='all'):
     topics_filter=[canonical_topic(x) for x in topics_filter or []]
     if tag:topics_filter.append(canonical_topic(tag))
     current=now();day=current.date();from_dt=current;to_dt=None
@@ -318,6 +328,8 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
                 e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
         from .posters import display_details
         e['details']=display_details(json.loads(e.get('details') or '{}'),ROOT)
+        e['attendance']=event_attendance(e);e['attendance_label']=ATTENDANCE_LABELS[e['attendance']]
+        if attendance!='all' and e['attendance']!=attendance:continue
         e['topics']=resolved_topics(json.loads(e['topics'] or '[]'),e.get('event_type','Event'),e['title'],e['summary'])
         e['event_type']=e.get('event_type') or 'Event';e['event_type_label']='待分类' if e.get('event_type_state')=='pending' else EVENT_TYPES.get(e['event_type'],'其他活动');e['sources']=links.get(e['id'],[])
         if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue

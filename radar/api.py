@@ -96,9 +96,10 @@ def logout(request:Request):
 @app.get('/events/api/session')
 def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
-def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
+def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,attendance:str='all',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
     require(request)
     if period not in ('upcoming','week','weekend','review','past','saved','calendar'):raise HTTPException(400,'无效日期筛选')
+    if attendance not in ('all','online','offline','hybrid','unknown'):raise HTTPException(400,'无效参加方式')
     if sort not in ('asc','desc'):raise HTTPException(400,'无效排序方式')
     event_types=list(dict.fromkeys(event_types or []));topics=list(dict.fromkeys(canonical_topic(x) for x in topics or []))
     if len(event_types)>len(EVENT_TYPES) or any(x not in EVENT_TYPES for x in event_types):raise HTTPException(400,'无效活动类型筛选')
@@ -110,7 +111,7 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
         span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
         if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'日历范围需在93天内')
     if period=='saved':favorites=True
-    rows=[] if type_none or topic_none else events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics)
+    rows=[] if type_none or topic_none else events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics,attendance=attendance)
     return {'items':rows[offset:offset+limit],'total':len(rows),'offset':offset,'has_more':len(rows)>offset+limit}
 @app.get('/events/api/stats')
 def stats(request:Request):

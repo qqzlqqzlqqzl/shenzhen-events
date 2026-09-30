@@ -39,6 +39,9 @@ def normalize_district(name,adcode=''):
 
 def direct_district(text):
     text=core.clean(text)
+    if any(sep in text for sep in ('、','→','↔')):return ''
+    districts={d for a,d in DISTRICT_ALIASES.items() if a in text}
+    if len(districts)>1:return ''
     for alias,district in DISTRICT_ALIASES.items():
         if alias in text:return district
     for district in core.DISTRICTS:
@@ -52,7 +55,7 @@ def direct_district(text):
 
 def query_text(location):
     value=core.clean(location)
-    if not value:return ''
+    if not value or any(sep in value for sep in ('、','→','↔')):return ''
     if any(x.casefold() in value.casefold() for x in FOREIGN_HINTS):return ''
     value=re.sub(r'^(?:广东省?)?[·\s/|,-]*深圳市?[·\s/|,-]+','',value,flags=re.I)
     if 'PostalAddress' in value:value=value.split('PostalAddress',1)[0]
@@ -183,10 +186,13 @@ def enrich_pending(limit=30,apply=True,sleep_seconds=0):
     with core.db() as c:
         cutoff=(core.now()-timedelta(days=90)).isoformat(timespec='seconds')
         c.execute('DELETE FROM geocode_cache WHERE checked_at<?',(cutoff,))
-        rows=[dict(x) for x in c.execute("SELECT id,title,location,district FROM events WHERE district=? AND trim(location)<>'' ORDER BY COALESCE(start_at,'9999'),id LIMIT ?",('待确认',10000))]
+        rows=[dict(x) for x in c.execute("SELECT id,title,location,district,details FROM events WHERE district=? AND trim(location)<>'' ORDER BY COALESCE(start_at,'9999'),id LIMIT ?",('待确认',10000))]
     session=requests.Session();session.trust_env=False;consecutive_errors=0
     attempts=0;failed_queries=set()
     for row in rows:
+        try:row['details']=json.loads(row.get('details') or '{}')
+        except ValueError:row['details']={}
+        if core.event_attendance(row)=='online':stats['skipped']+=1;continue
         query=query_text(row['location'])
         if not query or query in failed_queries:stats['skipped']+=1;continue
         cached=_cache_get(query)
@@ -220,3 +226,4 @@ def main():
     print(json.dumps(result,ensure_ascii=False))
 
 if __name__=='__main__':main()
+

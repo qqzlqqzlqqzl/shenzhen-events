@@ -108,3 +108,7 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 .card-summary{font-size:13px;line-height:1.7}.event-meta{font-size:12px}.card-tags .tag{font-size:11px}.card-cta{font-size:12px}.top-actions{flex-wrap:wrap}.filter-popover-head .quiet{min-height:36px}.overview{margin-top:20px}@media(max-width:620px){.card-summary{font-size:13px}.event-meta{font-size:12px}.top-actions{gap:3px}.top-actions .quiet{padding:7px 5px}.brand small{display:none}.filter-popover-head .quiet{padding:8px}}
 
 .facet-extra{grid-column:1/-1;width:100%;margin-top:6px;border-top:1px solid var(--line)}.facet-extra>summary{padding:12px 6px;font-size:12px;cursor:pointer;color:var(--muted)}
+
+/* Keep cards readable: one / two / three / four columns as space permits. */
+@media(min-width:1280px){.shell{max-width:1480px}.event-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.filters{flex-wrap:wrap}#attendance{min-width:115px}#sort{min-width:160px}

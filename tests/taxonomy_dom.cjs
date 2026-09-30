@@ -12,10 +12,10 @@ const typeNames=['Event','BusinessEvent','ChildrensEvent','ComedyEvent','Confere
 const fixtures=[['comedy','ComedyEvent',['AI与开源']],['music','MusicEvent',['AI与开源']],['robot','MusicEvent',['机器人']],['museum','ExhibitionEvent',['文化艺术']]].map(([id,event_type,topics])=>({id,title:id,event_type,event_type_state:'source',event_type_label:event_type,topics,start_at:'2026-10-03T12:00:00+08:00',end_at:'2026-10-03T14:00:00+08:00',status:'scheduled',location:'深圳',summary:'fixture',url:'https://example.com/'+id,sources:[],last_seen:'2026-09-30T12:00:00+08:00'}));
 const pause=()=>new Promise(r=>setTimeout(r,5));
 async function settle(w){for(let i=0;i<100;i++){await pause();if(w.document.querySelector('#event-list').getAttribute('aria-busy')==='false')return;}assert.fail('list did not settle');}
-async function ready(query='?view=all',count=1){
+async function ready(query='?view=all',count=1,saved=null,brokenStorage=false){
  const errors=[],requests=[],console=new VirtualConsole();console.on('jsdomError',e=>errors.push(e));
  const dom=new JSDOM(fs.readFileSync(path.join(root,'static/index.html'),'utf8'),{url:'https://example.test/events/'+query,runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:console});
- const w=dom.window;w.matchMedia=()=>({matches:false,addEventListener(){}});w.scrollTo=()=>{};
+ const w=dom.window;if(saved!==null)w.localStorage.setItem('radar.filters.v1:owner',saved);if(brokenStorage)Object.defineProperty(w,'localStorage',{get(){throw new Error('disabled')}});w.matchMedia=()=>({matches:false,addEventListener(){}});w.scrollTo=()=>{};
  w.fetch=async url=>{
   const p=new URL(url,w.location.href);let data={};
   if(p.pathname.endsWith('/stats'))data={event_types:typeNames.map(value=>({value,label:value,count})),topics:['AI与开源','机器人','文化艺术','其他'].map(value=>({value,label:value,count})),districts:[],upcoming:4,recommended:2,weekend:0};
@@ -95,4 +95,13 @@ test('posters use reviewed same-origin assets and external images stay explicit 
  }
  assert.equal(render({images:'bad'}),'');assert.deepEqual(r.errors,[]);
  }finally{r.close()}
+});
+
+test('fresh entry restores previous filters; explicit URLs override and reset persists',async()=>{
+ const saved=JSON.stringify({version:1,query:'topic='+encodeURIComponent('机器人')+'&attendance=online'});
+ const a=await ready('',1,saved);try{assert.deepEqual([...a.w.document.querySelectorAll('#topic-options input:checked')].map(x=>x.value),['机器人']);assert.equal(a.w.document.querySelector('#attendance').value,'online');assert.ok(new URL(a.w.location.href).searchParams.has('topic'));a.w.document.querySelector('#clear-filters').click();await settle(a.w);assert.equal(JSON.parse(a.w.localStorage.getItem('radar.filters.v1:owner')).query,'')}finally{a.close()}
+ const b=await ready('?topic='+encodeURIComponent('文化艺术'),1,saved);try{assert.deepEqual([...b.w.document.querySelectorAll('#topic-options input:checked')].map(x=>x.value),['文化艺术']);assert.equal(b.w.document.querySelector('#attendance').value,'all')}finally{b.close()}
+});
+test('invalid or unavailable local storage does not break browsing',async()=>{
+ for(const [saved,broken] of [['not json',false],[JSON.stringify({version:2,query:'topic=x'}),false],[null,true]]){const r=await ready('',1,saved,broken);try{assert.equal(titles(r.w).length,4);r.w.document.querySelector('#clear-filters').click();await settle(r.w);assert.deepEqual(r.errors,[])}finally{r.close()}}
 });

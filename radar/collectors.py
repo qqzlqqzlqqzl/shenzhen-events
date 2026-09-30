@@ -8,7 +8,7 @@ from .core import clean, iso, date_range, canon_url, now, db, stamp, EVENT_TYPES
 class SourceError(Exception): pass
 class Blocked(SourceError): pass
 
-def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None):
+def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None, include_pagination=False):
     """No login scraping. Bounded time/size; public-only redirect validation."""
     session=requests.Session();session.trust_env=False
     if proxy:
@@ -38,6 +38,8 @@ def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None):
             soup=BeautifulSoup(html,'html.parser')
         title=clean(soup.title.get_text() if soup.title else '')
         if any(x in title.lower() for x in ['captcha','访问验证','安全验证','反爬','请输入验证码']) or '/antispider' in url:raise Blocked('来源要求验证码，未绕过验证')
+        if include_pagination:
+            return html,soup,url,{'total':r.headers.get('X-WP-Total'),'total_pages':r.headers.get('X-WP-TotalPages')}
         return html,soup,url
     raise SourceError('重定向次数超限')
 def text(node):return clean(node.get_text(' ',strip=True)) if node else ''
