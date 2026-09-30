@@ -103,6 +103,8 @@ def mobile_daily():
     expect(event('跨月活动')).to_have_count(2);expect(event('午夜结束')).to_have_count(1);expect(event('凌晨结束')).to_have_count(2);expect(event('单日活动')).to_have_count(1);expect(event('结束未注明')).to_have_count(1)
     ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
     event('华南3D打印展').nth(1).click();expect(page.locator('#detail')).to_be_visible();ok('华南3D打印展' in page.locator('#detail').inner_text());page.keyboard.press('Escape')
+    page.screenshot(path=str(ART/'mobile-scrolled-viewport.png'))
+    page.evaluate('window.scrollTo(0,0)')
     page.screenshot(path=str(ART/'mobile-daily-spans.png'),full_page=True)
     page.set_viewport_size({'width':320,'height':720});ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
     page.set_viewport_size({'width':1440,'height':1050});page.locator('.fc-dayGridMonth-view').wait_for();expect(event('华南3D打印展')).to_have_count(1)
@@ -121,6 +123,7 @@ def keyboard_agenda_and_long_titles():
         if width<620:expect(event(LONG_TITLE)).to_have_count(3)
         else:expect(event(LONG_TITLE)).to_have_count(1)
         ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+        page.evaluate('window.scrollTo(0,0)')
         page.screenshot(path=str(ART/f'long-title-{width}.png'),full_page=True)
 check('native_agenda_keyboard_and_long_title_responsive_layout',keyboard_agenda_and_long_titles)
 
