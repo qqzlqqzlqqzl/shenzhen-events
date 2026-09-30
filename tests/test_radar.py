@@ -303,3 +303,14 @@ def test_month_overlap_returns_one_record_and_preserves_favorites():
             assert data['items'][0]['end_at']==before['end_at']
             assert data['items'][0]['location']==before['location']
     with core.db() as c:assert dict(c.execute('SELECT * FROM events').fetchone())==before
+
+@pytest.mark.parametrize('end', [None,'2026-10-01T00:00:00+08:00','2026-10-01T10:00:00+08:00'])
+def test_calendar_all_day_unknown_or_nonpositive_end_covers_its_known_day(end):
+    core.ingest(source(),ev(title='结束未注明的活动',start_at='2026-10-01',end_at=end,all_day=True))
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client)
+        for start,finish in [('2026-10-01','2026-11-01'),('2026-10-01T12:00:00+08:00','2026-10-02')]:
+            response=client.get('/events/api/events',params={'period':'calendar','start':start,'end':finish})
+            assert response.status_code==200 and response.json()['total']==1
+        assert client.get('/events/api/events',params={'period':'calendar','start':'2026-10-02','end':'2026-10-03'}).json()['total']==0
+    with core.db() as c:assert c.execute('SELECT end_at FROM events').fetchone()[0]==core.iso(end)

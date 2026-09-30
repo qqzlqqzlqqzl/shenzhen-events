@@ -15,6 +15,7 @@ def put(title,start,end,all_day=True):
     core.ingest({'id':'a','priority':10},{'title':title,'url':'https://example.com/'+str(len(ids)),'start_at':start,'end_at':end,'all_day':all_day,'location':'深圳国际会展中心（宝安）15号馆','summary':'隔离测试，原始日期不得改写。','cost_text':'免费'})
     with core.db() as c:ids[title]=c.execute('SELECT id FROM events WHERE title=?',(title,)).fetchone()[0]
 ids={}
+LONG_TITLE='超长跨日活动'+'OpenSourceHardwareCommunity'*6
 put('华南3D打印展','2026-10-14','2026-10-17')
 put('跨月活动','2026-09-30','2026-10-03')
 put('跨周活动','2026-10-17','2026-10-20')
@@ -23,6 +24,7 @@ put('凌晨结束','2026-10-22T22:00:00+08:00','2026-10-23T01:00:00+08:00',False
 put('单日活动','2026-10-25','2026-10-26')
 put('结束未注明','2026-10-27T23:59:00+08:00',None,False)
 put('长期展览','2026-09-01','2026-11-30')
+put(LONG_TITLE,'2026-10-08','2026-10-11')
 spec=importlib.util.spec_from_file_location('accept',ROOT/'tests/browser_acceptance.py');accept=importlib.util.module_from_spec(spec);spec.loader.exec_module(accept)
 BASE='http://127.0.0.1:18096'
 server=subprocess.Popen([sys.executable,'-m','uvicorn','radar.api:app','--host','127.0.0.1','--port','18096','--no-access-log'],cwd=ROOT,env=dict(os.environ),stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
@@ -105,6 +107,23 @@ def mobile_daily():
     page.set_viewport_size({'width':320,'height':720});ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
     page.set_viewport_size({'width':1440,'height':1050});page.locator('.fc-dayGridMonth-view').wait_for();expect(event('华南3D打印展')).to_have_count(1)
 check('mobile_repeats_each_covered_day_and_midnight_is_exclusive',mobile_daily)
+def keyboard_agenda_and_long_titles():
+    page.set_viewport_size({'width':390,'height':844});ready()
+    link=event('华南3D打印展').nth(1).locator('.fc-list-event-title a')
+    expect(link).to_have_attribute('tabindex','0')
+    for key in ['Enter','Space']:
+        link.focus();link.press(key);expect(page.locator('#detail')).to_be_visible()
+        ok(page.locator('#detail-title').inner_text()=='华南3D打印展')
+        page.keyboard.press('Escape');expect(page.locator('#detail')).not_to_be_visible()
+    link.click();expect(page.locator('#detail')).to_be_visible();page.keyboard.press('Escape');expect(page.locator('#detail')).not_to_be_visible()
+    for width in [390,320,1440]:
+        page.set_viewport_size({'width':width,'height':844})
+        if width<620:expect(event(LONG_TITLE)).to_have_count(3)
+        else:expect(event(LONG_TITLE)).to_have_count(1)
+        ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+        page.screenshot(path=str(ART/f'long-title-{width}.png'),full_page=True)
+check('native_agenda_keyboard_and_long_title_responsive_layout',keyboard_agenda_and_long_titles)
+
 report['page_errors_empty']=not report['errors'];(ART/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 br.close();pw.stop();print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)

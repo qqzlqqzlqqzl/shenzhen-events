@@ -111,8 +111,9 @@ function renderCalendar(){
     showNonCurrentDates:false,fixedWeekCount:false,dayMaxEvents:4,nextDayThreshold:'00:00:00',defaultTimedEventDuration:'00:00:01',allDayText:'活动期',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
     datesSet:info=>{calendarDate=info.view.currentStart.toISOString().slice(0,10);writeURL('replace',detailId);loadCalendar({startStr:calendarDate,endStr:info.view.currentEnd.toISOString().slice(0,10)})},
     eventClick:i=>{i.jsEvent.preventDefault();openDetail(i.event.id)},
-    eventContent:i=>{const label=i.event.extendedProps.rangeLabel;const box=document.createElement('span');box.className='calendar-event-content';const title=document.createElement('span');title.className='calendar-event-title';title.textContent=(i.timeText&&!i.view.type.startsWith('list')?i.timeText+' ':'')+i.event.title;box.append(title);if(label){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=label;box.append(range)}return {domNodes:[box]}},
-    eventDidMount:i=>{const label=i.event.title+' · '+i.event.extendedProps.fullTime;i.el.title=label;i.el.setAttribute('aria-label',label);i.el.dataset.eventId=i.event.id}
+    eventContent:i=>{if(i.view.type.startsWith('list'))return true;const label=i.event.extendedProps.rangeLabel;const box=document.createElement('span');box.className='calendar-event-content';const title=document.createElement('span');title.className='calendar-event-title';title.textContent=(i.timeText&&!i.view.type.startsWith('list')?i.timeText+' ':'')+i.event.title;box.append(title);if(label){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=label;box.append(range)}return {domNodes:[box]}},
+    eventDidMount:i=>{const label=i.event.title+' · '+i.event.extendedProps.fullTime;i.el.title=label;i.el.setAttribute('aria-label',label);i.el.dataset.eventId=i.event.id;
+      const link=i.el.querySelector('.fc-list-event-title a');if(link){link.setAttribute('aria-label',label);link.classList.add('calendar-event-content');const rangeLabel=i.event.extendedProps.rangeLabel;if(rangeLabel&&!link.querySelector('.calendar-event-range')){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=rangeLabel;link.append(range)}}}
   });calendar.render();
 }
 function renderLongCalendar(items){

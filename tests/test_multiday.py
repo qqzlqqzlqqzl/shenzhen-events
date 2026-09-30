@@ -43,3 +43,11 @@ def test_all_day_range_disclaims_unknown_opening_hours():
     assert result['span']['label']=='10/14—10/16 · 跨 3 天'
     assert result['calendar']['end']=='2026-10-17'
     assert '具体时段/开放日以原文为准' in result['full']
+
+@pytest.mark.parametrize('end', ['2026-10-14T00:00:00+08:00','2026-10-14T10:00:00+08:00'])
+def test_nonpositive_all_day_date_range_is_unknown_not_inverted(end):
+    result=display(dict(id='invalid-end',title='活动',start_at='2026-10-14T00:00:00+08:00',end_at=end,all_day=True))
+    assert result['span']['days']==1 and result['span']['last']=='2026-10-14'
+    assert result['calendar']['end'] is None
+    assert result['full']=='2026/10/14 · 具体时段未注明'
+    assert result['calendar']['extendedProps']['fullTime']==result['full']

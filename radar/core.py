@@ -268,7 +268,11 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
             pass
         elif period=='calendar':
             if not e['start_at'] or e['status']!='scheduled':continue
-            end=e['end_at'] or iso(datetime.fromisoformat(e['start_at'])+timedelta(seconds=1))
+            end=e['end_at']
+            if not end or end<=e['start_at'] or (e['all_day'] and end[:10]<=e['start_at'][:10]):
+                start=datetime.fromisoformat(e['start_at'])
+                # A known all-day date with no usable end occupies that date only.
+                end=iso(datetime.combine(start.date()+timedelta(days=1),datetime.min.time(),TZ) if e['all_day'] else start+timedelta(seconds=1))
             if end<=range_start or e['start_at']>=range_end:continue
         elif period=='past':
             if not e['start_at'] or (e['end_at'] or e['start_at'])>=current.isoformat():continue

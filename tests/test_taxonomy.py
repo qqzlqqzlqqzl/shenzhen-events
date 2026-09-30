@@ -198,3 +198,21 @@ def test_ai_cannot_replace_a_specific_source_type(monkeypatch):
     worker.analyze(1)
     row = core.events()[0]
     assert row['event_type'] == 'MusicEvent' and row['event_type_state'] == 'source'
+
+@pytest.mark.parametrize('period', ['saved','past','calendar'])
+def test_zero_upcoming_generic_facets_remain_available_for_other_scopes(period):
+    core.ingest(src(),event('历史其他活动','Event',['其他']))
+    with core.db() as c:
+        eid=c.execute('SELECT id FROM events').fetchone()[0]
+        c.execute("UPDATE events SET start_at='2026-01-10T10:00:00+08:00',end_at='2026-01-10T12:00:00+08:00',event_type_state='ai',ai_state='done'")
+        c.execute('INSERT INTO preferences(event_id,favorite) VALUES(?,1)',(eid,))
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client)
+        stats=client.get('/events/api/stats').json()
+        assert stats['upcoming']==0
+        assert next(x for x in stats['event_types'] if x['value']=='Event')['count']==0
+        assert next(x for x in stats['topics'] if x['value']=='其他')['count']==0
+        params={'period':period,'type':'Event','topic':'其他'}
+        if period=='calendar':params.update(start='2026-01-01',end='2026-02-01')
+        response=client.get('/events/api/events',params=params)
+        assert response.status_code==200 and response.json()['total']==1

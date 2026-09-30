@@ -19,8 +19,8 @@ The previous calendar cleanup intentionally removed `end` from every FullCalenda
 
 ## Validation
 
-- Final combined candidate on corrected PR #35 (`abe4628`): 128 unit/API/pure-JavaScript tests pass. The standalone main-based implementation previously passed 108.
-- Actual bundled FullCalendar + actual app scripts: ten DOM integration scenarios pass (six multi-day and four taxonomy), including three mobile entries on October 14/15/16, cross-month inclusion, two desktop week segments, midnight exclusion, unknown ends, long-event separation and card range text.
+- Final combined candidate on corrected PR #35 (`d4bd289`): 136 unit/API/pure-JavaScript tests pass after final review corrections. The standalone main-based implementation previously passed 108.
+- Actual bundled FullCalendar + actual app scripts: twelve DOM integration scenarios pass (seven multi-day and five taxonomy), including three mobile entries on October 14/15/16, cross-month inclusion, two desktop week segments, midnight exclusion, unknown ends, long-event separation and card range text.
 - Python compile, JavaScript syntax and diff whitespace checks pass.
 - DOM integration is not a layout or real-browser acceptance pass.
 
@@ -37,6 +37,20 @@ NODE_PATH=/tmp/radar-dom-check/node_modules node --test tests/multiday_dom.cjs
 ```
 
 `RADAR_BROWSER` can select an installed browser explicitly; system Chromium/Chrome is supported before the existing server-specific fallback.
+
+## Final review corrections
+
+Independent review after the automated checks identified and resolved:
+
+- Preserve FullCalendar's native focusable agenda link and its Enter/Space handlers; append one date-range label rather than replacing the interactive content. DOM regression verifies exactly one activation per Enter, Space and click and no duplicate label after view changes.
+- Keep generic Event/其他 facets available at count zero, retaining saved/past/calendar filters and restored URLs.
+- Treat nonpositive all-day date-domain endings as unknown consistently in detail labels, spans and calendar overlap queries. The known all-day date remains queryable without rewriting source dates.
+
+Eight new Python regressions and the keyboard DOM regression failed before these fixes and pass afterward. The corrected code passed an independent re-review with no further confirmed code blockers.
+
+## Hosted browser validation
+
+`.github/workflows/validate-events.yml` runs the exact PR head on a standard GitHub-hosted Ubuntu runner with read-only repository permission. Official actions are SHA-pinned, checkout does not retain credentials, and no secrets, deployments or external test endpoints are configured. The job installs Chromium, runs unit/DOM/browser suites against disposable loopback fixtures, and retains screenshots/logs for seven days. Actual run results are recorded in PR checks; workflow configuration alone is not a browser pass.
 
 ## Release gates still open
 

@@ -9,13 +9,19 @@ FIX=Path(tempfile.mkdtemp(prefix='radar-calendar-'));os.environ['RADAR_ROOT']=st
 sys.path.insert(0,str(ROOT))
 from radar import core,api
 api.initialize_settings();core.init()
-now=core.now();day=now.date();sat=day+timedelta(days=(5-day.weekday())%7)
+now=core.now();day=now.date()
+# Match the server's current/upcoming weekend, including Sunday. Keep sorting
+# fixtures on weekdays so the expected weekend count is independent of CI's day.
+sat=day+timedelta(days=5-day.weekday()) if day.weekday()<5 else day-timedelta(days=day.weekday()-5)
+early=now+timedelta(days=2)
+while early.weekday()>=5:early+=timedelta(days=1)
+late=early+timedelta(days=7)
 def put(title,url,start,end,all_day=False):
     core.ingest({'id':'a','priority':10},{'title':title,'url':url,'start_at':start,'end_at':end,'all_day':all_day,'location':'深圳市南山区测试中心','summary':'隔离浏览器测试。','cost_text':'免费'})
 put('长期博物馆展','https://example.com/long',(now-timedelta(days=100)).date().isoformat(),(now+timedelta(days=100)).date().isoformat(),True)
-put('周六工作坊','https://example.com/weekend',datetime.combine(sat,datetime.min.time(),core.TZ).replace(hour=10).isoformat(),datetime.combine(sat,datetime.min.time(),core.TZ).replace(hour=12).isoformat())
-put('排序较早','https://example.com/early',(now+timedelta(days=2)).replace(hour=9).isoformat(),(now+timedelta(days=2)).replace(hour=11).isoformat())
-put('排序较晚','https://example.com/late',(now+timedelta(days=8)).replace(hour=9).isoformat(),(now+timedelta(days=8)).replace(hour=11).isoformat())
+put('周末工作坊','https://example.com/weekend',sat.isoformat(),(sat+timedelta(days=2)).isoformat(),True)
+put('排序较早','https://example.com/early',early.replace(hour=9).isoformat(),early.replace(hour=11).isoformat())
+put('排序较晚','https://example.com/late',late.replace(hour=9).isoformat(),late.replace(hour=11).isoformat())
 sys.path.append('/home/ubuntu/ai-news/runtime/venv/lib/python3.12/site-packages')
 from playwright.sync_api import sync_playwright,expect
 spec=importlib.util.spec_from_file_location('accept',ROOT/'tests/browser_acceptance.py');accept=importlib.util.module_from_spec(spec);spec.loader.exec_module(accept)
@@ -51,7 +57,7 @@ def ok(v,msg='assertion failed'):
 def weekend_default():
     ready('?view=weekend')
     text=page.locator('#event-list').inner_text()
-    ok('周六工作坊' in text);ok('长期博物馆展' not in text)
+    ok('周末工作坊' in text);ok('长期博物馆展' not in text)
     ok(page.locator('#hide-long').is_checked())
     ok(page.locator('#count-weekend').inner_text()=='1',page.locator('#count-weekend').inner_text())
 check('weekend_defaults_hide_long_running',weekend_default)

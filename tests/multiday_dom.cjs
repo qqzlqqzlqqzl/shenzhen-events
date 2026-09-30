@@ -63,3 +63,18 @@ test('long-running items remain separate and their full source date range is ava
 test('cards show full short-event date range and preserve unknown opening-day disclaimer',async()=>{
  const r=await ready();try{const html=r.w.__test.card(fixtures[0]);assert.match(html,/10\/14—10\/16 · 跨 3 天/);assert.match(html,/具体时段\/开放日以原文为准/);assert.match(html,/data-event="three"/);assert.deepEqual(r.errors,[]);}finally{r.close();}
 });
+
+test('mobile agenda keeps native focus, single keyboard/pointer activation and one range label',async()=>{
+ const r=await ready(390);try{const {w}=r,cal=w.__test.getCalendar();let activations=0;
+ cal.setOption('eventClick',()=>{activations++;});
+ const link=entries(w,'three')[0].querySelector('.fc-list-event-title a');
+ assert.ok(link,'native link retained');assert.equal(link.tabIndex,0);link.focus();assert.equal(w.document.activeElement,link);
+ assert.match(link.getAttribute('aria-label'),/2026\/10\/14 — 2026\/10\/16/);
+ for(const key of ['Enter',' ']){const before=activations;link.dispatchEvent(new w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));assert.equal(activations,before+1);}
+ link.click();assert.equal(activations,3);
+ for(const row of entries(w,'three'))assert.equal(row.querySelectorAll('.calendar-event-range').length,1);
+ cal.changeView('dayGridMonth');cal.changeView('listMonth');
+ for(const row of entries(w,'three')){assert.equal(row.querySelectorAll('.calendar-event-range').length,1);assert.equal(row.querySelector('.fc-list-event-title a').tabIndex,0);}
+ assert.deepEqual(r.errors,[]);
+ }finally{r.close();}
+});
