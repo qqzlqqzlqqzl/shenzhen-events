@@ -63,12 +63,12 @@ check('schema_type_labels_distinguish_entertainment',schema_labels_are_distinct)
 def multiselect_semantics_and_url():
     ready()
     page.locator('#type-filter summary').click()
-    page.get_by_label('喜剧 / 脱口秀').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
+    page.locator('[data-facet-kind="type"][data-facet-action="none"]').click();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false');page.get_by_label('喜剧 / 脱口秀').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     page.get_by_label('音乐 / 演唱会').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
-    page.locator('#topic-filter summary').click();expect(page.locator('#type-filter')).to_have_js_property('open',False);expect(page.locator('#topic-filter')).to_have_js_property('open',True);page.get_by_label('AI与开源').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
+    page.locator('#topic-filter summary').click();expect(page.locator('#type-filter')).to_have_js_property('open',False);expect(page.locator('#topic-filter')).to_have_js_property('open',True);page.locator('[data-facet-kind="topic"][data-facet-action="none"]').click();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false');page.get_by_label('AI与开源').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     titles=page.locator('.title-button').all_inner_texts();ok(set(titles)=={'AI 脱口秀','AI 音乐会'},str(titles))
     u=page.url;ok(u.count('type=')==2 and 'topic=' in u,u)
-    expect(page.locator('#type-summary')).to_have_text('已选 2');expect(page.locator('#topic-summary')).to_have_text('已选 1')
+    expect(page.locator('#type-summary')).to_have_text('已选 2 / 23');expect(page.locator('#topic-summary')).to_have_text('已选 1 / 10')
     page.screenshot(path=str(ART/'desktop-multiselect.png'),full_page=True)
     page.reload(wait_until='domcontentloaded');expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     ok(page.get_by_label('喜剧 / 脱口秀').is_checked() and page.get_by_label('音乐 / 演唱会').is_checked() and page.get_by_label('AI与开源').is_checked())
@@ -76,7 +76,7 @@ check('multiselect_or_within_and_across_groups_url_roundtrip',multiselect_semant
 
 def removable_chip_and_history():
     ready('?view=all&type=ComedyEvent&type=MusicEvent&topic=AI%E4%B8%8E%E5%BC%80%E6%BA%90')
-    chip=page.locator('.filter-chip',has_text='喜剧 / 脱口秀');chip.click();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
+    page.locator('#type-filter summary').click();page.get_by_label('喜剧 / 脱口秀').uncheck();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     ok(page.locator('.title-button').all_inner_texts()==['AI 音乐会'])
     page.go_back(wait_until='domcontentloaded');expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     ok(set(page.locator('.title-button').all_inner_texts())=={'AI 脱口秀','AI 音乐会'})
@@ -92,7 +92,7 @@ check('mobile_multiselect_touch_layout',mobile_checkbox_filter)
 
 def status_reports_type_backfill():
     page.set_viewport_size({'width':1440,'height':1000});ready('?view=status');page.locator('#status-panel').wait_for()
-    ok('Schema.org 活动类型补全' in page.locator('#status-panel').inner_text())
+    ok('外部模型自动分析已停用' in page.locator('#status-panel').inner_text())
 check('status_discloses_type_backfill_progress',status_reports_type_backfill)
 
 def legacy_topic_url_aliases():

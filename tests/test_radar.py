@@ -16,6 +16,7 @@ def isolate(tmp_path,monkeypatch):
     (tmp_path/'sources.json').write_text(json.dumps([{'id':'a','name':'主办方','url':'https://example.com','priority':10,'interval_hours':6},{'id':'b','name':'聚合站','url':'https://example.org','priority':40,'interval_hours':6}]))
     monkeypatch.setattr(core,'ROOT',tmp_path);monkeypatch.setattr(api,'ROOT',tmp_path);monkeypatch.setattr(worker,'ROOT',tmp_path)
     api.initialize_settings();core.init();api.ATTEMPTS.clear()
+    cfg=core.config();cfg['analysis_enabled']=True;(core.ROOT/'.private/settings.json').write_text(json.dumps(cfg))
     yield tmp_path
 
 def source(id='a'):return {'id':id,'priority':10 if id=='a' else 40}

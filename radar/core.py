@@ -35,7 +35,8 @@ EVENT_TYPES = {
     'TheaterEvent':'戏剧 / 话剧',
     'VisualArtsEvent':'视觉艺术',
 }
-TOPICS = {'机器人': ['机器人','机械臂','ros2','robot','具身'], '硬件创客':['创客','maker','硬件','嵌入式','esp32','3d打印','3d 打印','电机','芯片'], 'AI与开源':['ai','人工智能','开源','开发者','linux','rust','python','hackathon','gosim','agent','云计算'], '产品与创业':['创业','产品','出海','电商','增长','一人公司'], '汽车':['汽车','赛车','车展'], '文化艺术':['艺术','博物馆','非遗','文化','美术','设计'], '户外生活':['公园','徒步','户外','运动','马拉松','游园','亲子']}
+TOPICS = {'机器人': ['机器人','机械臂','ros2','robot','具身'], '硬件创客':['创客','maker','硬件','嵌入式','esp32','3d打印','3d 打印','电机','芯片'], 'AI与开源':['ai','人工智能','开源','开发者','linux','rust','python','hackathon','gosim','agent','云计算'], '产品与创业':['创业','产品','出海','电商','增长','一人公司'], '汽车':['汽车','赛车','车展'], '文化艺术':['艺术','博物馆','非遗','文化','美术','设计','音乐','演唱会','音乐会','脱口秀','喜剧','话剧','戏剧','舞蹈','芭蕾','电影','放映','读书','文学'], '户外生活':['公园','徒步','户外','运动','马拉松','游园','亲子']}
+TOPICS.update({'社交交流':['交友','相亲','社交','桌游','英语角','聚会','networking'],'学习成长':['培训','课程','演讲','领导力','沟通']})
 CATEGORIES = TOPICS
 DISTRICTS = ['南山','福田','宝安','龙岗','龙华','罗湖','盐田','光明','坪山','大鹏','深汕']
 VERSION = 'radar-v1.1'
@@ -77,7 +78,11 @@ def date_range(text):
     except (ValueError,OverflowError):return None,None
 
 def rules(title,summary=''):
-    s=(title+' '+summary).casefold();tags=[k for k,words in TOPICS.items() if any(w.casefold() in s for w in words)]
+    s=(title+' '+summary).casefold()
+    def matches(word):
+        word=word.casefold()
+        return bool(re.search(r'(?<![a-z0-9])'+re.escape(word)+r'(?![a-z0-9])',s)) if word.isascii() else word in s
+    tags=[k for k,words in TOPICS.items() if any(matches(w) for w in words)]
     commercial='high' if any(w in s for w in ['招生公开课','财富自由','赚钱秘籍','招商加盟','获客','流量变现','引流','成交秘籍']) else 'unknown'
     priority='high' if any(x in tags for x in ['机器人','硬件创客','AI与开源','汽车']) else ('medium' if '产品与创业' in tags else 'normal')
     if commercial=='high':priority='normal'
@@ -85,6 +90,17 @@ def rules(title,summary=''):
 
 def canonical_topic(value):
     return '文化艺术' if value=='展览文化' else value
+
+CULTURAL_TYPES={'MusicEvent','ComedyEvent','DanceEvent','TheaterEvent','ScreeningEvent','PerformingArtsEvent','LiteraryEvent','VisualArtsEvent'}
+def resolved_topics(values,event_type='Event',title='',summary=''):
+    values=list(dict.fromkeys(canonical_topic(x) for x in values if canonical_topic(x) in TOPICS or x=='其他'))
+    specific=[x for x in values if x!='其他']
+    if specific:return specific
+    if event_type in CULTURAL_TYPES:return ['文化艺术']
+    if event_type=='SportsEvent':return ['户外生活']
+    if event_type=='SocialEvent':return ['社交交流']
+    if event_type in ('CourseInstance','EducationEvent'):return ['学习成长']
+    return rules(title,summary)['topics'] if title or summary else ['其他']
 
 def normalize_event(e):
     e=dict(e);e['title']=clean(e.get('title'))[:220];e['url']=canon_url(e.get('url',''))
@@ -94,6 +110,7 @@ def normalize_event(e):
     e['location']=clean(e.get('location'))[:250];e['summary']=clean(e.get('summary'))[:3500]
     e['district']=next((d for d in DISTRICTS if d in e['location']),'待确认')
     e['organizer']=clean(e.get('organizer'))[:200]
+    e['details']=e.get('details') if isinstance(e.get('details'),dict) else {}
     e['cost_text']=clean(e.get('cost_text'))[:100] or '费用未注明';e['cost_free']=e['cost_text'] in ('免费','0元','免费参加')
     e['all_day']=bool(e.get('all_day'))
     topics=e.get('topics') or rules(e['title'],e['summary'])['topics']
@@ -102,6 +119,7 @@ def normalize_event(e):
     raw_type=clean(e.get('event_type'))
     e['event_type']=raw_type if raw_type in EVENT_TYPES else 'Event'
     e['event_type_state']='source' if e['event_type']!='Event' else 'pending'
+    e['topics']=resolved_topics(e['topics'],e['event_type'],e['title'],e['summary'])
     e['city']=e.get('city','深圳');e['status']=e.get('status','scheduled')
     if not e['start_at']:e['status']='needs_review'
     return e
@@ -133,6 +151,7 @@ def init():
         if 'coverage' not in {r[1] for r in c.execute('PRAGMA table_info(source_health)')}:
             c.execute("ALTER TABLE source_health ADD COLUMN coverage TEXT NOT NULL DEFAULT '{}'")
         event_cols={r[1] for r in c.execute('PRAGMA table_info(events)')}
+        if 'details' not in event_cols:c.execute("ALTER TABLE events ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")
         if 'event_type' not in event_cols:c.execute("ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'Event'")
         if 'event_type_state' not in event_cols:c.execute("ALTER TABLE events ADD COLUMN event_type_state TEXT NOT NULL DEFAULT 'pending'")
         c.execute('CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type)')
@@ -228,14 +247,27 @@ def ingest(source,e,body=None):
         if prev and prev['location']==e['location'] and e['district']=='待确认':e['district']=prev['district']
         if prev and e['event_type']=='Event' and prev['event_type_state'] in ('source','ai'):
             e['event_type']=prev['event_type'];e['event_type_state']=prev['event_type_state']
+        held=json.loads(prev['details'] or '{}') if prev else {}
+        if held.get('review_hold'):
+            e['status']='needs_review';e['details']={**e['details'],**held}
         if not prev or (changed and rank<=prev['origin_priority']):
-            data={'id':eid,'title':e['title'],'title_norm':norm(e['title']),'start_at':e['start_at'],'end_at':e['end_at'],'all_day':int(e['all_day']),'location':e['location'],'district':e['district'],'organizer':e['organizer'],'summary':e['summary'],'topics':json.dumps(e['topics'],ensure_ascii=False),'event_type':e['event_type'],'event_type_state':e['event_type_state'],'priority':r['priority'],'reason':r['reason'],'commercial':r['commercial'],'cost_text':e['cost_text'],'cost_free':int(e['cost_free']),'url':e['url'],'status':e['status'],'origin_priority':rank,'first_seen':prev['first_seen'] if prev else ts,'last_seen':ts,'ai_state':'pending'}
+            data={'id':eid,'title':e['title'],'title_norm':norm(e['title']),'start_at':e['start_at'],'end_at':e['end_at'],'all_day':int(e['all_day']),'location':e['location'],'district':e['district'],'organizer':e['organizer'],'details':json.dumps(e['details'],ensure_ascii=False),'summary':e['summary'],'topics':json.dumps(e['topics'],ensure_ascii=False),'event_type':e['event_type'],'event_type_state':e['event_type_state'],'priority':r['priority'],'reason':r['reason'],'commercial':r['commercial'],'cost_text':e['cost_text'],'cost_free':int(e['cost_free']),'url':e['url'],'status':e['status'],'origin_priority':rank,'first_seen':prev['first_seen'] if prev else ts,'last_seen':ts,'ai_state':'review' if held.get('review_hold') else 'pending'}
             keys=list(data);c.execute(f"INSERT INTO events ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)}) ON CONFLICT(id) DO UPDATE SET "+','.join(f'{k}=excluded.{k}' for k in keys if k not in ('id','first_seen')),tuple(data.values()))
         elif e['event_type_state']=='source' and rank<=prev['origin_priority']:
             # Newly extracted source typing must not reset an unchanged event's
             # AI-established dates, location, summary, or analysis state.
             c.execute('UPDATE events SET event_type=?,event_type_state=?,last_seen=? WHERE id=?',(e['event_type'],'source',ts,eid))
         else:c.execute('UPDATE events SET last_seen=? WHERE id=?',(ts,eid))
+        # A lower-priority linked source may fill genuinely missing detail fields,
+        # but cannot replace established event dates, venue or a manual review hold.
+        if prev:
+            unknown={'','费用未注明','未注明','未知','待确认'}
+            if clean(prev['cost_text']) in unknown and e['cost_text'] not in unknown:
+                c.execute('UPDATE events SET cost_text=?,cost_free=? WHERE id=?',(e['cost_text'],int(e['cost_free']),eid))
+            if not clean(prev['organizer']) and e['organizer']:
+                c.execute('UPDATE events SET organizer=? WHERE id=?',(e['organizer'],eid))
+            if e['details'] and (not held or (rank<=prev['origin_priority'] and not held.get('review_hold'))):
+                c.execute('UPDATE events SET details=? WHERE id=?',(json.dumps(e['details'],ensure_ascii=False),eid))
         c.execute('INSERT INTO event_sources VALUES(?,?,?,?,?) ON CONFLICT(source_id,url) DO UPDATE SET event_id=excluded.event_id,raw_id=excluded.raw_id,seen_at=excluded.seen_at',(eid,source['id'],e['url'],rid,ts))
     return changed
 
@@ -284,7 +316,8 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
             if e['long_running'] and e['start_at']<from_dt.isoformat():
                 e['display_at']=from_dt.isoformat(timespec='seconds')
                 e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
-        e['topics']=['文化艺术' if x=='展览文化' else x for x in json.loads(e['topics'] or '[]')]
+        e['details']=json.loads(e.get('details') or '{}')
+        e['topics']=resolved_topics(json.loads(e['topics'] or '[]'),e.get('event_type','Event'),e['title'],e['summary'])
         e['event_type']=e.get('event_type') or 'Event';e['event_type_label']='待分类' if e.get('event_type_state')=='pending' else EVENT_TYPES.get(e['event_type'],'其他活动');e['sources']=links.get(e['id'],[])
         if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue
         if district and e['district']!=district:continue
@@ -300,3 +333,4 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     if sort=='asc':out.sort(key=key)
     else:out.sort(key=lambda e:((e.get('display_at') or e.get('start_at')) is not None,e.get('display_at') or e.get('start_at') or '',e['id']),reverse=True)
     return out
+

@@ -6,7 +6,7 @@ from datetime import timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 import feedparser
 from bs4 import BeautifulSoup
-from . import core, collectors as c
+from . import core, collectors as c, details, official_sources
 
 
 def set_query(url, **values):
@@ -103,7 +103,7 @@ def next_page(soup,url,kind):
 
 def parse_page(source,html,soup,url):
     kind=source['kind']
-    fn={'lianpu':c.lianpu,'douban':douban_all,'bendibao':c.bendibao,'chaihuo':c.chaihuo,'jsonld':c.jsonld,'tech':tech_all,'hdx':hdx}.get(kind)
+    fn={'szcec':official_sources.szcec,'cioe':official_sources.cioe,'lianpu':c.lianpu,'douban':douban_all,'bendibao':c.bendibao,'chaihuo':c.chaihuo,'jsonld':c.jsonld,'tech':tech_all,'hdx':hdx}.get(kind)
     if not fn:raise c.SourceError('来源类型尚未适配')
     items=fn(soup,url)
     selectors={'lianpu':'article','douban':'li.list-entry','bendibao':'.main-single-block[data-url]','chaihuo':'a[href*="/activity/poster"]','tech':'a[href^="/event/"]','hdx':'.search-tab-content-item'}
@@ -135,7 +135,7 @@ def enrich_details(source, items, metrics):
                 e={**e,**json.loads(old['payload'])};metrics['detail_cached']+=1
             elif not e.get('start_at'):metrics['detail_deferred']+=1
             out.append(e);continue
-        if e.get('start_at'):
+        if e.get('start_at') and not source.get('enrich_dated',False):
             out.append(e);continue
         pending.append((old['checked_at'] if old else '',len(out),e,fp));out.append(e)
     pending.sort(key=lambda x:x[0])
@@ -144,13 +144,15 @@ def enrich_details(source, items, metrics):
         metrics['detail_attempted']+=1;status='no_date';payload=''
         try:
             html,soup,url=c.fetch(e['url'],max_bytes=1000000,proxy=source.get('proxy'))
+            meta=details.extract(soup,url)
             values=c.jsonld(soup,url) or microdata_detail(soup,url)
             if values:
                 chosen=next((v for v in values if canonical(v['url'])==e['url']),values[0] if len(values)==1 else None)
                 if chosen:
-                    chosen['url']=e['url'];chosen['published_at']=e.get('published_at','');out[idx]={**e,**chosen}
+                    chosen['url']=e['url'];chosen['published_at']=e.get('published_at','');out[idx]=details.merge(e,chosen,meta)
             else:
-                out[idx]={**e,'summary':c.text(soup.select_one('#js_content,#event_desc_page,article,main') or soup)[:9000]}
+                out[idx]=details.merge(e,{},meta)
+                if not e.get('summary') and meta.get('detail_text'):out[idx]['summary']=core.clean(meta['detail_text'])[:3500]
             payload=json.dumps(out[idx],ensure_ascii=False)
             if out[idx].get('start_at'):metrics['detail_resolved']+=1;status='ok'
         except c.SourceError as exc:
@@ -238,7 +240,7 @@ def collect_report(source, previous=None):
         metrics['reasons'].append('下轮更新公开页；登录后内容不计为已覆盖')
     if not metrics['truncated']:metrics['next_cursor']=None
     items=list(rows.values())[:max_entries];metrics['unique']=len(items)
-    if kind in ('rss','douban'):items=enrich_details({**source,'_deadline':started+max_seconds},items,metrics)
+    if kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':started+max_seconds},items,metrics)
     admitted=[]
     for e in items:
         city=city_evidence(e,source)
@@ -264,3 +266,4 @@ def collect_report(source, previous=None):
     metrics['complete_scope']=status=='ok' and metrics['mode'] in ('city_pages','page_inventory') and not cursor
     if cursor and status=='ok':status='partial'
     return {'items':admitted,'coverage':metrics,'status':status,'error':error}
+

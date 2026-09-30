@@ -134,11 +134,15 @@ def rss(source,html):
     return out
 
 def sogou(source):
-    keywords=['深圳 创客 工作坊','深圳 机器人 活动','南山 开源 沙龙','深圳 AI 黑客松','深圳 嵌入式 技术交流','深圳 开发者 Meetup','深圳 硬件 开放日','深圳 汽车 科技 展览'];slot=(now().timetuple().tm_yday*4+now().hour//6)*2;out=[]
-    for q in [keywords[slot%len(keywords)],keywords[(slot+1)%len(keywords)]]:
+    keywords=source.get('queries') or ['深圳 创客 工作坊','深圳 机器人 活动','南山 开源 沙龙','深圳 AI 黑客松','深圳 嵌入式 技术交流','深圳 开发者 Meetup','深圳 硬件 开放日','深圳 汽车 科技 展览']
+    keywords=[clean(x)[:100] for x in keywords if isinstance(x,str) and clean(x)][:40]
+    if not keywords:return []
+    count=max(1,min(4,int(source.get('queries_per_run',2))))
+    slot=(now().timetuple().tm_yday*4+now().hour//6)*count;out=[]
+    for q in [keywords[(slot+i)%len(keywords)] for i in range(min(count,len(keywords)))]:
         url=source['url']+'?'+urlencode({'type':2,'query':q,'ie':'utf8'});_,s,_=fetch(url)
         if s.select_one('#seccodeImage,#seccodeInput'):raise Blocked('搜狗要求验证码，已停止此轮发现')
-        for li in s.select('.news-list li')[:8]:
+        for li in s.select('.news-list li')[:max(1,min(20,int(source.get('results_per_query',8))))]:
             a=li.select_one('h3 a[href]');author=li.select_one('.account,.s-p .all-time-y2,.s-p a');desc=li.select_one('.txt-info');name=text(author)
             if not a:continue
             link=urljoin(url,a['href']);out.append(skeleton(text(a),link,text(desc),'',organizer=name))
@@ -155,3 +159,4 @@ def collect(source):
     if not items:raise SourceError('网页可访问，但未提取到有效活动；保留上次数据')
     if source['kind']=='jsonld':items=[e for e in items if '深圳' in e['location'] or 'shenzhen' in e['location'].lower()]
     return items
+

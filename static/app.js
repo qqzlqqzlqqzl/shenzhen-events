@@ -5,18 +5,18 @@ let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=fal
 const records=new Map(),inflight=new Set(),saving=new Set();
 const facetCatalog={type:new Map(),topic:new Map()};
 function checkedFacet(kind){return $$(`#${kind}-options input[type="checkbox"]:checked`).map(x=>x.value)}
-function updateFacetSummary(kind){const n=checkedFacet(kind).length;$(`#${kind}-summary`).textContent=n?`已选 ${n}`:'全部'}
+function updateFacetSummary(kind){const n=checkedFacet(kind).length,total=$$(`#${kind}-options input[type="checkbox"]`).length;$(`#${kind}-summary`).textContent=n===total?'全部':n?`已选 ${n} / ${total}`:'未选择'}
 function renderFacetOptions(kind,items,pending=0){
-  const box=$(`#${kind}-options`),selected=new Set(checkedFacet(kind));facetCatalog[kind]=new Map((items||[]).map(x=>[x.value,x.label]));box.replaceChildren();
+  const box=$(`#${kind}-options`),hadOptions=!!box.querySelector('input'),selected=new Set(checkedFacet(kind)),wasAll=hadOptions&&selected.size===box.querySelectorAll('input').length;facetCatalog[kind]=new Map((items||[]).map(x=>[x.value,x.label]));box.replaceChildren();
   if(kind==='type'&&pending){const note=document.createElement('p');note.className='facet-progress';note.textContent=`还有 ${Number(pending).toLocaleString()} 条待标准分类；已分类结果可先筛选。`;box.append(note)}
-  for(const item of items||[]){const label=document.createElement('label');label.className='facet-option';const input=document.createElement('input');input.type='checkbox';input.value=item.value;input.checked=selected.has(item.value);input.setAttribute('aria-label',item.label);const text=document.createElement('span');text.textContent=item.label;const count=document.createElement('small');count.textContent=Number(item.count||0).toLocaleString();label.append(input,text,count);box.append(label)}
+  for(const item of items||[]){const label=document.createElement('label');label.className='facet-option';const input=document.createElement('input');input.type='checkbox';input.value=item.value;input.checked=!hadOptions||wasAll||selected.has(item.value);input.setAttribute('aria-label',item.label);const text=document.createElement('span');text.textContent=item.label;const count=document.createElement('small');count.textContent=Number(item.count||0).toLocaleString();label.append(input,text,count);box.append(label)}
   if(!(items||[]).length){const empty=document.createElement('p');empty.className='facet-empty';empty.textContent=kind==='type'?'活动类型正在按 Schema.org 标准逐批补齐。':'暂无可用主题标签。';box.append(empty)}
   updateFacetSummary(kind);
 }
 function renderActiveFilters(){
   const box=$('#active-filters');box.replaceChildren();
   const addChip=(kind,value)=>{const b=document.createElement('button');b.type='button';b.className='filter-chip';b.dataset.facetRemove=kind;b.dataset.facetValue=value;b.textContent=(facetCatalog[kind].get(value)||value)+' ×';box.append(b)};
-  for(const v of checkedFacet('type'))addChip('type',v);for(const v of checkedFacet('topic'))addChip('topic',v);
+  for(const kind of ['type','topic']){const all=$$(`#${kind}-options input`),selected=checkedFacet(kind);if(selected.length===all.length)continue;if(!selected.length){const note=document.createElement('span');note.textContent=(kind==='type'?'活动类型':'主题')+'：未选择';box.append(note)}else for(const x of all.filter(x=>!x.checked)){addChip(kind,x.value);box.lastChild.textContent='排除：'+(facetCatalog[kind].get(x.value)||x.value)+' ×'}}
   const rest=[$('#search').value?'关键词：'+$('#search').value:'',$('#district').value,$('#free').checked?'只看免费':'',$('#hide-long').checked?'长期/重复已隐藏':'包含长期/重复',$('#sort').value==='desc'?'时间远→近':''].filter(Boolean);
   if(rest.length){const span=document.createElement('span');span.className='filter-text';span.textContent=rest.join(' · ');box.append(span)}
 }
@@ -58,20 +58,20 @@ function readURL() {
   $('#search').value=(p.get('q')||'').slice(0,160);$('#district').value=p.get('district')||'';$('#free').checked=p.get('free')==='true';$('#hide-long').checked=p.get('show_long')!=='true';$('#sort').value=p.get('sort')==='desc'?'desc':'asc';
   const topicAlias=x=>x==='展览文化'?'文化艺术':x;
   const selectedTypes=new Set(p.getAll('type')),selectedTopics=new Set(p.getAll('topic').map(topicAlias));const legacy=p.get('tag');if(legacy)selectedTopics.add(topicAlias(legacy));
-  $$('#type-options input[type="checkbox"]').forEach(x=>x.checked=selectedTypes.has(x.value));$$('#topic-options input[type="checkbox"]').forEach(x=>x.checked=selectedTopics.has(x.value));updateFacetSummary('type');updateFacetSummary('topic');
+  $$('#type-options input[type="checkbox"]').forEach(x=>x.checked=p.get('type_none')!=='true'&&(!selectedTypes.size||selectedTypes.has(x.value)));$$('#topic-options input[type="checkbox"]').forEach(x=>x.checked=p.get('topic_none')!=='true'&&(!selectedTopics.size||selectedTopics.has(x.value)));updateFacetSummary('type');updateFacetSummary('topic');
   const month=p.get('month')||'';calendarDate=/^\d{4}-\d{2}-\d{2}$/.test(month)&&Number.isFinite(Date.parse(month))?month:RadarUI.dayKey(new Date());
 }
 function urlParams() {
   const p=new URLSearchParams();if(view!=='discover')p.set('view',view);
   for(const [k,id] of [['q','search'],['district','district']]){const v=$('#'+id).value.trim();if(v)p.set(k,v)}
-  for(const v of checkedFacet('type'))p.append('type',v);for(const v of checkedFacet('topic'))p.append('topic',v);
+  for(const kind of ['type','topic']){const selected=checkedFacet(kind),total=$$(`#${kind}-options input`).length;if(total&&!selected.length)p.set(kind+'_none','true');else if(selected.length<total)for(const v of selected)p.append(kind,v)}
   if($('#free').checked)p.set('free','true');if(!$('#hide-long').checked)p.set('show_long','true');if($('#sort').value==='desc')p.set('sort','desc');if(view==='calendar'&&calendarDate)p.set('month',calendarDate);return p;
 }
 function writeURL(mode='push',event=null) {
   const p=urlParams();if(event)p.set('event',event);const u=location.pathname+(p.size?'?'+p:'');
   if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);
 }
-function clearFilters(){clearTimeout(debounce);$('#search').value='';$('#district').value='';$$('#type-options input,#topic-options input').forEach(x=>x.checked=false);updateFacetSummary('type');updateFacetSummary('topic');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc'}
+function clearFilters(){clearTimeout(debounce);$('#search').value='';$('#district').value='';$$('#type-options input,#topic-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc'}
 async function enter() {
   authenticated=true;authEpoch++;$('#login-panel').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;
   await stats();if(!authenticated)return;readURL();await load();const id=new URLSearchParams(location.search).get('event');if(id&&authenticated)await openDetail(id,false);
@@ -152,7 +152,7 @@ async function loadCalendar(info){
 }
 function renderDetail(e){
   const state=RadarUI.lifecycle(e);const ended=state==='已结束'||e.status==='cancelled'||e.status==='not_event';
-  $('#detail-body').innerHTML=`<div class="card-tags"><span class="tag type-tag">${esc(e.event_type_label||'其他活动')}</span>${(e.topics||[]).map(t=>`<span class="tag topic-tag">${esc(t)}</span>`).join('')}${e.long_running?'<span class="tag long-tag">长期/重复</span>':''}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p><p><b>费用</b>${esc(e.cost_text||'费用未注明')}</p>${e.organizer?`<p><b>主办</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}<div class="detail-actions"><a class="primary" href="${esc(RadarUI.safeUrl(e.url))}" target="_blank" rel="noopener noreferrer">${ended?'查看历史原文':'查看原文 / 报名'} ↗</a>${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：<a href="${esc(RadarUI.safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
+  $('#detail-body').innerHTML=`<div class="card-tags"><span class="tag type-tag">${esc(e.event_type_label||'其他活动')}</span>${(e.topics||[]).map(t=>`<span class="tag topic-tag">${esc(t)}</span>`).join('')}${e.long_running?'<span class="tag long-tag">长期/重复</span>':''}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p>${costText(e)?`<p><b>费用</b>${esc(costText(e))}</p>`:''}${e.organizer?`<p><b>主办</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}${detailExtras(e)}<div class="detail-actions"><a class="primary" href="${esc(RadarUI.safeUrl(e.url))}" target="_blank" rel="noopener noreferrer">${ended?'查看历史原文':'查看原文 / 报名'} ↗</a>${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：<a href="${esc(RadarUI.safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
 }
 async function openDetail(id,push=true){
   if(!authenticated)return;const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
@@ -183,8 +183,8 @@ $('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit'
 $('#logout').onclick=async()=>{const b=$('#logout');b.disabled=true;try{await api('logout',{method:'POST'});showLogin()}catch(e){if(e.name!=='AbortError')toast(e.message)}finally{b.disabled=false}};
 document.addEventListener('click',e=>{
   const b=e.target.closest('button,[data-open]');if(!b||b.disabled)return;
-  if(b.dataset.clearFacet){$$(`#${b.dataset.clearFacet}-options input[type="checkbox"]`).forEach(x=>x.checked=false);updateFacetSummary(b.dataset.clearFacet);applyFilters();return}
-  if(b.dataset.facetRemove){const kind=b.dataset.facetRemove,value=b.dataset.facetValue;$$(`#${kind}-options input[type="checkbox"]`).forEach(x=>{if(x.value===value)x.checked=false});updateFacetSummary(kind);applyFilters();return}
+  if(b.dataset.facetAction){const kind=b.dataset.facetKind;$$(`#${kind}-options input`).forEach(x=>x.checked=b.dataset.facetAction==='all'?true:b.dataset.facetAction==='none'?false:!x.checked);updateFacetSummary(kind);applyFilters();return}
+  if(b.dataset.facetRemove){const kind=b.dataset.facetRemove,value=b.dataset.facetValue;$$(`#${kind}-options input[type="checkbox"]`).forEach(x=>{if(x.value===value)x.checked=true});updateFacetSummary(kind);applyFilters();return}
   if(b.dataset.retrySource){retrySource(b.dataset.retrySource,b);return}if(b.dataset.save){save(b.dataset.save);return}if(b.dataset.open){openDetail(b.dataset.open);return}
   if(b.dataset.view||b.dataset.changeView){navigate(b.dataset.view||b.dataset.changeView);return}
   const action=b.dataset.action;
@@ -212,3 +212,4 @@ matchMedia('(max-width:619px)').addEventListener('change',e=>{if(calendar&&view=
 addEventListener('pageshow',e=>{if(e.persisted)(async()=>{try{await api('session');await enter()}catch{showLogin()}})()});
 addEventListener('pagehide',e=>{if(e.persisted)showLogin()});
 (async()=>{try{await api('session');await enter()}catch(e){if(!authenticated)showLogin()}})();
+

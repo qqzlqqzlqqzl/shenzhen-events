@@ -14,6 +14,8 @@ def compatible(row,e,body):
 
 def content_hash(source,e,body):
     payload=dict(e)
+    # Derived labels and observation timestamps are not new source content.
+    payload.pop('topics',None);payload.pop('details',None)
     if is_search(source,e):payload.pop('url',None)
     return hashlib.sha256((json.dumps(payload,ensure_ascii=False,sort_keys=True)+'\n'+body).encode()).hexdigest()
 
@@ -28,3 +30,4 @@ def refresh_url(c,row,url):
     c.execute('UPDATE event_sources SET url=? WHERE raw_id=?',(url,row['id']))
     c.execute('UPDATE events SET url=? WHERE url=? AND id IN (SELECT event_id FROM event_sources WHERE raw_id=?)',(url,row['url'],row['id']))
     c.execute('UPDATE raw_items SET url=? WHERE id=?',(url,row['id']))
+

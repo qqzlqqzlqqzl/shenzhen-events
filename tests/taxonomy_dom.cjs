@@ -19,7 +19,7 @@ async function ready(query='?view=all',count=1){
  w.fetch=async url=>{
   const p=new URL(url,w.location.href);let data={};
   if(p.pathname.endsWith('/stats'))data={event_types:typeNames.map(value=>({value,label:value,count})),topics:['AI与开源','机器人','文化艺术','其他'].map(value=>({value,label:value,count})),districts:[],upcoming:4,recommended:2,weekend:0};
-  if(p.pathname.endsWith('/events')){requests.push(p);const types=p.searchParams.getAll('type'),topics=p.searchParams.getAll('topic');const items=fixtures.filter(e=>(!types.length||types.includes(e.event_type))&&(!topics.length||topics.some(t=>e.topics.includes(t))));data={items,total:items.length,has_more:false};}
+  if(p.pathname.endsWith('/events')){requests.push(p);const types=p.searchParams.getAll('type'),topics=p.searchParams.getAll('topic');const items=fixtures.filter(e=>p.searchParams.get('type_none')!=='true'&&p.searchParams.get('topic_none')!=='true'&&(!types.length||types.includes(e.event_type))&&(!topics.length||topics.some(t=>e.topics.includes(t))));data={items,total:items.length,has_more:false};}
   return {ok:true,status:200,json:async()=>data};
  };
  const scripts=['vendor/fullcalendar.js','ui-state.js','render.js','status.js','app.js'].map(f=>fs.readFileSync(path.join(root,'static',f),'utf8')).join('\n;\n');
@@ -31,42 +31,48 @@ async function check(w,kind,value){const input=[...w.document.querySelectorAll('
 
 test('legacy tag and repeated topic URLs retain the culture selection',async()=>{
  for(const key of ['tag','topic']){const r=await ready('?view=all&'+new URLSearchParams({[key]:'展览文化'}));try{
-  assert.equal(r.w.document.querySelector('#topic-summary').textContent,'已选 1');assert.deepEqual(titles(r.w),['museum']);
+  assert.equal(r.w.document.querySelector('#topic-summary').textContent,'已选 1 / 4');assert.deepEqual(titles(r.w),['museum']);
   assert.deepEqual([...r.w.__test.urlParams().getAll('topic')],['文化艺术']);
   r.w.__test.readURL();await r.w.__test.applyFilters();await settle(r.w);assert.deepEqual(titles(r.w),['museum']);assert.deepEqual(r.errors,[]);
  }finally{r.close();}}
 });
 
 test('type OR, topic OR, cross-group AND and chip removal round-trip through URL state',async()=>{
- const r=await ready();try{const {w}=r;await check(w,'type','ComedyEvent');await check(w,'type','MusicEvent');await check(w,'topic','AI与开源');
+ const r=await ready();try{const {w}=r;w.document.querySelector('[data-facet-kind="type"][data-facet-action="none"]').click();await settle(w);w.document.querySelector('[data-facet-kind="topic"][data-facet-action="none"]').click();await settle(w);await check(w,'type','ComedyEvent');await check(w,'type','MusicEvent');await check(w,'topic','AI与开源');
  assert.deepEqual(titles(w),['comedy','music']);assert.equal(new URL(w.location.href).searchParams.getAll('type').length,2);
  await check(w,'topic','机器人');assert.deepEqual(titles(w),['comedy','music','robot']);
- w.document.querySelector('[data-facet-remove="type"][data-facet-value="ComedyEvent"]').click();await settle(w);assert.deepEqual(titles(w),['music','robot']);assert.deepEqual(r.errors,[]);
+ const comedy=w.document.querySelector('#type-options input[value="ComedyEvent"]');comedy.checked=false;comedy.dispatchEvent(new w.Event('change',{bubbles:true}));await settle(w);assert.deepEqual(titles(w),['music','robot']);assert.deepEqual(r.errors,[]);
  }finally{r.close();}
 });
 
 test('all 23 known types are preserved in requests and selected chips',async()=>{
  const r=await ready();try{for(const type of typeNames)await check(r.w,'type',type);
- assert.equal(r.requests.at(-1).searchParams.getAll('type').length,23);assert.equal(r.w.document.querySelector('#type-summary').textContent,'已选 23');assert.equal(r.w.document.querySelectorAll('[data-facet-remove="type"]').length,23);assert.deepEqual(titles(r.w),['comedy','museum','music','robot']);assert.deepEqual(r.errors,[]);
+ assert.equal(r.requests.at(-1).searchParams.getAll('type').length,0);assert.equal(r.w.document.querySelector('#type-summary').textContent,'全部');assert.equal(r.w.document.querySelectorAll('[data-facet-remove="type"]').length,0);assert.deepEqual(titles(r.w),['comedy','museum','music','robot']);assert.deepEqual(r.errors,[]);
  }finally{r.close();}
 });
 
-test('browser history restores multi-select state after chip removal',async()=>{
- const r=await ready('?view=all&type=ComedyEvent&type=MusicEvent&topic='+encodeURIComponent('AI与开源'));try{const {w}=r;
- w.document.querySelector('[data-facet-remove="type"][data-facet-value="ComedyEvent"]').click();await settle(w);assert.deepEqual(titles(w),['music']);
- await new Promise(resolve=>{w.addEventListener('popstate',resolve,{once:true});w.history.back();});await settle(w);assert.deepEqual(titles(w),['comedy','music']);assert.equal(w.document.querySelector('#type-summary').textContent,'已选 2');assert.deepEqual(r.errors,[]);
+test('inverting an exclusion and history restore checkbox state',async()=>{
+ const r=await ready('?view=all&type=MusicEvent');try{const {w}=r;
+ w.document.querySelector('[data-facet-kind="type"][data-facet-action="invert"]').click();await settle(w);assert.deepEqual(titles(w),['comedy','museum']);
+ w.document.querySelector('[data-facet-remove="type"][data-facet-value="MusicEvent"]').click();await settle(w);assert.deepEqual(titles(w),['comedy','museum','music','robot']);
+ await new Promise(resolve=>{w.addEventListener('popstate',resolve,{once:true});w.history.back();});await settle(w);assert.deepEqual(titles(w),['comedy','museum']);assert.deepEqual(r.errors,[]);
  }finally{r.close();}
 });
+
 
 
 test('zero-count generic filters survive favorites/past deep links and refresh',async()=>{
  for(const view of ['favorites','past']){const r=await ready('?view='+view+'&type=Event&topic='+encodeURIComponent('其他'),0);try{const {w}=r;
-  assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1');assert.equal(w.document.querySelector('#topic-summary').textContent,'已选 1');
+  assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1 / 23');assert.equal(w.document.querySelector('#topic-summary').textContent,'已选 1 / 4');
   assert.deepEqual(r.requests.at(-1).searchParams.getAll('type'),['Event']);assert.deepEqual(r.requests.at(-1).searchParams.getAll('topic'),['其他']);
   w.document.querySelector('#refresh-data').click();await settle(w);
-  assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1');assert.equal(w.document.querySelector('#topic-summary').textContent,'已选 1');
+  assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1 / 23');assert.equal(w.document.querySelector('#topic-summary').textContent,'已选 1 / 4');
   assert.deepEqual(r.requests.at(-1).searchParams.getAll('type'),['Event']);assert.deepEqual(r.requests.at(-1).searchParams.getAll('topic'),['其他']);
   w.__test.readURL();await w.__test.applyFilters();await settle(w);
   assert.equal(new URL(w.location.href).searchParams.get('type'),'Event');assert.equal(new URL(w.location.href).searchParams.get('topic'),'其他');assert.deepEqual(r.errors,[]);
  }finally{r.close();}}
+});
+
+test('all to none inverse means zero results, persists URL and refresh',async()=>{
+ const r=await ready();try{const {w}=r;w.document.querySelector('[data-facet-kind="type"][data-facet-action="invert"]').click();await settle(w);assert.deepEqual(titles(w),[]);assert.equal(new URL(w.location.href).searchParams.get('type_none'),'true');w.__test.readURL();await w.__test.applyFilters();await settle(w);assert.deepEqual(titles(w),[]);w.document.querySelector('[data-facet-kind="type"][data-facet-action="all"]').click();await settle(w);assert.equal(titles(w).length,4);assert.deepEqual(r.errors,[])}finally{r.close()}
 });

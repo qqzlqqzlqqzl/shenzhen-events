@@ -12,6 +12,7 @@ def isolated(tmp_path,monkeypatch):
     (tmp_path/'sources.json').write_text(json.dumps([{'id':'a','name':'测试源','url':'https://example.com','priority':10,'interval_hours':6}]))
     monkeypatch.setattr(core,'ROOT',tmp_path);monkeypatch.setattr(api,'ROOT',tmp_path);monkeypatch.setattr(worker,'ROOT',tmp_path)
     api.initialize_settings();core.init();api.ATTEMPTS.clear()
+    cfg=core.config();cfg['analysis_enabled']=True;(core.ROOT/'.private/settings.json').write_text(json.dumps(cfg))
     yield tmp_path
 
 def src():return {'id':'a','priority':10}
@@ -216,3 +217,12 @@ def test_zero_upcoming_generic_facets_remain_available_for_other_scopes(period):
         if period=='calendar':params.update(start='2026-01-01',end='2026-02-01')
         response=client.get('/events/api/events',params=params)
         assert response.status_code==200 and response.json()['total']==1
+
+def test_explicit_empty_facet_returns_zero_not_all():
+    core.ingest(src(),event('普通活动','SocialEvent'))
+    with TestClient(api.app) as c:
+        auth(c)
+        for key in ('type_none','topic_none'):
+            r=c.get('/events/api/events',params={key:'true'})
+            assert r.status_code==200 and r.json()['total']==0
+        assert c.get('/events/api/events').json()['total']==1
