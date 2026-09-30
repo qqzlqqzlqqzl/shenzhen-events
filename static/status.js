@@ -9,7 +9,8 @@ function coverageCard(s){
  const label=job?.state==='queued'?'检查已排队':job?.state==='running'?'正在检查…':v.next_cursor?'继续采集后续页':'重新检查此来源';
  return `<article class="source-card" data-source="${esc(s.id)}"><header><h3><a href="${esc(RadarUI.safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></h3><span class="status-label ${esc(s.status)}">${esc(states[s.status]||s.status)}</span></header>
  <p class="coverage-scope">${esc(modes[v.mode]||'等待新一轮覆盖检查')}${v.pages_visited!==undefined?' · 本次检查 '+number(v.pages_visited)+' 页':''}</p>
- ${v.version?`<dl class="coverage-flow">${count('本次可见条目',v.visible)}${count('成功解析',v.extracted)}${count('去重后',v.unique)}${count('深圳候选',v.shenzhen_candidates)}${count('本轮纳入',v.admitted)}${count('已收录含线索',v.stored_events??s.event_count)}</dl>`:`<p>${esc(s.message||'等待首次采集')}</p>`}
+ ${v.version?`<dl class="coverage-flow">${count('本次可见条目',v.visible)}${count('成功解析',v.extracted)}${count('去重后',v.unique)}${count('深圳候选',v.shenzhen_candidates)}${v.online_candidates?count('线上/混合候选',v.online_candidates):''}${count('本轮纳入',v.admitted)}${count('已收录含线索',v.stored_events??s.event_count)}</dl>`:`<p>${esc(s.message||'等待首次采集')}</p>`}
+ ${v.online_candidates?'<p>线上/混合候选可远程参加，不要求在深圳举办；不同来源条目可能合并为同一活动。</p>':''}
  ${v.source_total!==null&&v.source_total!==undefined?`<p>源页声明总量 <b>${number(v.source_total)}</b> 条；不是本站已抓取数量。</p>`:''}
  ${Object.keys(v.rejected||{}).length?`<p class="coverage-reasons">未纳入：${Object.entries(v.rejected).map(([k,n])=>esc(k)+' '+number(n)).join(' · ')}</p>`:''}
  ${v.detail_attempted||v.detail_deferred||v.detail_cached?`<p>详情补全 ${number(v.detail_attempted)} 次 · 缓存复用 ${number(v.detail_cached)} 条 · 待后续补全 ${number(v.detail_deferred)} 条</p>`:''}
