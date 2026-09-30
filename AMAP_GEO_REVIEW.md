@@ -45,3 +45,6 @@ Resolved district distribution:
 A snapshot apply changed only those 47 districts. Event count, favorite count and AI pending count remained unchanged. `district=待确认` fell from 127 to 80.
 
 Safe review data is committed under `artifacts/amap-review/`. Database snapshots and the private key are not committed.
+
+## Final self-review
+67 tests pass. Added foreign-location precedence, intact venue names, ambiguous geocode rejection, stale-candidate starvation prevention and concurrent-location update guard. Fresh snapshot recheck: 47 resolved, 25 skipped, 4 not found, 0 errors.

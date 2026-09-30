@@ -51,8 +51,8 @@ def direct_district(text):
 def query_text(location):
     value=core.clean(location)
     if not value:return ''
-    if any(x in value for x in FOREIGN_HINTS):return ''
-    value=re.sub(r'^(?:广东省?)?[·\s/|,-]*深圳市?[·\s/|,-]*','',value,flags=re.I)
+    if any(x.casefold() in value.casefold() for x in FOREIGN_HINTS):return ''
+    value=re.sub(r'^(?:广东省?)?[·\s/|,-]*深圳市?[·\s/|,-]+','',value,flags=re.I)
     if 'PostalAddress' in value:value=value.split('PostalAddress',1)[0]
     value=re.sub(r'[（(][^）)]*(?:报名(?:成功)?后|具体地址|以原文为准|待通知)[^）)]*[）)]','',value)
     value=core.clean(value.strip(' /·|-，,'))
@@ -101,7 +101,11 @@ def _coords(value):
     except (ValueError,AttributeError):return '',''
 
 def _from_geocode(data):
-    for g in data.get('geocodes') or []:
+    geocodes=data.get('geocodes') or []
+    districts={normalize_district(g.get('district',''),g.get('adcode','')) for g in geocodes}
+    districts.discard('')
+    if len(districts)>1:return None
+    for g in geocodes:
         district=normalize_district(g.get('district',''),g.get('adcode',''))
         if district:
             lon,lat=_coords(g.get('location'))
@@ -140,6 +144,7 @@ def _from_poi(query,data):
     return {'status':'ok','district':district,'adcode':str(poi.get('adcode','')),'lon':lon,'lat':lat,'method':'poi','resolved_name':core.clean(poi.get('name'))[:200]}
 
 def resolve_location(location,session=None,use_cache=True):
+    if any(x.casefold() in core.clean(location).casefold() for x in FOREIGN_HINTS):return {'status':'skipped','district':'','method':'skip'}
     direct=direct_district(location)
     if direct:return {'status':'ok','district':direct,'adcode':'','lon':'','lat':'','method':'text','resolved_name':''}
     query=query_text(location)
@@ -174,9 +179,16 @@ def enrich_pending(limit=30,apply=True,sleep_seconds=0):
     with core.db() as c:
         cutoff=(core.now()-timedelta(days=90)).isoformat(timespec='seconds')
         c.execute('DELETE FROM geocode_cache WHERE checked_at<?',(cutoff,))
-        rows=[dict(x) for x in c.execute("SELECT id,title,location,district FROM events WHERE district=? AND trim(location)<>'' ORDER BY COALESCE(start_at,'9999'),id LIMIT ?",('待确认',int(limit)))]
+        rows=[dict(x) for x in c.execute("SELECT id,title,location,district FROM events WHERE district=? AND trim(location)<>'' ORDER BY COALESCE(start_at,'9999'),id LIMIT ?",('待确认',10000))]
     session=requests.Session();session.trust_env=False;consecutive_errors=0
+    attempts=0
     for row in rows:
+        query=query_text(row['location'])
+        if not query:stats['skipped']+=1;continue
+        cached=_cache_get(query)
+        if cached and cached.get('status')=='not_found':stats['not_found']+=1;continue
+        if attempts>=max(1,int(limit)):stats['remaining']=True;break
+        attempts+=1
         stats['examined']+=1
         result=resolve_location(row['location'],session=session)
         status=result.get('status')
@@ -184,7 +196,7 @@ def enrich_pending(limit=30,apply=True,sleep_seconds=0):
             stats['resolved']+=1;method=result.get('method','');stats['methods'][method]=stats['methods'].get(method,0)+1
             if apply and result.get('district'):
                 with core.db() as c:
-                    cur=c.execute("UPDATE events SET district=? WHERE id=? AND district=?",(result['district'],row['id'],'待确认'))
+                    cur=c.execute("UPDATE events SET district=? WHERE id=? AND district=? AND location=?",(result['district'],row['id'],'待确认',row['location']))
                     stats['updated']+=cur.rowcount
         elif status=='skipped':stats['skipped']+=1
         elif status=='not_found':stats['not_found']+=1

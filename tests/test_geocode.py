@@ -156,3 +156,20 @@ def test_service_wide_error_stops_batch(monkeypatch):
     r=geocode.enrich_pending(limit=10,apply=True,sleep_seconds=0)
     assert r['errors']==1 and r['examined']==1 and r['stopped']=='amap_10001'
     assert len(calls)==1
+
+def test_foreign_hint_prevents_false_local_district(monkeypatch):
+    monkeypatch.setattr(geocode,'_request_json',lambda *a,**k:pytest.fail('network'))
+    assert geocode.resolve_location('Hong Kong · Futian District')['status']=='skipped'
+
+def test_geocode_district_ambiguity_is_rejected():
+    assert geocode._from_geocode({'geocodes':[{'district':'南山区','adcode':'440305'},{'district':'福田区','adcode':'440304'}]}) is None
+
+def test_landmark_name_not_mutilated():
+    assert geocode.query_text('深圳湾万丽酒店')=='深圳湾万丽酒店'
+
+def test_old_vague_rows_do_not_starve_new_venues(monkeypatch):
+    for i in range(4):core.ingest({'id':'a','priority':10},event('香港某场馆',f'https://example.com/old/{i}'))
+    core.ingest({'id':'a','priority':10},event('深圳新场馆','https://example.com/new'))
+    monkeypatch.setattr(geocode,'_request_json',lambda *a,**k:({'status':'1','geocodes':[{'district':'福田区','adcode':'440304'}]},''))
+    report=geocode.enrich_pending(limit=1,apply=True)
+    assert report['updated']==1
