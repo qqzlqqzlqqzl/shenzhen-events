@@ -119,9 +119,9 @@ def stats(request:Request):
         health=[dict(x) for x in c.execute('SELECT * FROM source_health')];raw=c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0];pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0];type_pending=c.execute("SELECT COUNT(*) FROM events WHERE event_type_state='pending' AND status='scheduled'").fetchone()[0]
     type_counts=Counter(e.get('event_type') or 'Event' for e in up if e.get('event_type_state')!='pending');topic_counts=Counter(t for e in up for t in e.get('topics',[]))
     type_facets=[{'value':v,'label':label,'count':type_counts.get(v,0)} for v,label in EVENT_TYPES.items() if v!='Event']
-    if type_counts.get('Event'):type_facets.append({'value':'Event','label':'其他活动','count':type_counts['Event']})
+    type_facets.append({'value':'Event','label':'其他活动','count':type_counts.get('Event',0)})
     topic_facets=[{'value':v,'label':v,'count':topic_counts.get(v,0)} for v in TOPICS]
-    if topic_counts.get('其他'):topic_facets.append({'value':'其他','label':'其他主题','count':topic_counts['其他']})
+    topic_facets.append({'value':'其他','label':'其他主题','count':topic_counts.get('其他',0)})
     return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend',hide_long=True)),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'type_pending':type_pending,'long_running':max(0,len(up)-len(clean_up)),'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(TOPICS),'event_types':type_facets,'topics':topic_facets,'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
 @app.get('/events/api/status')
 def status(request:Request):
