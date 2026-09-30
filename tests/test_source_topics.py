@@ -28,3 +28,14 @@ def test_repair_preserves_reviewed_and_other_sources():
     assert event_patch({**row,'ai_state':'done'},{'dev-events-online'})=={}
     assert event_patch(row,{'another-source'})=={}
     assert event_patch({**row,'details':'{"review_hold":"date_conflict"}'},{'dev-events-online'})=={}
+
+
+def test_masterclass_is_a_course_not_a_conference():
+    from radar.source_topics import developer_event_type
+    description='Docker / Kubernetes masterclass Online'
+    assert developer_category(description)==('Docker / Kubernetes',['软件开发'])
+    assert developer_event_type(description)=='CourseInstance'
+    row={'summary':description,'ai_state':'pending','topics':'["其他"]','details':'{}','event_type':'ConferenceEvent','event_type_state':'source'}
+    fix=event_patch(row,{'dev-events-online'})
+    assert fix['event_type']=='CourseInstance'
+    assert event_patch({**row,**fix},{'dev-events-online'})=={}

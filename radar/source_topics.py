@@ -13,9 +13,16 @@ GROUPS = {
 
 def developer_category(description):
     # This is the source's exact public description format; arbitrary prose is not evidence.
-    match = re.fullmatch(r'([^\n]{1,80}?) conference (?:Online|in [^\n]{1,200})', str(description or '').strip())
+    match = re.fullmatch(r'([^\n]{1,80}?) (?:conference|masterclass) (?:Online|in [^\n]{1,200})', str(description or '').strip())
     if not match:
         return '', []
     label = match[1].strip()
     topics = [topic for topic, labels in GROUPS.items() if label.casefold() in labels]
     return label, topics
+
+
+def developer_event_type(description):
+    # Preserve the public source's course/conference distinction.
+    if re.fullmatch(r'[^\n]{1,80}? masterclass (?:Online|in [^\n]{1,200})', str(description or '').strip()):
+        return 'CourseInstance'
+    return 'ConferenceEvent'
