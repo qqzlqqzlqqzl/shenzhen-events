@@ -35,14 +35,14 @@ def ready(query='?view=weekend'):
 def exact_month():
     ready('?view=calendar&month=2026-09-01');page.locator('.fc-dayGridMonth-view').wait_for()
     expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
-    evs=page.evaluate("calendar.getEvents().map(e=>({id:e.id,start:e.start.toISOString()}))")
-    ok(len(evs)>0 and all(e['start'].startswith('2026-09') for e in evs),str(evs[:4]))
+    evs=page.evaluate("calendar.getEvents().map(e=>({id:e.id,start:e.start.toISOString(),end:e.end?.toISOString()}))")
+    ok(len(evs)>0 and all(e['start']<'2026-10-01' and (e['end']>'2026-09-01T00:00:00.000Z' if e['end'] else e['start']>='2026-09-01T00:00:00.000Z') for e in evs),str(evs[:4]))
     ok(page.locator('.fc-daygrid-body table tbody tr').count()==5)
     ok(page.locator('.fc-day-other .fc-event').count()==0)
     report['september_event_count']=len(evs)
     page.screenshot(path=str(ART/'september-only.png'),full_page=True)
     page.locator('.fc-next-button').click();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
-    ok(page.evaluate("calendar.getEvents().every(e=>e.start.toISOString().startsWith('2026-10'))"))
+    ok(page.evaluate("calendar.getEvents().every(e=>e.start<new Date('2026-11-01')&&(e.end?e.end>new Date('2026-10-01'):e.start>=new Date('2026-10-01')))"))
 check('real_month_queries_exclude_padding_dates',exact_month)
 
 def source_coverage():
@@ -110,3 +110,4 @@ report['page_errors_empty']=not report['errors']
 (ART/'acceptance.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 browser.close();pw.stop();print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)
+

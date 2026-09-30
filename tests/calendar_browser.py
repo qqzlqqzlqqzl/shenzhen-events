@@ -79,11 +79,12 @@ def calendar_clean():
     ok(page.locator('#calendar-long').is_hidden())
     ok('长期博物馆展' not in page.locator('#calendar').inner_text())
     ok(page.locator('.fc-daygrid-event').count()>=1)
-    # No multi-week bars: calendar events carry no end value and appear only on their start day.
+    # Only ordinary short events enter the grid; retain their actual ends.
     ends=page.evaluate("calendar.getEvents().map(e=>e.end)")
-    ok(all(x is None for x in ends),str(ends))
+    ok(all(x is not None for x in ends),str(ends))
+    ok(page.evaluate('calendar.getEvents().every(e=>e.end-e.start<14*86400000)'))
     page.screenshot(path=str(ART/'desktop-month-clean.png'),full_page=True)
-check('month_calendar_is_start_based_not_spanning_bars',calendar_clean)
+check('month_calendar_preserves_short_intervals',calendar_clean)
 
 def calendar_show_long():
     ready('?view=calendar');page.locator('#hide-long').uncheck();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
@@ -104,3 +105,4 @@ report['page_errors_empty']=not report['errors']
 (ART/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 br.close();pw.stop();print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)
+

@@ -108,10 +108,11 @@ function renderCalendar(){
   calendar=new FullCalendar.Calendar($('#calendar'),{
     initialDate:calendarDate,initialView:innerWidth<620?'listMonth':'dayGridMonth',locale:'zh-cn',timeZone:'UTC',now:RadarUI.dayKey(new Date()),firstDay:1,height:'auto',
     buttonText:{today:'今天',month:'月',week:'周',list:'列表'},headerToolbar:{left:'prev,next today',center:'title',right:'dayGridMonth,listMonth'},
-    showNonCurrentDates:false,fixedWeekCount:false,dayMaxEvents:4,eventDisplay:'list-item',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
+    showNonCurrentDates:false,fixedWeekCount:false,dayMaxEvents:4,nextDayThreshold:'00:00:00',defaultTimedEventDuration:'00:00:01',allDayText:'活动期',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
     datesSet:info=>{calendarDate=info.view.currentStart.toISOString().slice(0,10);writeURL('replace',detailId);loadCalendar({startStr:calendarDate,endStr:info.view.currentEnd.toISOString().slice(0,10)})},
     eventClick:i=>{i.jsEvent.preventDefault();openDetail(i.event.id)},
-    eventDidMount:i=>{i.el.title=i.event.title}
+    eventContent:i=>{const label=i.event.extendedProps.rangeLabel;const box=document.createElement('span');box.className='calendar-event-content';const title=document.createElement('span');title.className='calendar-event-title';title.textContent=(i.timeText&&!i.view.type.startsWith('list')?i.timeText+' ':'')+i.event.title;box.append(title);if(label){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=label;box.append(range)}return {domNodes:[box]}},
+    eventDidMount:i=>{const label=i.event.title+' · '+i.event.extendedProps.fullTime;i.el.title=label;i.el.setAttribute('aria-label',label);i.el.dataset.eventId=i.event.id}
   });calendar.render();
 }
 function renderLongCalendar(items){
@@ -140,11 +141,11 @@ async function loadCalendar(info){
     }
     for(const e of data)records.set(e.id,e);
     const long=data.filter(e=>e.long_running);
-    const normal=data.filter(e=>!e.long_running&&e.start_at>=info.startStr.slice(0,10)&&e.start_at<info.endStr.slice(0,10));
+    const normal=data.filter(e=>!e.long_running); // API already selects interval overlap, including prior-month starts.
     renderLongCalendar(long);
-    calendar.addEventSource(normal.map(e=>({id:e.id,title:e.title,start:e.all_day?e.start_at.slice(0,10):e.start_at.slice(0,19),allDay:!!e.all_day})));
+    calendar.addEventSource(normal.map(RadarUI.calendarEvent));
     const hiddenText=$('#hide-long').checked?' · 长期/重复已隐藏':long.length?` · ${long.length} 项长期/重复单列`:'';
-    $('#result-count').textContent=`本月 ${normal.length} 个开始的活动${hiddenText}`;calendar.updateSize();
+    $('#result-count').textContent=`本月 ${normal.length} 个活动 · 跨日活动按覆盖日期显示${hiddenText}`;calendar.updateSize();
   }catch(e){if(seq!==sequence||!authenticated||view!=='calendar'||!calendar)return;calendar.removeAllEvents();records.clear();renderLongCalendar([]);if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent='日历加载失败';showError(e)}}
   finally{if(seq===sequence){busy=false;$('#calendar').setAttribute('aria-busy','false')}}
 }

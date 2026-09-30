@@ -45,6 +45,17 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 .fc .fc-daygrid-event:hover{background:#edf3e5!important;border-radius:5px}
 .fc .fc-more-link{font-size:10px;color:#53715e;font-weight:600}
 .fc .fc-daygrid-day-frame{min-height:92px}
+.fc .fc-daygrid-event.multi-day-event{background:#dcebc9!important;border-left:3px solid #52745d!important;border-radius:4px;padding:3px 5px!important}
+.fc .fc-daygrid-event.multi-day-event:hover{background:#cddfb7!important}
+.fc .fc-daygrid-event .fc-event-main{color:var(--ink)}
+.calendar-event-content{display:block;min-width:0;overflow:hidden;line-height:1.5}
+.calendar-event-title{display:block;overflow:hidden;text-overflow:ellipsis}
+.calendar-event-range{display:block;font-size:9px;font-weight:500;opacity:.85}
+.fc-list-event .calendar-event-title{white-space:normal;overflow-wrap:anywhere}
+.legend-span{width:20px;height:8px;border-radius:3px;background:#dcebc9;border-left:3px solid #52745d;display:inline-block}
+.card-date-range{font-size:12px;line-height:1.7;color:#365c3e;font-weight:650;margin:0 0 12px}
+.card-date-range span{display:block;font-size:10px;color:var(--muted);font-weight:400}
+.result-count{white-space:normal;text-align:right;line-height:1.6}
 @media(max-width:1000px){.calendar-long-list{grid-template-columns:1fr}}
 @media(max-width:620px){.long-check{font-size:10px}.calendar-guide{display:block}.calendar-legend{justify-content:flex-start;margin-top:10px}.calendar-long-list{grid-template-columns:1fr}.fc .fc-daygrid-day-frame{min-height:70px}}
 /* Coverage metrics and explicit one-source actions. */

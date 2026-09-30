@@ -277,3 +277,29 @@ def test_listing_supports_long_filter_and_time_sort(monkeypatch):
         r=client.get('/events/api/events?period=weekend&hide_long=true&sort=asc')
         assert r.status_code==200 and [x['title'] for x in r.json()['items']]==['周六工作坊']
         assert client.get('/events/api/events?sort=wrong').status_code==400
+
+
+@pytest.mark.parametrize('day,expected',[(13,0),(14,1),(15,1),(16,1),(17,0)])
+def test_three_day_event_in_each_covered_day(day,expected):
+    core.ingest(source(),ev(title='2026华南3D打印展',start_at='2026-10-14',end_at='2026-10-17',all_day=True))
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client)
+        r=client.get('/events/api/events',params={'period':'calendar','start':f'2026-10-{day:02}','end':f'2026-10-{day+1:02}'})
+        assert r.status_code==200 and r.json()['total']==expected
+
+
+def test_month_overlap_returns_one_record_and_preserves_favorites():
+    core.ingest(source(),ev(title='跨月展览',start_at='2026-09-30',end_at='2026-10-03',all_day=True))
+    with core.db() as c:
+        before=dict(c.execute('SELECT * FROM events').fetchone())
+        c.execute('INSERT INTO preferences(event_id,favorite) VALUES(?,1)',(before['id'],))
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client)
+        for start,end in [('2026-09-01','2026-10-01'),('2026-10-01','2026-11-01')]:
+            data=client.get('/events/api/events',params={'period':'calendar','start':start,'end':end,'hide_long':'true'}).json()
+            assert data['total']==1
+            assert data['items'][0]['favorite']==1
+            assert data['items'][0]['start_at']==before['start_at']
+            assert data['items'][0]['end_at']==before['end_at']
+            assert data['items'][0]['location']==before['location']
+    with core.db() as c:assert dict(c.execute('SELECT * FROM events').fetchone())==before
