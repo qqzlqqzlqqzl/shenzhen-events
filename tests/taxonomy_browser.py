@@ -68,7 +68,7 @@ def multiselect_semantics_and_url():
     page.locator('#topic-filter summary').click();expect(page.locator('#type-filter')).to_have_js_property('open',False);expect(page.locator('#topic-filter')).to_have_js_property('open',True);page.locator('[data-facet-kind="topic"][data-facet-action="none"]').click();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false');page.get_by_label('AI与开源').check();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     titles=page.locator('.title-button').all_inner_texts();ok(set(titles)=={'AI 脱口秀','AI 音乐会'},str(titles))
     u=page.url;ok(u.count('type=')==2 and 'topic=' in u,u)
-    expect(page.locator('#type-summary')).to_have_text('已选 2 / 23');expect(page.locator('#topic-summary')).to_have_text('已选 1 / 10')
+    expect(page.locator('#type-summary')).to_have_text('已选 2');expect(page.locator('#topic-summary')).to_have_text('已选 1')
     page.screenshot(path=str(ART/'desktop-multiselect.png'),full_page=True)
     page.reload(wait_until='domcontentloaded');expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     ok(page.get_by_label('喜剧 / 脱口秀').is_checked() and page.get_by_label('音乐 / 演唱会').is_checked() and page.get_by_label('AI与开源').is_checked())

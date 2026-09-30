@@ -15,7 +15,7 @@ Scope: issue #38. Root authored the functional changes and reviewed the public-s
 
 ## Validation at preparation
 - 149 Python unit/API tests passed, including disabled model network guards, explicit empty facets, metadata safety, stable raw identity, year rollover and review-hold persistence.
-- 13 Node DOM tests passed: filtering, inversion, zero selection, refresh, history and previous multi-day calendar checks.
+- 15 Node DOM tests passed: filtering, inversion, zero selection, refresh, history and previous multi-day calendar checks.
 - Python and JavaScript syntax checks passed.
 - Guarded 175-record review import fixture: dry-run, apply, idempotent replay and protected-field/table invariants passed.
 - Headless Chromium could not launch in the root execution sandbox (socket operation not permitted). This is not a browser-test pass. Run full browser suites against the candidate on the supported deployment executor/CI before production acceptance.
@@ -25,3 +25,6 @@ Scope: issue #38. Root authored the functional changes and reviewed the public-s
 - No registration, contact, CAPTCHA bypass, login scraping or external-model request performed.
 - Primary dates and venue fields are not changed by the reviewed data patch. WorkBuddy is withheld from upcoming results, not silently moved to an assumed date.
 - Current-source reachability and production authenticated UI remain deployment gates.
+
+## Product-flow pass
+Signed-in users go straight to activities instead of a large marketing hero. Source diagnostics move to a secondary header entry. Filter chips describe the smaller selected/excluded set instead of listing every hidden alternative; card action opens details without implying external navigation. Readability and touch target sizes improved. None-selection, default-all and legacy URLs remain explicit.
