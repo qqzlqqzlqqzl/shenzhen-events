@@ -79,6 +79,50 @@ WantedBy=timers.target
         write(f'/etc/systemd/system/shenzhen-events-{job}.timer',timer)
     run('systemctl','daemon-reload');run('systemctl','enable','--now','shenzhen-events.service')
     run('systemctl','enable','--now','shenzhen-events-collect.timer','shenzhen-events-analyze.timer')
+    retry_service()
+
+def retry_service():
+    """Install only the new retry runner; existing application units are untouched."""
+    (ROOT/'logs').mkdir(exist_ok=True)
+    unit=f"""[Unit]
+Description=Shenzhen Radar single-source retry queue
+After=network-online.target shenzhen-events.service
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory={ROOT}
+Environment=TZ=Asia/Shanghai
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={ROOT}/data {ROOT}/logs {ROOT}/.private
+MemoryHigh=160M
+MemoryMax=224M
+CPUQuota=50%
+Nice=10
+ExecStart={ROOT}/.venv/bin/python -m radar.worker retry
+TimeoutStartSec=8min
+StandardOutput=append:{ROOT}/logs/retry.log
+StandardError=append:{ROOT}/logs/retry.log
+"""
+    timer="""[Unit]
+Description=Check Shenzhen Radar user-requested source retries
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=1min
+RandomizedDelaySec=3
+Unit=shenzhen-events-retry.service
+[Install]
+WantedBy=timers.target
+"""
+    write('/etc/systemd/system/shenzhen-events-retry.service',unit)
+    write('/etc/systemd/system/shenzhen-events-retry.timer',timer)
+    run('systemctl','daemon-reload')
+    run('systemctl','enable','--now','shenzhen-events-retry.timer')
 
 def patched_portal(html):
     if 'class="card events"' in html:return html
@@ -140,9 +184,9 @@ def rollback():
     for path in report['before']:
         p=Path(path);shutil.copy2(BACKUP/str(p).lstrip('/').replace('/','__'),p)
     run('nginx','-t');run('systemctl','reload','nginx')
-    run('systemctl','disable','--now','shenzhen-events-collect.timer','shenzhen-events-analyze.timer','shenzhen-events.service')
+    run('systemctl','disable','--now','shenzhen-events-retry.timer','shenzhen-events-collect.timer','shenzhen-events-analyze.timer','shenzhen-events.service')
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['services','publish','rollback']);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['services','publish','rollback','retry']);args=parser.parse_args()
     if os.geteuid()!=0:raise SystemExit('Run with sudo; installer never touches other app services')
-    {'services':services,'publish':publish,'rollback':rollback}[args.action]()
+    {'services':services,'publish':publish,'rollback':rollback,'retry':retry_service}[args.action]()

@@ -12,6 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, DISTRICTS, iso
 from .calendar import make_calendar
+from . import jobs
 COOKIE='sz_events_session'
 AUTH_URL='http://127.0.0.1:8091/mf/v1/me'
 ATTEMPTS=defaultdict(deque);ATTEMPT_LOCK=threading.Lock()
@@ -119,7 +120,18 @@ def status(request:Request):
     require(request);cfg=config()
     with db() as c:
         sources=[dict(x) for x in c.execute('SELECT * FROM source_health')];runs=[dict(x) for x in c.execute('SELECT * FROM runs ORDER BY id DESC LIMIT 20')];candidates=[dict(x) for x in c.execute('SELECT * FROM candidates ORDER BY hits DESC,last_seen DESC LIMIT 50')];b=c.execute('SELECT * FROM budget WHERE day=?',(now().date().isoformat(),)).fetchone()
-    return {'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
+    with db() as c:analysis_pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0]
+    pending_jobs=jobs.latest_jobs()
+    for source in sources:
+        source['coverage']=json.loads(source.get('coverage') or '{}')
+        source['retry']=pending_jobs.get(source['id'])
+    return {'analysis_pending':analysis_pending,'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
+@app.post('/events/api/sources/{source_id}/retry',status_code=202)
+def retry_source(source_id:str,request:Request):
+    require(request)
+    try:return jobs.enqueue(source_id)
+    except jobs.QueueError as exc:raise HTTPException(exc.status,str(exc))
+
 class Preference(BaseModel):
     favorite:bool|None=None
     hidden:bool|None=None

@@ -1,0 +1,11 @@
+{"kind": "source", "status": "ok", "source": "lianpu", "count": 87, "changed": 37, "message": "本轮检查 6 页 · 可见 260 条 · 解析 260 条 · 去重后 260 条 · 纳入 87 条 · 新增/变更 37 条"}
+{"kind": "source", "status": "ok", "source": "techevent", "count": 6, "changed": 0, "message": "本轮检查 1 页 · 可见 22 条 · 解析 22 条 · 去重后 22 条 · 纳入 6 条 · 新增/变更 0 条"}
+{"kind": "source", "status": "partial", "source": "bendibao", "count": 32, "changed": 0, "message": "本轮检查 1 页 · 可见 43 条 · 解析 43 条 · 去重后 43 条 · 纳入 32 条 · 新增/变更 0 条；仅覆盖这个公开汇总页"}
+{"kind": "source", "status": "ok", "source": "chaihuo", "count": 3, "changed": 0, "message": "本轮检查 1 页 · 可见 12 条 · 解析 9 条 · 去重后 9 条 · 纳入 3 条 · 新增/变更 0 条"}
+{"kind": "source", "status": "partial", "source": "huodongxing", "count": 65, "changed": 65, "message": "本轮检查 6 页 · 可见 66 条 · 解析 66 条 · 去重后 65 条 · 纳入 65 条 · 新增/变更 65 条；页面可访问但解析为空"}
+{"kind": "source", "status": "ok", "source": "douban", "count": 708, "changed": 698, "message": "本轮检查 71 页 · 可见 2483 条 · 解析 2128 条 · 去重后 708 条 · 纳入 708 条 · 新增/变更 698 条"}
+{"kind": "source", "status": "partial", "source": "meetup", "count": 11, "changed": 11, "message": "本轮检查 1 页 · 可见 34 条 · 解析 34 条 · 去重后 30 条 · 纳入 11 条 · 新增/变更 11 条；仅发现入口中的公开线索"}
+{"kind": "source", "status": "partial", "source": "wechat-chaihuo", "count": 10, "changed": 1, "message": "本轮检查 1 页 · 可见 10 条 · 解析 10 条 · 去重后 10 条 · 纳入 10 条 · 新增/变更 1 条；搜索索引非全量实时"}
+{"kind": "source", "status": "partial", "source": "sogou-discovery", "count": 16, "changed": 0, "message": "本轮检查 1 页 · 可见 16 条 · 解析 16 条 · 去重后 16 条 · 纳入 16 条 · 新增/变更 0 条；搜索索引非全量实时"}
+{"kind": "geocode", "status": "ok", "enabled": true, "examined": 12, "resolved": 10, "updated": 10, "skipped": 17, "not_found": 4, "errors": 0, "methods": {"geocode": 8, "poi": 2}, "error_types": {}, "remaining": true}
+{"kind": "collect", "status": "ok", "sources_checked": 9, "changed": 812, "aliases_merged": 0, "districts_updated": 10, "sources_deferred": []}

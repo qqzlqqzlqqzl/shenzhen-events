@@ -1,0 +1,30 @@
+{
+  "checks": {
+    "url_reload_back_forward_filters": true,
+    "retained_past_cancelled_favorites": true,
+    "detail_deep_link_escape_and_back": true,
+    "favorite_rapid_click_consistency": true,
+    "favorite_failed_write_rolls_back": true,
+    "pagination_error_retry_preserves_cards": true,
+    "pagination_double_click_no_duplicates": true,
+    "chinese_ime_waits_for_composition": true,
+    "slow_search_cannot_overwrite_new_filters": true,
+    "calendar_fetches_visible_range_and_keeps_month": true,
+    "calendar_paginates_beyond_500_events": true,
+    "shanghai_midnight_date_and_ended_label": true,
+    "mobile_width_keyboard_modal_and_resize": true,
+    "empty_filter_reset_keeps_current_scope": true,
+    "expired_session_closes_and_clears_private_ui": true,
+    "late_status_cannot_repopulate_after_logout": true,
+    "calendar_failure_clears_stale_events_and_retries": true,
+    "status_failure_retries_without_stuck_loading": true,
+    "calendar_exact_month_without_next_month_events": true,
+    "status_clears_list_count_and_explains_coverage_budget": true,
+    "single_source_retry_queue_feedback_and_polling": true,
+    "mobile_status_metrics_and_touch_actions": true,
+    "late_calendar_response_cannot_clear_new_status_view": true
+  },
+  "errors": [],
+  "environment": "isolated fixture database, localhost only",
+  "page_errors_empty": true
+}

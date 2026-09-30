@@ -173,3 +173,25 @@ def test_old_vague_rows_do_not_starve_new_venues(monkeypatch):
     monkeypatch.setattr(geocode,'_request_json',lambda *a,**k:({'status':'1','geocodes':[{'district':'福田区','adcode':'440304'}]},''))
     report=geocode.enrich_pending(limit=1,apply=True)
     assert report['updated']==1
+
+def test_spaced_pinyin_district_is_local_evidence(monkeypatch):
+    monkeypatch.setattr(geocode,'_request_json',lambda *a,**k:pytest.fail('network'))
+    r=geocode.resolve_location('COCO Park Shen Zhen Shi cn 268 Fu Hua San Lu 中心城 Fu Tian Qu')
+    assert r['district']=='福田' and r['method']=='text'
+
+def test_english_name_excludes_trailing_postal_context():
+    assert geocode.query_text('COCO Park Shen Zhen Shi cn 268 Fu Hua San Lu')=='COCO Park'
+    assert geocode.query_text('广东深圳报名以后联系某人咨询详细地址')==''
+
+def test_repeated_bad_location_does_not_starve_batch(monkeypatch):
+    for i in range(4):
+        e=event('深圳甲异常地点',f'https://example.com/fail/{i}');e['start_at']=f'2026-10-0{i+1}T09:00:00+08:00';core.ingest({'id':'a','priority':10},e)
+    core.ingest({'id':'a','priority':10},event('深圳乙有效场馆','https://example.com/ok'))
+    calls=[]
+    def fake(url,params,session=None):
+        calls.append(params.get('address'))
+        if '异常' in params.get('address',''):return None,'amap_20000'
+        return {'status':'1','geocodes':[{'district':'福田区','adcode':'440304'}]},''
+    monkeypatch.setattr(geocode,'_request_json',fake)
+    r=geocode.enrich_pending(limit=10,apply=True)
+    assert r['errors']==1 and r['updated']==1 and len(calls)==2

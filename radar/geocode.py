@@ -44,6 +44,8 @@ def direct_district(text):
     for district in core.DISTRICTS:
         if district+'区' in text:return district
     low=text.casefold()
+    for spaced,compact in {'fu tian':'futian','nan shan':'nanshan','bao an':'baoan','long gang':'longgang','long hua':'longhua','luo hu':'luohu','yan tian':'yantian','guang ming':'guangming','ping shan':'pingshan','da peng':'dapeng'}.items():
+        low=re.sub(r'\b'+spaced+r'\b',compact,low)
     for token,district in ENGLISH_DISTRICTS.items():
         if re.search(r'(?<![a-z])'+re.escape(token)+r'(?:\s+district)?(?![a-z])',low):return district
     return ''
@@ -54,6 +56,8 @@ def query_text(location):
     if any(x.casefold() in value.casefold() for x in FOREIGN_HINTS):return ''
     value=re.sub(r'^(?:广东省?)?[·\s/|,-]*深圳市?[·\s/|,-]+','',value,flags=re.I)
     if 'PostalAddress' in value:value=value.split('PostalAddress',1)[0]
+    value=re.split(r'\b(?:Shen\s+Zhen(?:\s+Shi)?|Shenzhen)\s+(?:cn|China)\b',value,maxsplit=1,flags=re.I)[0]
+    if re.search(r'报名(?:以|成功)?后.*(?:地址|地点|通知)',value):return ''
     value=re.sub(r'[（(][^）)]*(?:报名(?:成功)?后|具体地址|以原文为准|待通知)[^）)]*[）)]','',value)
     value=core.clean(value.strip(' /·|-，,'))
     if not value or value in ('深圳','深圳市','广东深圳','广东·深圳','广东省深圳市'):return ''
@@ -181,10 +185,10 @@ def enrich_pending(limit=30,apply=True,sleep_seconds=0):
         c.execute('DELETE FROM geocode_cache WHERE checked_at<?',(cutoff,))
         rows=[dict(x) for x in c.execute("SELECT id,title,location,district FROM events WHERE district=? AND trim(location)<>'' ORDER BY COALESCE(start_at,'9999'),id LIMIT ?",('待确认',10000))]
     session=requests.Session();session.trust_env=False;consecutive_errors=0
-    attempts=0
+    attempts=0;failed_queries=set()
     for row in rows:
         query=query_text(row['location'])
-        if not query:stats['skipped']+=1;continue
+        if not query or query in failed_queries:stats['skipped']+=1;continue
         cached=_cache_get(query)
         if cached and cached.get('status')=='not_found':stats['not_found']+=1;continue
         if attempts>=max(1,int(limit)):stats['remaining']=True;break
@@ -201,6 +205,7 @@ def enrich_pending(limit=30,apply=True,sleep_seconds=0):
         elif status=='skipped':stats['skipped']+=1
         elif status=='not_found':stats['not_found']+=1
         elif status=='error':
+            failed_queries.add(query)
             stats['errors']+=1;consecutive_errors+=1;code=result.get('error','unknown');stats['error_types'][code]=stats['error_types'].get(code,0)+1
             if code.startswith(('network_','http_','amap_100','amap_400')) or consecutive_errors>=3:
                 stats['stopped']=code;break

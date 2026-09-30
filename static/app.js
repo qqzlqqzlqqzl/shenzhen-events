@@ -23,7 +23,7 @@ function showLogin(message='') {
   authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();calendar?.destroy();calendar=null;calendarRange=null;
-  for(const s of ['#event-list','#status-panel','#calendar','#detail-body'])$(s).replaceChildren();
+  for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
   $('#workspace').hidden=true;$('#login-panel').hidden=false;$('#logout').hidden=true;$('#toast').hidden=true;
   $('#login-error').textContent=message;$('#password').value='';$('#username').focus();
 }
@@ -31,7 +31,7 @@ async function stats() {
   const epoch=authEpoch,ticket=++statsTicket;
   try {const s=await api('stats');if(!authenticated||epoch!==authEpoch||ticket!==statsTicket)return;
     $('#count-recommended').textContent=s.recommended;$('#count-upcoming').textContent=s.upcoming;$('#count-weekend').textContent=s.weekend;
-    $('#update-note').textContent=`${s.normal_sources??0} 个正常来源 · ${s.partial_sources??0} 个部分覆盖 · ${s.last_updated?timeText(s.last_updated)+' 更新':'尚未采集'}`;
+    $('#update-note').textContent=`${s.normal_sources??0} 个来源本次读取完成 · ${s.partial_sources??0} 个部分覆盖 · ${s.last_updated?timeText(s.last_updated)+' 更新':'尚未采集'}`;
     if($('#category').options.length===1){for(const v of s.categories)$('#category').add(new Option(v,v));for(const v of s.districts)$('#district').add(new Option(v,v));$('#district').add(new Option('地区待确认','待确认'))}
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)$('#update-note').textContent=e.message}
 }
@@ -58,6 +58,7 @@ function query(period) {const p=urlParams();const showLong=p.get('show_long')===
 let failedAppend=false;
 function showError(error,append=false){failedAppend=append;$('#notice').hidden=false;$('#notice').replaceChildren();const t=document.createElement('span');t.textContent=error.message||'网络连接失败，请重试。';const b=document.createElement('button');b.className='secondary';b.dataset.action='retry';b.textContent='重试';$('#notice').append(t,b)}
 function showView(){
+  $('#result-count').hidden=view==='status';$('#active-filters').hidden=view==='status';if(view==='status')$('#result-count').textContent='';
   $('#notice').hidden=true;$('#more').hidden=true;$('#status-panel').hidden=view!=='status';$('#calendar-panel').hidden=view!=='calendar';$('#event-list').hidden=['status','calendar'].includes(view);$('#filter-panel').hidden=view==='status';
   $('#view-title').textContent=views[view][0];$('#view-subtitle').textContent=views[view][1];
   $$('.tabs button').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
@@ -85,8 +86,8 @@ function renderCalendar(){
   calendar=new FullCalendar.Calendar($('#calendar'),{
     initialDate:calendarDate,initialView:innerWidth<620?'listMonth':'dayGridMonth',locale:'zh-cn',timeZone:'UTC',now:RadarUI.dayKey(new Date()),firstDay:1,height:'auto',
     buttonText:{today:'今天',month:'月',week:'周',list:'列表'},headerToolbar:{left:'prev,next today',center:'title',right:'dayGridMonth,listMonth'},
-    dayMaxEvents:4,eventDisplay:'list-item',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
-    datesSet:info=>{calendarDate=calendar.getDate().toISOString().slice(0,10);writeURL('replace',detailId);loadCalendar(info)},
+    showNonCurrentDates:false,fixedWeekCount:false,dayMaxEvents:4,eventDisplay:'list-item',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
+    datesSet:info=>{calendarDate=info.view.currentStart.toISOString().slice(0,10);writeURL('replace',detailId);loadCalendar({startStr:calendarDate,endStr:info.view.currentEnd.toISOString().slice(0,10)})},
     eventClick:i=>{i.jsEvent.preventDefault();openDetail(i.event.id)},
     eventDidMount:i=>{i.el.title=i.event.title}
   });calendar.render();
@@ -122,7 +123,7 @@ async function loadCalendar(info){
     calendar.addEventSource(normal.map(e=>({id:e.id,title:e.title,start:e.all_day?e.start_at.slice(0,10):e.start_at.slice(0,19),allDay:!!e.all_day})));
     const hiddenText=$('#hide-long').checked?' · 长期/重复已隐藏':long.length?` · ${long.length} 项长期/重复单列`:'';
     $('#result-count').textContent=`本月 ${normal.length} 个开始的活动${hiddenText}`;calendar.updateSize();
-  }catch(e){calendar.removeAllEvents();records.clear();renderLongCalendar([]);if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent='日历加载失败';showError(e)}}
+  }catch(e){if(seq!==sequence||!authenticated||view!=='calendar'||!calendar)return;calendar.removeAllEvents();records.clear();renderLongCalendar([]);if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent='日历加载失败';showError(e)}}
   finally{if(seq===sequence){busy=false;$('#calendar').setAttribute('aria-busy','false')}}
 }
 function renderDetail(e){
@@ -158,7 +159,7 @@ $('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit'
 $('#logout').onclick=async()=>{const b=$('#logout');b.disabled=true;try{await api('logout',{method:'POST'});showLogin()}catch(e){if(e.name!=='AbortError')toast(e.message)}finally{b.disabled=false}};
 document.addEventListener('click',e=>{
   const b=e.target.closest('button,[data-open]');if(!b||b.disabled)return;
-  if(b.dataset.save){save(b.dataset.save);return}if(b.dataset.open){openDetail(b.dataset.open);return}
+  if(b.dataset.retrySource){retrySource(b.dataset.retrySource,b);return}if(b.dataset.save){save(b.dataset.save);return}if(b.dataset.open){openDetail(b.dataset.open);return}
   if(b.dataset.view||b.dataset.changeView){navigate(b.dataset.view||b.dataset.changeView);return}
   const action=b.dataset.action;
   if(action==='browse-all'){navigate('all',true);return}

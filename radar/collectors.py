@@ -8,9 +8,12 @@ from .core import clean, iso, date_range, canon_url, now, db, stamp
 class SourceError(Exception): pass
 class Blocked(SourceError): pass
 
-def fetch(url, *, trusted_local=False, max_bytes=1600000):
+def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None):
     """No login scraping. Bounded time/size; public-only redirect validation."""
     session=requests.Session();session.trust_env=False
+    if proxy:
+        if proxy!="http://127.0.0.1:17890":raise SourceError("非允许的出口配置")
+        session.proxies={"http":proxy,"https":proxy}
     for _ in range(5):
         p=urlsplit(url)
         if p.scheme not in ('http','https') or p.username or p.password:raise SourceError('不支持的链接')
@@ -29,7 +32,7 @@ def fetch(url, *, trusted_local=False, max_bytes=1600000):
                 buf.extend(chunk)
                 if len(buf)>max_bytes:raise SourceError('页面超过采集大小限制')
             r.close();html=bytes(buf).decode(r.encoding if r.encoding and r.encoding.lower()!='iso-8859-1' else 'utf-8','replace')
-        except requests.RequestException as e:raise SourceError(type(e).__name__)
+        except requests.RequestException as e:raise SourceError(('HTTP '+str(e.response.status_code)) if getattr(e,'response',None) is not None else type(e).__name__)
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore',category=XMLParsedAsHTMLWarning)
             soup=BeautifulSoup(html,'html.parser')
@@ -49,13 +52,15 @@ def jsonld(soup,url):
             typ=x.get('@type','');types=typ if isinstance(typ,list) else [typ]
             if any(str(t).endswith('Event') for t in types) and x.get('name'):
                 loc=x.get('location',{});loc=loc[0] if isinstance(loc,list) and loc else loc
+                locality=''
+                if isinstance(loc,dict) and isinstance(loc.get('address'),dict):locality=loc['address'].get('addressLocality','')
                 if isinstance(loc,dict):
-                    addr=loc.get('address',{});addr=' '.join(str(v) for v in addr.values() if isinstance(v,str)) if isinstance(addr,dict) else str(addr)
+                    addr=loc.get('address',{});addr=' '.join(str(v) for k,v in addr.items() if k!='@type' and isinstance(v,str)) if isinstance(addr,dict) else str(addr)
                     loc=clean(str(loc.get('name',''))+' '+addr)
                 org=x.get('organizer',{});org=org.get('name','') if isinstance(org,dict) else str(org)
                 offers=x.get('offers',{});offers=offers[0] if isinstance(offers,list) and offers else offers;cost='费用未注明'
                 if isinstance(offers,dict) and offers.get('price') is not None:cost='免费' if str(offers['price']) in ('0','0.0','0.00') else str(offers.get('priceCurrency','CNY'))+' '+str(offers['price'])
-                out.append(skeleton(x['name'],x.get('url') or url,text(BeautifulSoup(x.get('description',''),'html.parser')),str(loc),start_at=iso(x.get('startDate')),end_at=iso(x.get('endDate')),organizer=org,cost_text=cost,all_day=len(str(x.get('startDate','')))==10,status='cancelled' if 'Cancelled' in str(x.get('eventStatus','')) else 'scheduled'))
+                out.append(skeleton(x['name'],x.get('url') or url,text(BeautifulSoup(x.get('description',''),'html.parser')),str(loc),start_at=iso(x.get('startDate')),end_at=iso(x.get('endDate')),organizer=org,city=locality,cost_text=cost,all_day=len(str(x.get('startDate','')))==10,status='cancelled' if 'Cancelled' in str(x.get('eventStatus','')) else 'scheduled'))
             for v in x.values():
                 if isinstance(v,(dict,list)):walk(v)
     for script in soup.select('script[type="application/ld+json"]'):
