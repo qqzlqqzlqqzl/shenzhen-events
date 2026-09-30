@@ -8,9 +8,11 @@ function checkedFacet(kind){return $$(`#${kind}-options input[type="checkbox"]:c
 function updateFacetSummary(kind){const n=checkedFacet(kind).length,total=$$(`#${kind}-options input[type="checkbox"]`).length;$(`#${kind}-summary`).textContent=n===total?'全部':!n?'未选择':n>total/2?`已排除 ${total-n}`:`已选 ${n}`}
 function renderFacetOptions(kind,items,pending=0){
   const box=$(`#${kind}-options`),hadOptions=!!box.querySelector('input'),selected=new Set(checkedFacet(kind)),wasAll=hadOptions&&selected.size===box.querySelectorAll('input').length;facetCatalog[kind]=new Map((items||[]).map(x=>[x.value,x.label]));box.replaceChildren();
-  if(kind==='type'&&pending){const note=document.createElement('p');note.className='facet-progress';note.textContent=`还有 ${Number(pending).toLocaleString()} 条待标准分类；已分类结果可先筛选。`;box.append(note)}
-  for(const item of items||[]){const label=document.createElement('label');label.className='facet-option';const input=document.createElement('input');input.type='checkbox';input.value=item.value;input.checked=!hadOptions||wasAll||selected.has(item.value);input.setAttribute('aria-label',item.label);const text=document.createElement('span');text.textContent=item.label;const count=document.createElement('small');count.textContent=Number(item.count||0).toLocaleString();label.append(input,text,count);box.append(label)}
-  if(!(items||[]).length){const empty=document.createElement('p');empty.className='facet-empty';empty.textContent=kind==='type'?'活动类型正在按 Schema.org 标准逐批补齐。':'暂无可用主题标签。';box.append(empty)}
+  const extra=document.createElement('details');extra.className='facet-extra';const extraSummary=document.createElement('summary');extraSummary.textContent=kind==='type'?'更多类型（暂无近期活动）':'更多主题（暂无近期活动）';extra.append(extraSummary);const explicit=new Set(new URLSearchParams(location.search).getAll(kind));
+  if(kind==='type'&&pending){const note=document.createElement('p');note.className='facet-progress';note.textContent='类型未明确的活动，在选择“全部”时仍会显示。';box.append(note)}
+  for(const item of items||[]){const label=document.createElement('label');label.className='facet-option';const input=document.createElement('input');input.type='checkbox';input.value=item.value;input.checked=!hadOptions||wasAll||selected.has(item.value);input.setAttribute('aria-label',item.label);const text=document.createElement('span');text.textContent=item.label;const count=document.createElement('small');count.textContent=Number(item.count||0).toLocaleString();label.append(input,text,count);if(!Number(item.count||0)){extra.append(label);if(explicit.has(item.value))extra.open=true}else box.append(label)}
+  if(extra.children.length>1)box.append(extra);
+  if(!(items||[]).length){const empty=document.createElement('p');empty.className='facet-empty';empty.textContent=kind==='type'?'暂无可筛选的活动类型。':'暂无可用主题标签。';box.append(empty)}
   updateFacetSummary(kind);
 }
 function renderActiveFilters(){

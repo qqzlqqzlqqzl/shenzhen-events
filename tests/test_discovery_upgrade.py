@@ -38,7 +38,7 @@ def test_enrichment_does_not_erase_known_fields():
  assert all(out[k]==v for k,v in base.items())
 
 def test_official_schedule_year_and_rollover():
- html='<h1>2026年深圳会展中心展览计划表</h1><table class="zhpq-table"><tr><td>2025年12月</td></tr><tr><td>1</td><td>购物节</td><td>12月31日 - 01月11日</td><td><p>主办公司</p><p>联系人</p></td></tr><tr><td>2026年10月</td></tr><tr><td>84</td><td>湾区半导体产业生态博览会（深圳）</td><td>10月14日 - 10月16日</td><td><p>芯盟会展</p></td></tr></table>'
+ html='<h1>2026年深圳会展中心展览计划表</h1><table class="zhpq-table"><tr><td>&nbsp;</td><td colspan="8"><a name="yue12"></a>2025年12月</td><td colspan="3">&nbsp;</td></tr><tr><td>1</td><td>购物节</td><td>12月31日 - 01月11日</td><td><p>主办公司</p><p>联系人</p></td></tr><tr><td>2026年10月</td></tr><tr><td>84</td><td>湾区半导体产业生态博览会（深圳）</td><td>10月14日 - 10月16日</td><td><p>芯盟会展</p></td></tr></table>'
  rows=official_sources.szcec(BeautifulSoup(html,'html.parser'),'https://www.szcec.com/schedule')
  assert len(rows)==2 and rows[0]['start_at'].startswith('2025-12-31') and rows[0]['end_at'].startswith('2026-01-12')
  assert rows[1]['end_at'].startswith('2026-10-17') and rows[1]['organizer']=='芯盟会展'
@@ -75,3 +75,8 @@ def test_derived_details_do_not_requeue_unchanged_source(tmp_path,monkeypatch):
   assert c.execute('select analysis_state from raw_items').fetchone()[0]=='done'
   assert c.execute('select ai_state from events').fetchone()[0]=='done'
   assert json.loads(c.execute('select details from events').fetchone()[0])['images']
+
+
+def test_official_schedule_never_guesses_section_year():
+ html='<h1>2026年深圳会展中心展览计划表</h1><table class="zhpq-table"><tr><td>1</td><td>新年购物节</td><td>12月31日 - 01月11日</td><td>甲公司</td></tr></table>'
+ assert official_sources.szcec(BeautifulSoup(html,'html.parser'),'https://example.com')==[]

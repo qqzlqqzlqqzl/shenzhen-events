@@ -14,7 +14,7 @@ Scope: issue #38. Root authored the functional changes and reviewed the public-s
 - Manual date-conflict hold survives future ingestion. WorkBuddy page states October 3 while its attached poster states September 23; retain review status rather than inventing a resolved date.
 
 ## Validation at preparation
-- 149 Python unit/API tests passed, including disabled model network guards, explicit empty facets, metadata safety, stable raw identity, year rollover and review-hold persistence.
+- 150 Python unit/API tests passed, including disabled model network guards, explicit empty facets, metadata safety, stable raw identity, year rollover and review-hold persistence.
 - 15 Node DOM tests passed: filtering, inversion, zero selection, refresh, history and previous multi-day calendar checks.
 - Python and JavaScript syntax checks passed.
 - Guarded 175-record review import fixture: dry-run, apply, idempotent replay and protected-field/table invariants passed.
@@ -28,3 +28,5 @@ Scope: issue #38. Root authored the functional changes and reviewed the public-s
 
 ## Product-flow pass
 Signed-in users go straight to activities instead of a large marketing hero. Source diagnostics move to a secondary header entry. Filter chips describe the smaller selected/excluded set instead of listing every hidden alternative; card action opens details without implying external navigation. Readability and touch target sizes improved. None-selection, default-all and legacy URLs remain explicit.
+
+Final source review found SZCEC month headers have three cells with blank edge cells. They must be read as the one nonempty month label; missing labels fail closed. This prevents the December 2025 shopping event from being shifted to December 2026. The browser-rendered original row was inspected directly and added to the regression fixture. Zero-count filter options are collapsed under a secondary group while preserving legacy/deep-link selections.

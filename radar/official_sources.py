@@ -9,18 +9,21 @@ def szcec(soup,url):
     heading=next((text(n) for n in soup.select('h1') if '展览计划表' in text(n)),'')
     match=re.search(r'(20\d{2})年',heading)
     if not match:return []
-    year=int(match[1]);section_year=year;out=[]
+    year=int(match[1]);section_year=None;section_month=None;out=[]
     for row in soup.select('table.zhpq-table tr'):
-        cells=row.find_all('td',recursive=False)
-        if len(cells)==1:
-            m=re.fullmatch(r'(20\d{2})年\s*\d{1,2}月',text(cells[0]))
-            if m:section_year=int(m[1])
+        cells=row.find_all(['td','th'],recursive=False)
+        labels=[text(cell) for cell in cells if text(cell)]
+        if len(labels)==1:
+            m=re.fullmatch(r'(20\d{2})年\s*(\d{1,2})月',labels[0])
+            if m:section_year=int(m[1]);section_month=int(m[2])
             continue
-        if len(cells)!=4 or not text(cells[0]).isdigit():continue
+        if section_year is None or len(cells)!=4 or not text(cells[0]).isdigit():continue
         title=text(cells[1]);time_label=text(cells[2]);dates=re.findall(r'(\d{1,2})月\s*(\d{1,2})日',time_label)
         if not title or len(dates)!=2:continue
         try:
-            m,d=map(int,dates[0]);em,ed=map(int,dates[1]);start=date(section_year,m,d);end=date(section_year+int((em,ed)<(m,d)),em,ed)+timedelta(days=1)
+            m,d=map(int,dates[0]);em,ed=map(int,dates[1])
+            if m!=section_month:continue
+            start=date(section_year,m,d);end=date(section_year+int((em,ed)<(m,d)),em,ed)+timedelta(days=1)
         except ValueError:continue
         org=next((text(n) for n in cells[3].select('p') if text(n)),text(cells[3]))[:200]
         # Synthetic record discriminator on the same canonical venue page; original
