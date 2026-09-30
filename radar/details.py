@@ -54,5 +54,6 @@ def merge(base,structured,metadata):
     for key in ('organizer','cost_text'):
         if metadata.get(key) and (not result.get(key) or result.get(key) in UNKNOWN_COST):result[key]=metadata[key]
     # Keep all source fields as attributed observations, not verified endorsements.
-    result['details']=metadata
+    result['details']={**(base.get('details') or {}),**metadata}
+    if metadata.get('organizer') or (structured or {}).get('organizer'):result['details']['organizer_role']='organizer'
     return result

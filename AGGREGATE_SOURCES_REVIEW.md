@@ -17,3 +17,12 @@ User priority: multi-event aggregator / public-account coverage, not one-event s
 
 ## Acceptance required
 Run unit/API/DOM and exact-commit desktop/mobile CI. Then deploy via existing SSH, collect each newly integrated source once within its normal public access bounds, verify observed counts and root-test live buttons. Do not close follow-up issues merely because a source URL or test suite exists. Separate later data-quality issue #43 and Inbox UI review.
+
+## Online inventory and source-field corrections (follow-up)
+- Verified https://dev.events/ON exposes explicit public Schema.org online/hybrid events and a `Show more` GET with page number metadata. Page 1 and page 2 were read and contained distinct records; page 1 has 30 non-featured records and advertises 170 total at observation time. No authenticated API, scraping proxy or external model is used. Date-only midnight schema values are retained as dates, not fabricated 08:00 China-time start times; source timezone/time remains unconfirmed.
+- Detail enrichment previously replaced mode/publisher metadata; preserve it unless a more specific labelled organizer observation exists.
+- Root inspected the live Douban-derived comedy entry: the retained original text explicitly contains venue/fee/publisher while normalized fields were empty. A no-network, backed-up, lock-protected repair fills only missing fields and corrects unmistakable pending performance types, keeping raw items, source links, preferences, budget and dates unchanged. Human review holds and completed type judgments remain protected.
+- Root verified exact TCT and ROBOTECH names/dates/venues against organizer sources and the multi-venue schedule. Exact-URL/date aliases consolidate observed duplicate cards, preserve all raw/source evidence and favorite/hidden flags, and now redirect old event IDs so details, calendars and favorite actions still work. A fuller directly inspected forum listing is preferred for its precise time range. No fuzzy bulk merge was added.
+- Source-user names from Huodongxing are displayed as publisher accounts unless explicit organizer evidence was extracted.
+
+CI 36748825857 failed on an 8-second screenshot capture timeout in the long-title calendar check; it did not report an assertion mismatch. Other suites completed successfully. Screenshot capture now has an explicit 30-second bound with animations disabled; functional assertion timeouts and checks remain unchanged. Final changed head requires a fresh complete CI run.

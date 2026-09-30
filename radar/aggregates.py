@@ -128,3 +128,26 @@ def monthly_events(soup,url):
             typ='ConferenceEvent' if any(w in name for w in ('大会','峰会')) and not any(w in name for w in ('展览','博览')) else 'ExhibitionEvent'
             out.append(skeleton(name,record,'月度聚合排期；具体时段、入场和票务以主办方最新信息为准。',venue,start_at=start,end_at=end,all_day=True,city='深圳',organizer=org,event_type=typ,details={'evidence_url':url,'date_evidence':title+'；'+time_label,'attendance':'offline','organizer_notes':'聚合排期原文列为“主/承办单位”，不等于独立信誉核验。'}))
     return out
+
+
+def developer_events(soup,url):
+    """Date-only online/hybrid conference inventory with explicit Schema.org mode."""
+    out=[]
+    for node in soup.select('.row:not(.featured) script[type="application/ld+json"]'):
+        try:d=json.loads(node.get_text())
+        except ValueError:continue
+        mode={'https://schema.org/OnlineEventAttendanceMode':'online','https://schema.org/MixedEventAttendanceMode':'hybrid'}.get(d.get('eventAttendanceMode'))
+        if not mode:continue
+        title=core.clean(d.get('name'));link=core.canon_url(d.get('url',''))
+        if not title or not link:continue
+        try:
+            start=date.fromisoformat(str(d.get('startDate',''))[:10]);last=date.fromisoformat(str(d.get('endDate') or d.get('startDate'))[:10])
+            if last<start:continue
+        except ValueError:continue
+        loc=d.get('location') or {};venue=core.clean(loc.get('name')) if isinstance(loc,dict) else ''
+        label=text(node.parent.select_one('time'));description=core.clean(d.get('description'))
+        out.append(skeleton(title,link,description,'线上' if mode=='online' else venue,
+            start_at=core.iso(start),end_at=core.iso(last+timedelta(days=1)),all_day=True,
+            event_type='ConferenceEvent',city='线上' if mode=='online' else venue,
+            details={'attendance':mode,'evidence_url':link,'date_evidence':label,'review_notes':'聚合来源仅提供举办日期；具体时区、开播时间、费用及参与条件请核对原文。','publisher':'dev.events'}))
+    return out

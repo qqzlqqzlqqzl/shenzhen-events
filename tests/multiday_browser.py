@@ -54,7 +54,7 @@ def check(name,fn):
     try:fn();report['checks'][name]=True;print('PASS',name,flush=True)
     except Exception as e:
         report['checks'][name]=False;report.setdefault('failures',{})[name]=str(e)[:1500];print('FAIL',name,str(e)[:400],flush=True)
-        page.screenshot(path=str(ART/(name+'-failed.png')),full_page=True)
+        page.screenshot(timeout=30000,animations='disabled',path=str(ART/(name+'-failed.png')),full_page=True)
 
 def desktop_span():
     ready();expect(event('华南3D打印展')).to_have_count(1)
@@ -65,7 +65,7 @@ def desktop_span():
     ok('10/14—10/16 · 跨 3 天' in event('华南3D打印展').inner_text())
     ok('2026/10/14 — 2026/10/16' in event('华南3D打印展').get_attribute('aria-label'))
     ok('开始的活动' not in page.locator('#result-count').inner_text())
-    page.screenshot(path=str(ART/'desktop-october-spans.png'),full_page=True)
+    page.screenshot(timeout=30000,animations='disabled',path=str(ART/'desktop-october-spans.png'),full_page=True)
 check('desktop_three_day_bar_covers_oct_14_15_16_only',desktop_span)
 
 def boundaries():
@@ -85,7 +85,7 @@ def detail_favorite():
     page.keyboard.press('Escape');expect(page.locator('#detail')).not_to_be_visible();expect(event('华南3D打印展')).to_have_count(1)
     page.go_back(wait_until='domcontentloaded');page.go_forward(wait_until='domcontentloaded');expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
     ready('?view=favorites');card=page.locator('.event-card',has_text='华南3D打印展');expect(card).to_be_visible();ok('10/14—10/16 · 跨 3 天' in card.inner_text())
-    page.screenshot(path=str(ART/'card-full-range.png'),full_page=True)
+    page.screenshot(timeout=30000,animations='disabled',path=str(ART/'card-full-range.png'),full_page=True)
 check('detail_favorite_history_and_list_range_preserved',detail_favorite)
 
 def long_panel():
@@ -103,9 +103,9 @@ def mobile_daily():
     expect(event('跨月活动')).to_have_count(2);expect(event('午夜结束')).to_have_count(1);expect(event('凌晨结束')).to_have_count(2);expect(event('单日活动')).to_have_count(1);expect(event('结束未注明')).to_have_count(1)
     ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
     event('华南3D打印展').nth(1).click();expect(page.locator('#detail')).to_be_visible();ok('华南3D打印展' in page.locator('#detail').inner_text());page.keyboard.press('Escape')
-    page.screenshot(path=str(ART/'mobile-scrolled-viewport.png'))
+    page.screenshot(timeout=30000,animations='disabled',path=str(ART/'mobile-scrolled-viewport.png'))
     page.evaluate('window.scrollTo(0,0)')
-    page.screenshot(path=str(ART/'mobile-daily-spans.png'),full_page=True)
+    page.screenshot(timeout=30000,animations='disabled',path=str(ART/'mobile-daily-spans.png'),full_page=True)
     page.set_viewport_size({'width':320,'height':720});ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
     page.set_viewport_size({'width':1440,'height':1050});page.locator('.fc-dayGridMonth-view').wait_for();expect(event('华南3D打印展')).to_have_count(1)
 check('mobile_repeats_each_covered_day_and_midnight_is_exclusive',mobile_daily)
@@ -124,7 +124,7 @@ def keyboard_agenda_and_long_titles():
         else:expect(event(LONG_TITLE)).to_have_count(1)
         ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
         page.evaluate('window.scrollTo(0,0)')
-        page.screenshot(path=str(ART/f'long-title-{width}.png'),full_page=True)
+        page.screenshot(timeout=30000,animations='disabled',path=str(ART/f'long-title-{width}.png'),full_page=True)
 check('native_agenda_keyboard_and_long_title_responsive_layout',keyboard_agenda_and_long_titles)
 
 report['page_errors_empty']=not report['errors'];(ART/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))

@@ -6,7 +6,7 @@ from datetime import timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 import feedparser
 from bs4 import BeautifulSoup
-from . import core, collectors as c, details, official_sources, aggregates
+from . import core, collectors as c, details, official_sources, aggregates, source_fields
 
 
 def set_query(url, **values):
@@ -40,7 +40,7 @@ def hdx(soup,url):
         loc=c.text(node.select_one('.item-dress'))
         out.append(c.skeleton(c.text(a),urljoin(url,a['href']),c.text(a),loc,
             start_at=start,end_at=end,all_day=True,time_label=label,
-            organizer=c.text(node.select_one('.user-name'))))
+            organizer=c.text(node.select_one('.user-name')),details={'publisher':c.text(node.select_one('.user-name')),'organizer_role':'publisher'}))
     return out
 
 
@@ -54,9 +54,11 @@ def douban_all(soup,url):
         def when(prop):
             v=n.select_one('[itemprop="'+prop+'"]')
             return core.iso(v.get('content') or v.get('datetime')) if v else None
-        start,end=when('startDate'),when('endDate')
-        out.append(c.skeleton(c.text(title),link,c.text(n),c.text(n.select_one('[itemprop="location"],.loc,.address')),
-            start_at=start,end_at=end,city='深圳',detail_candidate=not start))
+        start,end=when('startDate'),when('endDate');fields=source_fields.inline_fields(c.text(n))
+        typ=source_fields.obvious_type(c.text(title)) or 'Event'
+        out.append(c.skeleton(c.text(title),link,c.text(n),c.text(n.select_one('[itemprop="location"],.loc,.address')) or fields.get('location',''),
+            start_at=start,end_at=end,city='深圳',cost_text=fields.get('cost_text',''),event_type=typ,
+            details={'publisher':fields.get('publisher',''),'type_evidence':'标题明确演出形式' if typ!='Event' else ''},detail_candidate=not start))
     return out
 
 def microdata_detail(soup,url):
@@ -86,6 +88,15 @@ def tech_all(soup,url):
 
 def next_page(soup,url,kind):
     """Follow observed paging metadata only; never guess endless page numbers."""
+    if kind=='devevents':
+        button=soup.select_one('button.moreButton[hx-vals]');total_match=re.search(r'showing\s+\d+\s+out of\s+(\d+)',c.text(soup),re.I)
+        total=int(total_match[1]) if total_match else None
+        if button:
+            try:
+                page=int(json.loads(button['hx-vals'])['page']);nxt=set_query(url,page=page)
+                if 1<page<=500:return nxt,total
+            except (ValueError,TypeError,KeyError):pass
+        return None,total
     if kind=='hdx':
         script=' '.join(x.get_text() for x in soup.select('script:not([src])'))
         m=re.search(r"elem:\s*['\"]pagination['\"].*?count:\s*(\d+).*?limit:\s*(\d+).*?curr:\s*(\d+)",script,re.S)
@@ -107,7 +118,7 @@ def parse_page(source,html,soup,url):
     if kind=='wordpress_events':return aggregates.wordpress_posts(html,url,source)
     if kind=='szhzfw':
         items=aggregates.monthly_events(soup,url);return items,len(items),{}
-    fn={'szcec':official_sources.szcec,'cioe':official_sources.cioe,'lianpu':c.lianpu,'douban':douban_all,'bendibao':c.bendibao,'chaihuo':c.chaihuo,'jsonld':c.jsonld,'tech':tech_all,'hdx':hdx}.get(kind)
+    fn={'devevents':aggregates.developer_events,'szcec':official_sources.szcec,'cioe':official_sources.cioe,'lianpu':c.lianpu,'douban':douban_all,'bendibao':c.bendibao,'chaihuo':c.chaihuo,'jsonld':c.jsonld,'tech':tech_all,'hdx':hdx}.get(kind)
     if not fn:raise c.SourceError('来源类型尚未适配')
     items=fn(soup,url)
     selectors={'lianpu':'article','douban':'li.list-entry','bendibao':'.main-single-block[data-url]','chaihuo':'a[href*="/activity/poster"]','tech':'a[href^="/event/"]','hdx':'.search-tab-content-item'}
@@ -136,7 +147,10 @@ def enrich_details(source, items, metrics):
         key=canonical(e['url']);e['url']=key;old=cache.get(key);fp=_detail_fingerprint(e)
         if old and old['fingerprint']==fp and old['next_attempt']>core.stamp():
             if old['payload']:
-                e={**e,**json.loads(old['payload'])};metrics['detail_cached']+=1
+                cached=json.loads(old['payload']);fresh_details=e.get('details') or {}
+                e={**e,**cached,'details':{**fresh_details,**(cached.get('details') or {})}}
+                if fresh_details.get('attendance'):e['details']['attendance']=fresh_details['attendance']
+                metrics['detail_cached']+=1
             elif not e.get('start_at'):metrics['detail_deferred']+=1
             out.append(e);continue
         if e.get('start_at') and not source.get('enrich_dated',False):
@@ -215,7 +229,7 @@ def collect_report(source, previous=None):
                 if kind=='szhzfw' and urlsplit(url).path==urlsplit(source['url']).path:
                     monthly_queue=aggregates.monthly_links(soup,final);items=[];visible=0;excluded={}
                 else:items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
-                nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx') else (None,None)
+                nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx','devevents') else (None,None)
                 if kind=='szhzfw':nxt=monthly_queue.pop(0) if monthly_queue else None
                 if kind=='wordpress_events':
                     try:
@@ -260,14 +274,14 @@ def collect_report(source, previous=None):
     if kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':started+max_seconds},items,metrics)
     admitted=[]
     for e in items:
-        mode=core.event_attendance(e);online=mode=='online' and source.get('allow_online',False)
+        mode=core.event_attendance(e);online=mode in ('online','hybrid') and source.get('allow_online',False)
         city='深圳' if online else city_evidence(e,source)
         if city not in ('深圳','待确认'):rejects['其他城市']+=1;continue
         if city=='待确认' and source.get('scope')=='national':
             if '深圳' not in (e.get('title','')+e.get('summary','')) and 'shenzhen' not in (e.get('title','')+e.get('summary','')).casefold():rejects['城市尚未确认']+=1;continue
             e['status']='needs_review';e['start_at']=None;e['end_at']=None
         if city=='待确认' and kind=='jsonld':rejects['城市尚未确认']+=1;continue
-        e['city']='线上' if online else '深圳';metrics['shenzhen_candidates']+=int(not online)
+        e['city']=(e.get('city') or '线上') if online else '深圳';metrics['shenzhen_candidates']+=int(not online)
         if online:metrics['online_candidates']=metrics.get('online_candidates',0)+1
         end=e.get('end_at') or e.get('start_at')
         if end and end<core.iso(core.now()-timedelta(days=45)):rejects['超出历史保留期']+=1;continue

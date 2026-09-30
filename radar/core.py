@@ -78,7 +78,10 @@ def date_range(text):
     except (ValueError,OverflowError):return None,None
 
 def rules(title,summary=''):
-    s=(title+' '+summary).casefold()
+    from .source_fields import obvious_type
+    if obvious_type(title):return {'topics':['文化艺术'],'priority':'normal','commercial':'unknown','reason':'演出活动，按文化艺术归类；具体内容以原文为准。'}
+    narrative=re.split(r'\s*(?:时间|地点|费用|发起)\s*[：:]',summary,maxsplit=1)[0]
+    s=(title+' '+narrative).casefold()
     def matches(word):
         word=word.casefold()
         return bool(re.search(r'(?<![a-z0-9])'+re.escape(word)+r'(?![a-z0-9])',s)) if word.isascii() else word in s
@@ -157,6 +160,7 @@ def init():
         CREATE TABLE IF NOT EXISTS runs(id INTEGER PRIMARY KEY,kind TEXT,started_at TEXT,finished_at TEXT,status TEXT,details TEXT);
         CREATE TABLE IF NOT EXISTS budget(day TEXT PRIMARY KEY,calls INTEGER DEFAULT 0,tokens INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS candidates(name TEXT PRIMARY KEY,query TEXT,url TEXT,hits INTEGER DEFAULT 1,last_seen TEXT);
+        CREATE TABLE IF NOT EXISTS event_redirects(alias_id TEXT PRIMARY KEY,target_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE);
         ''')
         if 'coverage' not in {r[1] for r in c.execute('PRAGMA table_info(source_health)')}:
             c.execute("ALTER TABLE source_health ADD COLUMN coverage TEXT NOT NULL DEFAULT '{}'")
@@ -202,13 +206,21 @@ def reconcile_aliases():
             rows=[dict(c.execute('SELECT * FROM events WHERE id=?',(eid,)).fetchone()) for eid in ids]
             rows=[r for r in rows if r and (not a.get('date') or (r.get('start_at') or '')[:10]==a['date'])]
             if len(rows)<2:continue
-            rows.sort(key=lambda r:(r.get('origin_priority',50),r.get('first_seen',''),r['id']));winner=rows[0]['id']
+            preferred=canon_url(a.get('preferred_url',''));preferred_ids={x[0] for x in c.execute('SELECT event_id FROM event_sources WHERE url=?',(preferred,))} if preferred else set()
+            rows.sort(key=lambda r:(r['id'] not in preferred_ids,r.get('origin_priority',50),r.get('first_seen',''),r['id']));winner=rows[0]['id']
             for loser in rows[1:]:
                 pref=c.execute('SELECT favorite,hidden FROM preferences WHERE event_id=?',(loser['id'],)).fetchone()
                 if pref:c.execute('INSERT INTO preferences(event_id,favorite,hidden) VALUES(?,?,?) ON CONFLICT(event_id) DO UPDATE SET favorite=MAX(favorite,excluded.favorite),hidden=MAX(hidden,excluded.hidden)',(winner,pref['favorite'],pref['hidden']))
                 c.execute('UPDATE event_sources SET event_id=? WHERE event_id=?',(winner,loser['id']))
+                c.execute('UPDATE event_redirects SET target_id=? WHERE target_id=?',(winner,loser['id']))
+                c.execute('INSERT OR REPLACE INTO event_redirects(alias_id,target_id) VALUES(?,?)',(loser['id'],winner))
                 c.execute('DELETE FROM events WHERE id=?',(loser['id'],));merged.append((winner,loser['id'],a['id']))
     return merged
+
+def resolve_event_id(event_id):
+    with db() as c:
+        row=c.execute('SELECT target_id FROM event_redirects WHERE alias_id=?',(event_id,)).fetchone()
+    return row[0] if row else event_id
 
 def is_duplicate(a,b):
     if not a.get('start_at') or not b.get('start_at') or a['start_at'][:10]!=b['start_at'][:10]:return False
@@ -287,6 +299,8 @@ def span_days(e):
     except ValueError:return 0.0
 
 def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None,attendance='all'):
+    if event_id:event_id=resolve_event_id(event_id)
+    aliases=dedupe_aliases()
     topics_filter=[canonical_topic(x) for x in topics_filter or []]
     if tag:topics_filter.append(canonical_topic(tag))
     current=now();day=current.date();from_dt=current;to_dt=None
@@ -328,6 +342,12 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
                 e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
         from .posters import display_details
         e['details']=display_details(json.loads(e.get('details') or '{}'),ROOT)
+        for a in aliases:
+            if a.get('date')==(e.get('start_at') or '')[:10] and any(canon_url(x.get('url','')) in a.get('urls',[]) for x in links.get(e['id'],[])):
+                fix=a.get('canonical',{})
+                for field in ('title','location'):
+                    if isinstance(fix.get(field),str):e[field]=fix[field]
+                if isinstance(fix.get('topics'),list):e['topics']=json.dumps(fix['topics'],ensure_ascii=False)
         e['attendance']=event_attendance(e);e['attendance_label']=ATTENDANCE_LABELS[e['attendance']]
         if attendance!='all' and e['attendance']!=attendance:continue
         e['topics']=resolved_topics(json.loads(e['topics'] or '[]'),e.get('event_type','Event'),e['title'],e['summary'])

@@ -9,5 +9,56 @@
     "evidence_url": "https://2026-autumn.awscommunityday.cn/",
     "evidence_title": "Bridge with Signal — 2026 亚马逊云科技 Community Day 深圳",
     "note": "Official event website confirms the branded title and Community Day name. Apply only to the exact source URLs and date; retain both source links."
+  },
+  {
+    "id": "tct-shenzhen-2026",
+    "date": "2026-10-14",
+    "urls": [
+      "https://event.rizumu.me/event/tct-shenzhen-2026",
+      "https://www.huodongxing.com/event/8866819751800",
+      "https://www.huodongxing.com/event/2868400309000",
+      "https://www.szhzfw.cn/zhanhui_122/7509.html?radar_event=5de7672605a37de02335"
+    ],
+    "evidence_url": "https://www.tctasia.cn/shenzhennews/2376.shtml",
+    "evidence_title": "TCT深圳展（华南3D打印、增材制造展览会）2026年10月14–16日，15号馆",
+    "canonical": {
+      "title": "2026 TCT 深圳展（华南3D打印、增材制造展览会）",
+      "location": "深圳国际会展中心（宝安）15号馆",
+      "topics": [
+        "硬件创客"
+      ]
+    },
+    "note": "Primary site and multi-venue schedule identify the aliases; exact URLs and start date only."
+  },
+  {
+    "id": "robotech-shenzhen-2026",
+    "date": "2026-10-27",
+    "urls": [
+      "https://www.huodongxing.com/event/9879506852300",
+      "https://www.huodongxing.com/event/4879619386500",
+      "https://www.szhzfw.cn/zhanhui_122/7509.html?radar_event=41d61d04a76140a7a039"
+    ],
+    "evidence_url": "https://www.robotechasia.com/",
+    "evidence_title": "2026智能机器人博览会 ROBOTECH，10月27–29日，深圳国际会展中心（宝安）",
+    "canonical": {
+      "title": "2026智能机器人博览会（ROBOTECH）",
+      "topics": [
+        "机器人",
+        "硬件创客"
+      ]
+    },
+    "note": "Official page verifies name/date/venue; no inferred hall number or ticket price."
+  },
+  {
+    "id": "shenzhen-hk-robot-forum-2026",
+    "date": "2026-10-11",
+    "urls": [
+      "https://www.huodongxing.com/event/7879469842211",
+      "https://lianpu.com/event/shen-gang-chuang-ke-rong-he-xi-lie-lun-tan-di-er-qi-ji-qi-re"
+    ],
+    "preferred_url": "https://lianpu.com/event/shen-gang-chuang-ke-rong-he-xi-lie-lun-tan-di-er-qi-ji-qi-re",
+    "evidence_url": "https://lianpu.com/event/shen-gang-chuang-ke-rong-he-xi-lie-lun-tan-di-er-qi-ji-qi-re",
+    "evidence_title": "深港创科融合机器人专场，10月11日，星河WORLD；保留提供具体时段的记录",
+    "note": "Both source entries inspected in the signed-in site; same series, session, date, venue and association. Preserve source links and bookmarks."
   }
 ]

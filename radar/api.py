@@ -100,6 +100,7 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
     require(request)
     if period not in ('upcoming','week','weekend','review','past','saved','calendar'):raise HTTPException(400,'无效日期筛选')
     if attendance not in ('all','online','offline','hybrid','unknown'):raise HTTPException(400,'无效参加方式')
+    if attendance=='online':district=''
     if sort not in ('asc','desc'):raise HTTPException(400,'无效排序方式')
     event_types=list(dict.fromkeys(event_types or []));topics=list(dict.fromkeys(canonical_topic(x) for x in topics or []))
     if len(event_types)>len(EVENT_TYPES) or any(x not in EVENT_TYPES for x in event_types):raise HTTPException(400,'无效活动类型筛选')
@@ -149,6 +150,8 @@ class Preference(BaseModel):
 @app.post('/events/api/preferences/{event_id}')
 def preference(event_id:str,body:Preference,request:Request):
     require(request)
+    from .core import resolve_event_id
+    event_id=resolve_event_id(event_id)
     with db() as c:
         if not c.execute('SELECT 1 FROM events WHERE id=?',(event_id,)).fetchone():raise HTTPException(404,'活动不存在')
         c.execute('INSERT OR IGNORE INTO preferences(event_id) VALUES(?)',(event_id,))
