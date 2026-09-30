@@ -28,7 +28,8 @@
     "coverage_mode": "page_inventory",
     "city_scope": "",
     "enrich_dated": true,
-    "detail_budget": 12
+    "detail_budget": 12,
+    "allow_online": true
   },
   {
     "id": "bendibao",
@@ -177,6 +178,36 @@
     "max_entries": 10,
     "max_seconds": 30,
     "coverage_mode": "single_page",
+    "city_scope": "深圳"
+  },
+  {
+    "id": "szhuodong",
+    "name": "深圳活动网 · 聚合与公众号公开正文",
+    "kind": "wordpress_events",
+    "url": "https://www.szhuodong.com/wp-json/wp/v2/posts?per_page=15&categories=2,3,4,5,6,7,8,11&_fields=id,date,modified,link,title,content,excerpt,categories",
+    "public_url": "https://www.szhuodong.com/",
+    "priority": 30,
+    "interval_hours": 3,
+    "max_entries": 1000,
+    "request_delay": 1,
+    "max_seconds": 160,
+    "max_pages": 8,
+    "coverage_mode": "city_pages",
+    "city_scope": "深圳",
+    "allow_leads": true
+  },
+  {
+    "id": "szhzfw",
+    "name": "深圳会展业公共服务平台 · 跨场馆月度聚合",
+    "kind": "szhzfw",
+    "url": "https://www.szhzfw.cn/zhanhui_9/",
+    "priority": 20,
+    "interval_hours": 6,
+    "max_entries": 1000,
+    "request_delay": 1,
+    "max_seconds": 120,
+    "max_pages": 5,
+    "coverage_mode": "page_inventory",
     "city_scope": "深圳"
   }
 ]

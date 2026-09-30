@@ -6,7 +6,7 @@ from datetime import timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 import feedparser
 from bs4 import BeautifulSoup
-from . import core, collectors as c, details, official_sources
+from . import core, collectors as c, details, official_sources, aggregates
 
 
 def set_query(url, **values):
@@ -78,8 +78,9 @@ def tech_all(soup,url):
         title=node.select_one('h3');loc=node.select_one('[i-carbon-location]');dt=node.select_one('[i-carbon-calendar]');org=node.select_one('[i-carbon-group]')
         if not title:continue
         city=c.text(loc.parent) if loc else '';start,end=core.date_range(c.text(dt.parent) if dt else '')
+        form=c.text(node.select_one('h3 + span'));mode='hybrid' if '线上+线下' in form else 'online' if form=='线上' else 'offline' if form=='线下' else 'unknown'
         out.append(c.skeleton(c.text(title),urljoin(url,node['href']),c.text(node.select_one('p')),city,
-            start_at=start,end_at=end,all_day=True,city=city,organizer=c.text(org.parent) if org else ''))
+            start_at=start,end_at=end,all_day=True,city=city,organizer=c.text(org.parent) if org else '',details={'attendance':mode}))
     return out
 
 
@@ -103,6 +104,9 @@ def next_page(soup,url,kind):
 
 def parse_page(source,html,soup,url):
     kind=source['kind']
+    if kind=='wordpress_events':return aggregates.wordpress_posts(html,url,source)
+    if kind=='szhzfw':
+        items=aggregates.monthly_events(soup,url);return items,len(items),{}
     fn={'szcec':official_sources.szcec,'cioe':official_sources.cioe,'lianpu':c.lianpu,'douban':douban_all,'bendibao':c.bendibao,'chaihuo':c.chaihuo,'jsonld':c.jsonld,'tech':tech_all,'hdx':hdx}.get(kind)
     if not fn:raise c.SourceError('来源类型尚未适配')
     items=fn(soup,url)
@@ -189,7 +193,8 @@ def collect_report(source, previous=None):
     rows={};rejects=Counter();seen_pages=set();signatures=set()
     max_pages=max(1,min(300,int(source.get('max_pages',1))));max_entries=max(1,min(5000,int(source.get('max_entries',5000))))
     max_seconds=max(5,min(360,float(source.get('max_seconds',180))))
-    url=source['url'];cursor=previous.get('next_cursor')
+    url=source['url'];cursor=previous.get('next_cursor');monthly_queue=[]
+    if kind=='wordpress_events':url=set_query(url,after=(core.now()-timedelta(days=120)).strftime('%Y-%m-%dT00:00:00'))
     if cursor:
         a,b=urlsplit(url),urlsplit(cursor)
         if a.netloc==b.netloc and a.path==b.path:url=cursor;metrics['reasons'].append('接续上轮分页')
@@ -204,13 +209,25 @@ def collect_report(source, previous=None):
             if kind=='sogou':
                 items=c.sogou(source);visible=len(items);excluded={};nxt=None;total=None
             else:
-                html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
-                items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
+                if kind=='wordpress_events':
+                    html,soup,final,pagination=c.fetch(url,proxy=source.get('proxy'),include_pagination=True)
+                else:html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
+                if kind=='szhzfw' and urlsplit(url).path==urlsplit(source['url']).path:
+                    monthly_queue=aggregates.monthly_links(soup,final);items=[];visible=0;excluded={}
+                else:items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
                 nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx') else (None,None)
+                if kind=='szhzfw':nxt=monthly_queue.pop(0) if monthly_queue else None
+                if kind=='wordpress_events':
+                    try:
+                        total=int(pagination.get('total'));pages=int(pagination.get('total_pages'));current=int(dict(parse_qsl(urlsplit(url).query)).get('page',1))
+                        nxt=set_query(url,page=current+1) if current<pages else None
+                    except (ValueError,TypeError):
+                        metrics['truncated']=True;metrics['reasons'].append('公开接口未提供可靠分页总数，未猜测后续页')
+
                 if not items and kind=='hdx' and ('login' in final.lower() or ('登录' in c.text(soup) and not soup.select_one('.search-tab-content-list'))):
                     metrics['access_boundary']=url
                     raise c.Blocked('后续分页要求登录；已保留公开可读页，未绕过访问限制')
-                if not items and kind!='rss':raise c.SourceError('页面可访问但解析为空')
+                if not items and kind not in ('rss','wordpress_events') and not (kind=='szhzfw' and nxt):raise c.SourceError('页面可访问但解析为空')
             metrics['pages_visited']+=1;metrics['page_urls'].append(url);metrics['visible']+=visible;metrics['extracted']+=len(items)
             if total is not None:metrics['source_total']=total
             rejects.update(excluded)
@@ -243,13 +260,15 @@ def collect_report(source, previous=None):
     if kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':started+max_seconds},items,metrics)
     admitted=[]
     for e in items:
-        city=city_evidence(e,source)
+        mode=core.event_attendance(e);online=mode=='online' and source.get('allow_online',False)
+        city='深圳' if online else city_evidence(e,source)
         if city not in ('深圳','待确认'):rejects['其他城市']+=1;continue
         if city=='待确认' and source.get('scope')=='national':
             if '深圳' not in (e.get('title','')+e.get('summary','')) and 'shenzhen' not in (e.get('title','')+e.get('summary','')).casefold():rejects['城市尚未确认']+=1;continue
             e['status']='needs_review';e['start_at']=None;e['end_at']=None
         if city=='待确认' and kind=='jsonld':rejects['城市尚未确认']+=1;continue
-        e['city']='深圳';metrics['shenzhen_candidates']+=1
+        e['city']='线上' if online else '深圳';metrics['shenzhen_candidates']+=int(not online)
+        if online:metrics['online_candidates']=metrics.get('online_candidates',0)+1
         end=e.get('end_at') or e.get('start_at')
         if end and end<core.iso(core.now()-timedelta(days=45)):rejects['超出历史保留期']+=1;continue
         if not e.get('start_at') and len(e.get('summary',''))<40 and not e.get('detail_candidate'):rejects['线索信息不足']+=1;continue
