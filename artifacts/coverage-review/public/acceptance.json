@@ -1,0 +1,502 @@
+{
+  "checks": {
+    "real_month_queries_exclude_padding_dates": true,
+    "real_source_coverage_counts_and_budget_explanation": true,
+    "reported_techevent_item_remains_available": true,
+    "amap_district_enrichment_is_live": true,
+    "installed_timer_processes_only_requested_source": true,
+    "mobile_layout_and_original_routes": true
+  },
+  "errors": [],
+  "tested_base": "https://106.53.40.6",
+  "candidate": "025b53193ce004fb438b8bc3768facab1812719c",
+  "september_event_count": 73,
+  "sources": [
+    {
+      "id": "lianpu",
+      "status": "ok",
+      "message": "本轮检查 6 页 · 可见 260 条 · 解析 260 条 · 去重后 260 条 · 纳入 87 条 · 新增/变更 37 条",
+      "last_attempt": "2026-09-30T11:26:47+08:00",
+      "last_success": "2026-09-30T11:26:54+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "city_pages",
+        "pages_visited": 6,
+        "page_urls": [
+          "https://lianpu.com/city/shenzhen",
+          "https://lianpu.com/city/shenzhen?page=2",
+          "https://lianpu.com/city/shenzhen?page=3",
+          "https://lianpu.com/city/shenzhen?page=4",
+          "https://lianpu.com/city/shenzhen?page=5",
+          "https://lianpu.com/city/shenzhen?page=6"
+        ],
+        "source_total": null,
+        "visible": 260,
+        "extracted": 260,
+        "unique": 260,
+        "shenzhen_candidates": 260,
+        "admitted": 87,
+        "rejected": {
+          "超出历史保留期": 173
+        },
+        "duplicates": 0,
+        "parser_unaccounted": 0,
+        "truncated": false,
+        "next_cursor": null,
+        "reasons": [],
+        "detail_attempted": 0,
+        "detail_resolved": 0,
+        "detail_failed": 0,
+        "detail_deferred": 0,
+        "detail_cached": 0,
+        "elapsed_seconds": 5.64,
+        "complete_scope": true,
+        "stored_events": 87
+      }
+    },
+    {
+      "id": "techevent",
+      "status": "ok",
+      "message": "本轮检查 1 页 · 可见 22 条 · 解析 22 条 · 去重后 22 条 · 纳入 6 条 · 新增/变更 0 条",
+      "last_attempt": "2026-09-30T11:26:54+08:00",
+      "last_success": "2026-09-30T11:26:56+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "page_inventory",
+        "pages_visited": 1,
+        "page_urls": [
+          "https://event.rizumu.me/"
+        ],
+        "source_total": null,
+        "visible": 22,
+        "extracted": 22,
+        "unique": 22,
+        "shenzhen_candidates": 6,
+        "admitted": 6,
+        "rejected": {
+          "其他城市": 16
+        },
+        "duplicates": 0,
+        "parser_unaccounted": 0,
+        "truncated": false,
+        "next_cursor": null,
+        "reasons": [],
+        "detail_attempted": 0,
+        "detail_resolved": 0,
+        "detail_failed": 0,
+        "detail_deferred": 0,
+        "detail_cached": 0,
+        "elapsed_seconds": 1.06,
+        "complete_scope": true,
+        "stored_events": 6
+      }
+    },
+    {
+      "id": "bendibao",
+      "status": "partial",
+      "message": "本轮检查 1 页 · 可见 43 条 · 解析 43 条 · 去重后 43 条 · 纳入 32 条 · 新增/变更 0 条；仅覆盖这个公开汇总页",
+      "last_attempt": "2026-09-30T11:26:56+08:00",
+      "last_success": "2026-09-30T11:26:57+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "single_page",
+        "pages_visited": 1,
+        "page_urls": [
+          "https://m.bendibao.com/xiuxian/index.php"
+        ],
+        "source_total": null,
+        "visible": 43,
+        "extracted": 43,
+        "unique": 43,
+        "shenzhen_candidates": 34,
+        "admitted": 32,
+        "rejected": {
+          "其他城市": 9,
+          "超出历史保留期": 2
+        },
+        "duplicates": 0,
+        "parser_unaccounted": 0,
+        "truncated": false,
+        "next_cursor": null,
+        "reasons": [
+          "仅覆盖这个公开汇总页"
+        ],
+        "detail_attempted": 0,
+        "detail_resolved": 0,
+        "detail_failed": 0,
+        "detail_deferred": 0,
+        "detail_cached": 0,
+        "elapsed_seconds": 1.0,
+        "complete_scope": false,
+        "stored_events": 39
+      }
+    },
+    {
+      "id": "chaihuo",
+      "status": "ok",
+      "message": "本轮检查 1 页 · 可见 12 条 · 解析 9 条 · 去重后 9 条 · 纳入 3 条 · 新增/变更 0 条",
+      "last_attempt": "2026-09-30T11:26:57+08:00",
+      "last_success": "2026-09-30T11:27:02+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "page_inventory",
+        "pages_visited": 1,
+        "page_urls": [
+          "https://www.chaihuo.org/activity/list"
+        ],
+        "source_total": null,
+        "visible": 12,
+        "extracted": 9,
+        "unique": 9,
+        "shenzhen_candidates": 9,
+        "admitted": 3,
+        "rejected": {
+          "其他城市": 3,
+          "超出历史保留期": 6
+        },
+        "duplicates": 0,
+        "parser_unaccounted": 0,
+        "truncated": false,
+        "next_cursor": null,
+        "reasons": [],
+        "detail_attempted": 0,
+        "detail_resolved": 0,
+        "detail_failed": 0,
+        "detail_deferred": 0,
+        "detail_cached": 0,
+        "elapsed_seconds": 4.77,
+        "complete_scope": true,
+        "stored_events": 3
+      }
+    },
+    {
+      "id": "huodongxing",
+      "status": "partial",
+      "message": "本轮检查 6 页 · 可见 66 条 · 解析 66 条 · 去重后 64 条 · 纳入 64 条 · 新增/变更 1 条；后续分页要求登录；已保留公开可读页，未绕过访问限制；下轮更新公开页；登录后内容不计为已覆盖",
+      "last_attempt": "2026-09-30T11:34:47+08:00",
+      "last_success": "2026-09-30T11:34:56+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "city_pages",
+        "pages_visited": 6,
+        "page_urls": [
+          "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3",
+          "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=2",
+          "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=3",
+          "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=4",
+          "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=5",
+          "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=6"
+        ],
+        "source_total": 1882,
+        "visible": 66,
+        "extracted": 66,
+        "unique": 64,
+        "shenzhen_candidates": 64,
+        "admitted": 64,
+        "rejected": {},
+        "duplicates": 2,
+        "parser_unaccounted": 0,
+        "truncated": true,
+        "next_cursor": null,
+        "reasons": [
+          "后续分页要求登录；已保留公开可读页，未绕过访问限制",
+          "下轮更新公开页；登录后内容不计为已覆盖"
+        ],
+        "detail_attempted": 0,
+        "detail_resolved": 0,
+        "detail_failed": 0,
+        "detail_deferred": 0,
+        "detail_cached": 0,
+        "access_boundary": "https://www.huodongxing.com/eventlist?city=%E6%B7%B1%E5%9C%B3&page=7",
+        "elapsed_seconds": 8.86,
+        "complete_scope": false,
+        "stored_events": 63
+      }
+    },
+    {
+      "id": "douban",
+      "status": "ok",
+      "message": "本轮检查 71 页 · 可见 2483 条 · 解析 2128 条 · 去重后 708 条 · 纳入 708 条 · 新增/变更 698 条",
+      "last_attempt": "2026-09-30T11:27:13+08:00",
+      "last_success": "2026-09-30T11:29:10+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "city_pages",
+        "pages_visited": 71,
+        "page_urls": [
+          "https://www.douban.com/location/shenzhen/events/future-all",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=10",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=20",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=30",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=40",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=50",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=60",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=70",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=80",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=90",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=100",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=110",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=120",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=130",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=140",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=150",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=160",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=170",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=180",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=190",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=200",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=210",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=220",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=230",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=240",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=250",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=260",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=270",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=280",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=290",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=300",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=310",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=320",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=330",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=340",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=350",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=360",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=370",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=380",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=390",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=400",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=410",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=420",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=430",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=440",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=450",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=460",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=470",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=480",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=490",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=500",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=510",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=520",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=530",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=540",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=550",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=560",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=570",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=580",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=590",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=600",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=610",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=620",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=630",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=640",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=650",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=660",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=670",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=680",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=690",
+          "https://www.douban.com/location/shenzhen/events/future-all?start=700"
+        ],
+        "source_total": null,
+        "visible": 2483,
+        "extracted": 2128,
+        "unique": 708,
+        "shenzhen_candidates": 708,
+        "admitted": 708,
+        "rejected": {
+          "非活动主办方卡片": 355
+        },
+        "duplicates": 1420,
+        "parser_unaccounted": 0,
+        "truncated": false,
+        "next_cursor": null,
+        "reasons": [],
+        "detail_attempted": 0,
+        "detail_resolved": 0,
+        "detail_failed": 0,
+        "detail_deferred": 0,
+        "detail_cached": 0,
+        "elapsed_seconds": 105.79,
+        "complete_scope": true,
+        "stored_events": 701
+      }
+    },
+    {
+      "id": "meetup",
+      "status": "partial",
+      "message": "本轮检查 1 页 · 可见 34 条 · 解析 34 条 · 去重后 30 条 · 纳入 11 条 · 新增/变更 11 条；仅发现入口中的公开线索",
+      "last_attempt": "2026-09-30T11:29:10+08:00",
+      "last_success": "2026-09-30T11:29:15+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "discovery_only",
+        "pages_visited": 1,
+        "page_urls": [
+          "https://www.meetup.com/find/cn--shenzhen/"
+        ],
+        "source_total": null,
+        "visible": 34,
+        "extracted": 34,
+        "unique": 30,
+        "shenzhen_candidates": 11,
+        "admitted": 11,
+        "rejected": {
+          "城市尚未确认": 1,
+          "其他城市": 18
+        },
+        "duplicates": 4,
+        "parser_unaccounted": 0,
+        "truncated": false,
+        "next_cursor": null,
+        "reasons": [
+          "仅发现入口中的公开线索"
+        ],
+        "detail_attempted": 0,
+        "detail_resolved": 0,
+        "detail_failed": 0,
+        "detail_deferred": 0,
+        "detail_cached": 0,
+        "elapsed_seconds": 4.66,
+        "complete_scope": false,
+        "stored_events": 11
+      }
+    },
+    {
+      "id": "wechat-chaihuo",
+      "status": "partial",
+      "message": "本轮检查 1 页 · 可见 10 条 · 解析 10 条 · 去重后 10 条 · 纳入 10 条 · 新增/变更 1 条；搜索索引非全量实时",
+      "last_attempt": "2026-09-30T11:29:15+08:00",
+      "last_success": "2026-09-30T11:29:19+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "search_index",
+        "pages_visited": 1,
+        "page_urls": [
+          "http://127.0.0.1:1200/wechat/sogou/ChaiHuoMakerSpace"
+        ],
+        "source_total": null,
+        "visible": 10,
+        "extracted": 10,
+        "unique": 10,
+        "shenzhen_candidates": 10,
+        "admitted": 10,
+        "rejected": {},
+        "duplicates": 0,
+        "parser_unaccounted": 0,
+        "truncated": false,
+        "next_cursor": null,
+        "reasons": [
+          "搜索索引非全量实时"
+        ],
+        "detail_attempted": 1,
+        "detail_resolved": 0,
+        "detail_failed": 1,
+        "detail_deferred": 9,
+        "detail_cached": 0,
+        "feed_total": 10,
+        "elapsed_seconds": 4.19,
+        "complete_scope": false,
+        "stored_events": 11
+      }
+    },
+    {
+      "id": "sogou-discovery",
+      "status": "partial",
+      "message": "本轮检查 1 页 · 可见 16 条 · 解析 16 条 · 去重后 16 条 · 纳入 16 条 · 新增/变更 0 条；搜索索引非全量实时",
+      "last_attempt": "2026-09-30T11:29:19+08:00",
+      "last_success": "2026-09-30T11:29:26+08:00",
+      "coverage": {
+        "version": 1,
+        "mode": "search_index",
+        "pages_visited": 1,
+        "page_urls": [
+          "https://weixin.sogou.com/weixin"
+        ],
+        "source_total": null,
+        "visible": 16,
+        "extracted": 16,
+        "unique": 16,
+        "shenzhen_candidates": 16,
+        "admitted": 16,
+        "rejected": {},
+        "duplicates": 0,
+        "parser_unaccounted": 0,
+        "truncated": false,
+        "next_cursor": null,
+        "reasons": [
+          "搜索索引非全量实时"
+        ],
+        "detail_attempted": 0,
+        "detail_resolved": 0,
+        "detail_failed": 0,
+        "detail_deferred": 0,
+        "detail_cached": 0,
+        "elapsed_seconds": 6.83,
+        "complete_scope": false,
+        "stored_events": 46
+      }
+    }
+  ],
+  "analysis_pending": 573,
+  "tct_titles": [
+    "2026 TCT 深圳 3D 打印展"
+  ],
+  "amap_example": [
+    {
+      "title": "深圳自然博物馆参观攻略+实拍",
+      "district": "坪山",
+      "location": "深圳自然博物馆"
+    }
+  ],
+  "actual_single_source_retry": {
+    "id": "893b0833fe888ea8bd87",
+    "source_id": "techevent",
+    "state": "done",
+    "requested_at": "2026-09-30T11:39:05+08:00",
+    "updated_at": "2026-09-30T11:39:39+08:00",
+    "message": "本轮检查 1 页 · 可见 22 条 · 解析 22 条 · 去重后 22 条 · 纳入 6 条 · 新增/变更 0 条"
+  },
+  "routes": {
+    "/": 200,
+    "/inbox/": 200,
+    "/newapi": 302,
+    "/blog": 302,
+    "/events/": 200
+  },
+  "stats": {
+    "upcoming": 812,
+    "recommended": 57,
+    "weekend": 69,
+    "sources": 9,
+    "working_sources": 9,
+    "normal_sources": 4,
+    "partial_sources": 5,
+    "raw": 988,
+    "pending": 573,
+    "long_running": 246,
+    "last_updated": "2026-09-30T11:39:39+08:00",
+    "categories": [
+      "机器人",
+      "硬件创客",
+      "AI与开源",
+      "产品与创业",
+      "汽车",
+      "展览文化",
+      "户外生活"
+    ],
+    "districts": [
+      "南山",
+      "福田",
+      "宝安",
+      "龙岗",
+      "龙华",
+      "罗湖",
+      "盐田",
+      "光明",
+      "坪山",
+      "大鹏",
+      "深汕"
+    ],
+    "timezone": "Asia/Shanghai"
+  },
+  "page_errors_empty": true
+}

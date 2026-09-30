@@ -39,3 +39,19 @@ Production evidence is appended after candidate deployment.
 
 ## Production collection and access boundary
 The candidate checked all nine sources in 169 seconds. Lianpu: 6 pages / 260 unique / 87 within retained scope. Douban: 71 pages / 708 unique admitted (host cards excluded, repeated ticket cards deduplicated). Huodongxing: six anonymous city pages / 65 unique; page seven serves a login form. This provider restriction is explicit partial coverage, not a parser-success or full-inventory claim. No login challenge was bypassed. All other source contracts/counters were persisted.
+
+## Final production acceptance
+
+Runtime candidate: 025b53193ce004fb438b8bc3768facab1812719c.
+
+- 91 unit/API tests pass; all 23 isolated browser regressions pass again on final code.
+- 6 real HTTPS acceptance checks pass, including the actual installed one-minute retry timer. Only the requested TechEvent source changed its check timestamp; all other source timestamps remained unchanged.
+- September 2026 uses five rows and contains no October event. Next-month navigation and mobile list view work.
+- The source-status view clears old list counts, exposes measured coverage, and explains tokens / requests / budgets / pending analysis.
+- AMap is live: natural museum resolves to 坪山. New segmented English locality cases (Fu Tian Qu) and duplicate-failure starvation are fixed; a subsequent production enrichment batch updated eight records with zero errors.
+- Acceptance snapshot: 812 upcoming records, 69 weekend records under the default long-running filter, 988 raw records, 573 pending AI analyses. AI budgets were not raised to drain the new backlog; basic source-derived dates and filters remain available.
+- Huodongxing's latest pass: six readable anonymous pages, 64 unique records; source total 1,882 includes inaccessible inventory. The seventh page requests login, explicitly recorded as partial. The initial pass found 65; promoted cards can change between reads.
+- Original routes: / 200, /inbox/ 200, /newapi 302, /blog 302, /events/ 200.
+- Browser console/page errors: zero. Web service memory approximately 48 MiB; original application services were not modified by this release.
+
+Public evidence is in artifacts/coverage-review/public/; no private session token or feed-token URL is saved there. A private pre-coverage SQLite recovery snapshot remains on the server.
