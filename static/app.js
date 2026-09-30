@@ -56,7 +56,8 @@ async function stats() {
 function readURL() {
   const p=new URLSearchParams(location.search);view=Object.hasOwn(views,p.get('view'))?p.get('view'):'discover';
   $('#search').value=(p.get('q')||'').slice(0,160);$('#district').value=p.get('district')||'';$('#free').checked=p.get('free')==='true';$('#hide-long').checked=p.get('show_long')!=='true';$('#sort').value=p.get('sort')==='desc'?'desc':'asc';
-  const selectedTypes=new Set(p.getAll('type')),selectedTopics=new Set(p.getAll('topic'));const legacy=p.get('tag');if(legacy)selectedTopics.add(legacy);
+  const topicAlias=x=>x==='展览文化'?'文化艺术':x;
+  const selectedTypes=new Set(p.getAll('type')),selectedTopics=new Set(p.getAll('topic').map(topicAlias));const legacy=p.get('tag');if(legacy)selectedTopics.add(topicAlias(legacy));
   $$('#type-options input[type="checkbox"]').forEach(x=>x.checked=selectedTypes.has(x.value));$$('#topic-options input[type="checkbox"]').forEach(x=>x.checked=selectedTopics.has(x.value));updateFacetSummary('type');updateFacetSummary('topic');
   const month=p.get('month')||'';calendarDate=/^\d{4}-\d{2}-\d{2}$/.test(month)&&Number.isFinite(Date.parse(month))?month:RadarUI.dayKey(new Date());
 }

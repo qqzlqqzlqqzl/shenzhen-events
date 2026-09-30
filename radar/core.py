@@ -83,6 +83,9 @@ def rules(title,summary=''):
     if commercial=='high':priority='normal'
     return {'topics':tags or ['其他'],'priority':priority,'commercial':commercial,'reason':('涉及'+ '、'.join(tags[:3])+'，可结合原活动说明判断是否参加。') if tags else '保留在全部活动中，供你探索其他兴趣。'}
 
+def canonical_topic(value):
+    return '文化艺术' if value=='展览文化' else value
+
 def normalize_event(e):
     e=dict(e);e['title']=clean(e.get('title'))[:220];e['url']=canon_url(e.get('url',''))
     if not e['title'] or not e['url']:return None
@@ -94,7 +97,7 @@ def normalize_event(e):
     e['cost_text']=clean(e.get('cost_text'))[:100] or '费用未注明';e['cost_free']=e['cost_text'] in ('免费','0元','免费参加')
     e['all_day']=bool(e.get('all_day'))
     topics=e.get('topics') or rules(e['title'],e['summary'])['topics']
-    e['topics']=['文化艺术' if x=='展览文化' else x for x in topics if x in TOPICS or x in ('文化艺术','其他')]
+    e['topics']=[canonical_topic(x) for x in topics if canonical_topic(x) in TOPICS or x=='其他']
     if not e['topics']:e['topics']=['其他']
     raw_type=clean(e.get('event_type'))
     e['event_type']=raw_type if raw_type in EVENT_TYPES else 'Event'
@@ -193,7 +196,17 @@ def ingest(source,e,body=None):
     body=clean(body or e['summary'])[:14000];payload=json.dumps(e,ensure_ascii=False,sort_keys=True)
     h=source_identity.content_hash(source,e,body);ts=stamp()
     with db() as c:
-        old=source_identity.find_existing(c,source,e,body);changed=not old or source_identity.content_hash(source,json.loads(old['payload']),old['body'])!=h
+        old=source_identity.find_existing(c,source,e,body);changed=not old
+        if old:
+            prior=json.loads(old['payload'])
+            if 'event_type' not in prior and 'event_type_state' not in prior:
+                # Taxonomy and rule-derived topics were added/renamed by this upgrade,
+                # not by the source. Upgrade its raw payload without repeating AI work.
+                derived={'event_type','event_type_state','topics'}
+                previous={k:v for k,v in prior.items() if k not in derived}
+                incoming={k:v for k,v in e.items() if k not in derived}
+                changed=source_identity.content_hash(source,previous,old['body'])!=source_identity.content_hash(source,incoming,body)
+            else:changed=source_identity.content_hash(source,prior,old['body'])!=h
         if old:source_identity.refresh_url(c,old,e['url'])
         if old:
             c.execute('UPDATE raw_items SET title=?,body=?,payload=?,collected_at=?,content_hash=?,analysis_state=CASE WHEN ? THEN \'pending\' ELSE analysis_state END WHERE id=?',(e['title'],body,payload,ts,h,int(changed),old['id']));rid=old['id']
@@ -218,6 +231,10 @@ def ingest(source,e,body=None):
         if not prev or (changed and rank<=prev['origin_priority']):
             data={'id':eid,'title':e['title'],'title_norm':norm(e['title']),'start_at':e['start_at'],'end_at':e['end_at'],'all_day':int(e['all_day']),'location':e['location'],'district':e['district'],'organizer':e['organizer'],'summary':e['summary'],'topics':json.dumps(e['topics'],ensure_ascii=False),'event_type':e['event_type'],'event_type_state':e['event_type_state'],'priority':r['priority'],'reason':r['reason'],'commercial':r['commercial'],'cost_text':e['cost_text'],'cost_free':int(e['cost_free']),'url':e['url'],'status':e['status'],'origin_priority':rank,'first_seen':prev['first_seen'] if prev else ts,'last_seen':ts,'ai_state':'pending'}
             keys=list(data);c.execute(f"INSERT INTO events ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)}) ON CONFLICT(id) DO UPDATE SET "+','.join(f'{k}=excluded.{k}' for k in keys if k not in ('id','first_seen')),tuple(data.values()))
+        elif e['event_type_state']=='source' and rank<=prev['origin_priority']:
+            # Newly extracted source typing must not reset an unchanged event's
+            # AI-established dates, location, summary, or analysis state.
+            c.execute('UPDATE events SET event_type=?,event_type_state=?,last_seen=? WHERE id=?',(e['event_type'],'source',ts,eid))
         else:c.execute('UPDATE events SET last_seen=? WHERE id=?',(ts,eid))
         c.execute('INSERT INTO event_sources VALUES(?,?,?,?,?) ON CONFLICT(source_id,url) DO UPDATE SET event_id=excluded.event_id,raw_id=excluded.raw_id,seen_at=excluded.seen_at',(eid,source['id'],e['url'],rid,ts))
     return changed
@@ -228,6 +245,8 @@ def span_days(e):
     except ValueError:return 0.0
 
 def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None):
+    topics_filter=[canonical_topic(x) for x in topics_filter or []]
+    if tag:topics_filter.append(canonical_topic(tag))
     current=now();day=current.date();from_dt=current;to_dt=None
     if sort not in ('asc','desc'):raise ValueError('invalid sort')
     if period=='week':to_dt=datetime.combine(day+timedelta(days=7-day.weekday()),datetime.min.time(),TZ)
@@ -265,8 +284,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         e['event_type']=e.get('event_type') or 'Event';e['event_type_label']='待分类' if e.get('event_type_state')=='pending' else EVENT_TYPES.get(e['event_type'],'其他活动');e['sources']=links.get(e['id'],[])
         if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue
         if district and e['district']!=district:continue
-        if tag and tag not in e['topics']:continue
-        if event_types and e['event_type'] not in set(event_types):continue
+        if event_types and (e.get('event_type_state')=='pending' or e['event_type'] not in set(event_types)):continue
         if topics_filter and not set(topics_filter).intersection(e['topics']):continue
         if free and not e['cost_free']:continue
         if recommended and (e['priority'] not in ('high','medium') or e['commercial']=='high'):continue

@@ -1,0 +1,12 @@
+✔ legacy tag and repeated topic URLs retain the culture selection (320.635809ms)
+✔ type OR, topic OR, cross-group AND and chip removal round-trip through URL state (127.998763ms)
+✔ all 23 known types are preserved in requests and selected chips (353.801349ms)
+✔ browser history restores multi-select state after chip removal (64.478808ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1389.203487

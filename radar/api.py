@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResp
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
-from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, TOPICS, EVENT_TYPES, DISTRICTS, iso
+from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, TOPICS, EVENT_TYPES, DISTRICTS, iso, canonical_topic
 from .calendar import make_calendar
 from . import jobs
 COOKIE='sz_events_session'
@@ -100,8 +100,8 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
     require(request)
     if period not in ('upcoming','week','weekend','review','past','saved','calendar'):raise HTTPException(400,'无效日期筛选')
     if sort not in ('asc','desc'):raise HTTPException(400,'无效排序方式')
-    event_types=list(dict.fromkeys(event_types or []));topics=list(dict.fromkeys(topics or []))
-    if len(event_types)>20 or any(x not in EVENT_TYPES for x in event_types):raise HTTPException(400,'无效活动类型筛选')
+    event_types=list(dict.fromkeys(event_types or []));topics=list(dict.fromkeys(canonical_topic(x) for x in topics or []))
+    if len(event_types)>len(EVENT_TYPES) or any(x not in EVENT_TYPES for x in event_types):raise HTTPException(400,'无效活动类型筛选')
     if len(topics)>20 or any(x not in TOPICS and x!='其他' for x in topics):raise HTTPException(400,'无效主题筛选')
     begin,finish=None,None
     if period=='calendar':

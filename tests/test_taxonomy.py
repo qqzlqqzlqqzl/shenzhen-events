@@ -102,3 +102,99 @@ def test_generic_ai_classification_is_not_reset_by_source_refresh():
     with core.db() as c:
         row=c.execute('select event_type,event_type_state from events').fetchone()
         assert tuple(row)==('Event','ai')
+
+def test_legacy_topic_normalizes_before_validation():
+    assert core.normalize_event(event('旧文化记录', topics=['展览文化']))['topics'] == ['文化艺术']
+
+
+def test_legacy_topic_filters_work_in_core_and_api():
+    core.ingest(src(), event('文化展览', 'ExhibitionEvent', ['文化艺术']))
+    core.ingest(src(), event('机器人活动', 'Hackathon', ['机器人']))
+    assert [x['title'] for x in core.events(tag='展览文化')] == ['文化展览']
+    assert [x['title'] for x in core.events(topics_filter=['展览文化'])] == ['文化展览']
+    assert len(core.events(tag='展览文化', topics_filter=['机器人'])) == 2
+    with TestClient(api.app, base_url='https://testserver') as c:
+        auth(c)
+        for params in ({'tag': '展览文化'}, {'topic': '展览文化'}):
+            response = c.get('/events/api/events', params=params)
+            assert response.status_code == 200
+            assert [x['title'] for x in response.json()['items']] == ['文化展览']
+        response = c.get('/events/api/events', params=[('topic', '展览文化'), ('topic', '文化艺术'), ('topic', '机器人')])
+        assert response.status_code == 200 and response.json()['total'] == 2
+        response = c.get('/events/api/events', params=[('tag', '展览文化'), ('topic', '机器人')])
+        assert response.status_code == 200 and response.json()['total'] == 2
+
+
+def test_generic_type_filter_excludes_pending_and_matches_facet_count():
+    core.ingest(src(), event('已经分析的其他活动'))
+    with core.db() as c:
+        c.execute("UPDATE events SET event_type_state='ai',ai_state='done'")
+    core.ingest(src(), event('待分类活动一'))
+    core.ingest(src(), event('待分类活动二'))
+    with TestClient(api.app, base_url='https://testserver') as c:
+        auth(c)
+        stats = c.get('/events/api/stats').json()
+        facet = next(x for x in stats['event_types'] if x['value'] == 'Event')
+        result = c.get('/events/api/events', params={'type': 'Event'}).json()
+        assert facet['count'] == result['total'] == 1
+        assert {x['event_type_state'] for x in result['items']} == {'ai'}
+        assert stats['type_pending'] == 2
+        assert c.get('/events/api/events').json()['total'] == 3
+
+
+def test_all_valid_type_facets_can_be_selected_together():
+    core.ingest(src(), event('深圳音乐会', 'MusicEvent'))
+    with TestClient(api.app, base_url='https://testserver') as c:
+        auth(c)
+        response = c.get('/events/api/events', params=[('type', value) for value in core.EVENT_TYPES])
+        assert response.status_code == 200
+        assert response.json()['total'] == 1
+
+@pytest.mark.parametrize('limit_key', ['daily_calls', 'daily_tokens'])
+def test_type_backfill_pauses_before_network_when_budget_is_exhausted(monkeypatch, limit_key):
+    core.ingest(src(), event('等待补全类型的活动'))
+    with core.db() as c:
+        c.execute("UPDATE events SET ai_state='done'")
+    cfg = core.config()
+    cfg[limit_key] = 0
+    (core.ROOT / '.private/settings.json').write_text(json.dumps(cfg))
+    monkeypatch.delenv('ARK_API_KEY', raising=False)
+    monkeypatch.setenv('RADAR_API_KEY', 'local-test-placeholder')
+    def unexpected_session():
+        pytest.fail('Budget exhaustion must stop before creating a network session')
+    monkeypatch.setattr(worker.requests, 'Session', unexpected_session)
+    assert worker.backfill_types(12) == 0
+    with core.db() as c:
+        assert c.execute('SELECT event_type_state FROM events').fetchone()[0] == 'pending'
+        assert c.execute('SELECT status FROM runs ORDER BY id DESC LIMIT 1').fetchone()[0] == 'budget_paused'
+        assert c.execute('SELECT calls FROM budget').fetchone()[0] == 0
+
+
+def test_type_backfill_respects_per_run_limit_and_batch_size(monkeypatch):
+    for index in range(30):
+        core.ingest(src(), event('条目' + str(index)))
+    with core.db() as c:
+        c.execute("UPDATE events SET ai_state='done'")
+    batches = []
+    def classify(rows):
+        batches.append(len(rows))
+        return [{'id':row['id'], 'event_type':'SocialEvent'} for row in rows]
+    monkeypatch.setattr(worker, 'type_batch', classify)
+    monkeypatch.setattr(worker.time, 'sleep', lambda _: None)
+    assert worker.backfill_types(25) == 25
+    assert batches == [12, 12, 1]
+    with core.db() as c:
+        assert c.execute("SELECT COUNT(*) FROM events WHERE event_type_state='pending'").fetchone()[0] == 5
+    assert worker.backfill_types(25) == 5
+
+
+def test_ai_cannot_replace_a_specific_source_type(monkeypatch):
+    core.ingest(src(), event('来源明确的音乐会', 'MusicEvent'))
+    with core.db() as c:
+        rid = c.execute('SELECT id FROM raw_items').fetchone()[0]
+    monkeypatch.setattr(worker, 'ai_batch', lambda rows: [{'id':rid, 'event_type':'ComedyEvent', 'is_shenzhen_offline':True}])
+    monkeypatch.setattr(worker.time, 'sleep', lambda _: None)
+    monkeypatch.setattr(worker, 'geocode_pending', lambda limit: {})
+    worker.analyze(1)
+    row = core.events()[0]
+    assert row['event_type'] == 'MusicEvent' and row['event_type_state'] == 'source'

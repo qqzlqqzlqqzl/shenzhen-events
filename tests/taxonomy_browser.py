@@ -95,6 +95,29 @@ def status_reports_type_backfill():
     ok('Schema.org 活动类型补全' in page.locator('#status-panel').inner_text())
 check('status_discloses_type_backfill_progress',status_reports_type_backfill)
 
+def legacy_topic_url_aliases():
+    from urllib.parse import urlencode
+    for key in ('tag', 'topic'):
+        ready('?' + urlencode({'view': 'all', key: '展览文化'}))
+        ok(page.get_by_label('文化艺术').is_checked())
+        ok(page.locator('.title-button').all_inner_texts() == ['博物馆设计展'])
+        page.reload(wait_until='domcontentloaded')
+        expect(page.locator('#event-list')).to_have_attribute('aria-busy', 'false')
+        ok(page.get_by_label('文化艺术').is_checked())
+        ok(page.locator('.title-button').all_inner_texts() == ['博物馆设计展'])
+check('legacy_topic_urls_keep_the_culture_filter', legacy_topic_url_aliases)
+
+def all_type_facets_can_be_selected():
+    ready()
+    page.locator('#type-filter summary').click()
+    for checkbox in page.locator('#type-options input[type="checkbox"]').all():
+        checkbox.check()
+        expect(page.locator('#event-list')).to_have_attribute('aria-busy', 'false')
+    ok(page.locator('#type-options input:checked').count() > 20)
+    ok(page.locator('#notice').is_hidden())
+    ok(page.locator('.event-card').count() == 5)
+check('all_offered_type_facets_are_valid_together', all_type_facets_can_be_selected)
+
 report['page_errors_empty']=not report['errors'];(ART/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 br.close();pw.stop();print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)
