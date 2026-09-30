@@ -1,0 +1,16 @@
+PASS schema_type_labels_distinguish_entertainment
+PASS multiselect_or_within_and_across_groups_url_roundtrip
+PASS selected_chip_removal_and_back_restore
+PASS mobile_multiselect_touch_layout
+PASS status_discloses_type_backfill_progress
+{
+  "checks": {
+    "schema_type_labels_distinguish_entertainment": true,
+    "multiselect_or_within_and_across_groups_url_roundtrip": true,
+    "selected_chip_removal_and_back_restore": true,
+    "mobile_multiselect_touch_layout": true,
+    "status_discloses_type_backfill_progress": true
+  },
+  "errors": [],
+  "page_errors_empty": true
+}

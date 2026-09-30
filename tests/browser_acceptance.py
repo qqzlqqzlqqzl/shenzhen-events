@@ -1,7 +1,7 @@
 """Run with a Playwright-equipped Python. Uses a short-lived signed test session.
 Does not read user passwords. Does not write to existing applications.
 """
-import os, json, time, hmac, hashlib, base64, sys
+import os, json, time, hmac, hashlib, base64, sys, shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
@@ -16,6 +16,10 @@ def test_session():
     return body+'.'+sig
 
 def browser_path():
+    explicit=os.getenv('RADAR_BROWSER')
+    system=explicit or shutil.which('chromium') or shutil.which('chromium-browser') or shutil.which('google-chrome')
+    if system:return system
+    (ROOT/'.private').mkdir(exist_ok=True)
     os.environ['LD_LIBRARY_PATH']='/home/ubuntu/ai-news/runtime/browser-libs/usr/lib/x86_64-linux-gnu'
     config=ROOT/'.private/browser-fonts.conf'
     config.write_text('<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><dir>/home/ubuntu/ai-news/runtime/browser-libs/usr/share/fonts</dir><dir>/usr/share/fonts</dir><cachedir>'+str(ROOT/'.private/font-cache')+'</cachedir></fontconfig>')
@@ -69,3 +73,4 @@ def run():
     assert not result['console_errors'],result['console_errors']
     REPORT.write_text(json.dumps(result,ensure_ascii=False,indent=2));print(json.dumps(result,ensure_ascii=False,indent=2))
 if __name__=='__main__':run()
+
