@@ -132,6 +132,7 @@ def monthly_events(soup,url):
 
 def developer_events(soup,url):
     """Date-only online/hybrid conference inventory with explicit Schema.org mode."""
+    from .source_topics import developer_category,developer_event_type
     out=[]
     for node in soup.select('.row:not(.featured) script[type="application/ld+json"]'):
         try:d=json.loads(node.get_text())
@@ -146,8 +147,9 @@ def developer_events(soup,url):
         except ValueError:continue
         loc=d.get('location') or {};venue=core.clean(loc.get('name')) if isinstance(loc,dict) else ''
         label=text(node.parent.select_one('time'));description=core.clean(d.get('description'))
+        source_topic,topics=developer_category(description)
         out.append(skeleton(title,link,description,'线上' if mode=='online' else venue,
             start_at=core.iso(start),end_at=core.iso(last+timedelta(days=1)),all_day=True,
-            event_type='ConferenceEvent',city='线上' if mode=='online' else venue,
-            details={'attendance':mode,'evidence_url':link,'date_evidence':label,'review_notes':'聚合来源仅提供举办日期；具体时区、开播时间、费用及参与条件请核对原文。','publisher':'dev.events'}))
+            event_type=developer_event_type(description),city='线上' if mode=='online' else venue,topics=topics,
+            details={'attendance':mode,'source_topic':source_topic,'evidence_url':link,'date_evidence':label,'review_notes':'聚合来源仅提供举办日期；具体时区、开播时间、费用及参与条件请核对原文。','publisher':'dev.events'}))
     return out

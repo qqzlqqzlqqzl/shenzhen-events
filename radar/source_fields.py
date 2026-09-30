@@ -30,6 +30,15 @@ def event_patch(row,source_ids):
         if typ and row.get('event_type_state')=='pending' and row.get('ai_state')=='pending':
             patch.update(event_type=typ,event_type_state='source',topics=json.dumps(['文化艺术'],ensure_ascii=False),priority='normal',reason='演出类活动；不因作品标题或场馆地址中的技术词汇进入技术推荐。')
             details['type_evidence']='活动标题明确演出形式'
+    if source_ids=={'dev-events-online'} and row.get('ai_state')=='pending':
+        from .source_topics import developer_category,developer_event_type
+        source_topic,topics=developer_category(row.get('summary'))
+        if topics:
+            patch['topics']=json.dumps(topics,ensure_ascii=False)
+            details['source_topic']=source_topic
+            details['topic_evidence']='dev.events 原文分类：'+source_topic
+        if developer_event_type(row.get('summary'))=='CourseInstance':
+            patch.update(event_type='CourseInstance',event_type_state='source')
     if source_ids=={'huodongxing'} and row.get('organizer') and not details.get('organizer') and not details.get('organizer_notes'):
         details['publisher']=row['organizer'];details['organizer_role']='publisher'
     if details!=before:patch['details']=json.dumps(details,ensure_ascii=False)
