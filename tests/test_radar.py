@@ -16,6 +16,7 @@ def isolate(tmp_path,monkeypatch):
     (tmp_path/'sources.json').write_text(json.dumps([{'id':'a','name':'主办方','url':'https://example.com','priority':10,'interval_hours':6},{'id':'b','name':'聚合站','url':'https://example.org','priority':40,'interval_hours':6}]))
     monkeypatch.setattr(core,'ROOT',tmp_path);monkeypatch.setattr(api,'ROOT',tmp_path);monkeypatch.setattr(worker,'ROOT',tmp_path)
     api.initialize_settings();core.init();api.ATTEMPTS.clear()
+    cfg=core.config();cfg['analysis_enabled']=True;(core.ROOT/'.private/settings.json').write_text(json.dumps(cfg))
     yield tmp_path
 
 def source(id='a'):return {'id':id,'priority':10 if id=='a' else 40}
@@ -151,7 +152,8 @@ def test_sogou_discovers_current_account_markup(monkeypatch):
     soup=BeautifulSoup(html,'html.parser')
     monkeypatch.setattr(collectors,'fetch',lambda url:('',soup,url));monkeypatch.setattr(collectors.time,'sleep',lambda _:None)
     out=collectors.sogou({'url':'https://weixin.sogou.com/weixin'})
-    assert len(out)==2 and all(x['organizer']=='深圳创客社区' for x in out)
+    assert len(out)==2 and all(x['details']['publisher']=='深圳创客社区' for x in out)
+    assert all(not x.get('organizer') for x in out)
     with core.db() as c:
         row=c.execute('select name,hits from candidates where name=?',('深圳创客社区',)).fetchone()
         assert row['hits']==2

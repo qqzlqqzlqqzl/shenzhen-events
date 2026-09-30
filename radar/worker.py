@@ -61,6 +61,8 @@ def collect_all(force=False,only=None):
     result=[];deferred=[];deadline=time.monotonic()+380
     sources=json.loads((ROOT/'sources.json').read_text())
     if only and only not in {s['id'] for s in sources}:raise ValueError('unknown source')
+    with db() as c:last_attempt={r['id']:r['last_attempt'] or '' for r in c.execute('SELECT id,last_attempt FROM source_health')}
+    sources.sort(key=lambda s:(last_attempt.get(s['id'],''),s.get('priority',50)))
     for source in sources:
         if only and source['id']!=only:continue
         with db() as c:h=dict(c.execute('SELECT * FROM source_health WHERE id=?',(source['id'],)).fetchone())
@@ -105,6 +107,7 @@ def reserve(estimated):
     return True
 
 def ai_batch(rows):
+    if config().get('analysis_enabled') is not True:return None
     cfg=config();key=os.environ.get('ARK_API_KEY','') or os.environ.get('RADAR_API_KEY','')
     if not key:raise RuntimeError('模型凭据未注入；规则筛选仍可使用')
     data=[]
@@ -124,6 +127,7 @@ event_type 必须且只能是 Schema.org Event 标准类型之一：Event、Busi
 选择最具体且有证据的类型；脱口秀/单口喜剧=ComedyEvent，戏剧/话剧=TheaterEvent，音乐会/演唱会=MusicEvent，展览/博览会=ExhibitionEvent，黑客松=Hackathon。无法可靠判断用 Event。不要发明新类型。只输出 JSON。'''
 
 def type_batch(rows):
+    if config().get('analysis_enabled') is not True:return None
     cfg=config();key=os.environ.get('ARK_API_KEY','') or os.environ.get('RADAR_API_KEY','')
     if not key:return None
     data=[{'id':r['id'],'title':r['title'],'summary':r['summary'][:900],'location':r['location'],'topics':json.loads(r['topics'] or '[]')} for r in rows]
@@ -137,6 +141,7 @@ def type_batch(rows):
     return result.get('items',[])
 
 def backfill_types(limit=48):
+    if config().get('analysis_enabled') is not True:return 0
     if limit<=0:return 0
     with db() as c:rows=[dict(x) for x in c.execute("SELECT id,title,summary,location,topics FROM events WHERE event_type_state='pending' AND ai_state='done' AND status='scheduled' ORDER BY COALESCE(start_at,'9999'),id LIMIT ?",(limit,))]
     processed=0;paused=False
@@ -157,6 +162,7 @@ def backfill_types(limit=48):
     return processed
 
 def analyze(limit=48):
+    if config().get('analysis_enabled') is not True:return 0
     with db() as c:rows=[dict(x) for x in c.execute("SELECT r.* FROM raw_items r WHERE r.analysis_state='pending' AND EXISTS (SELECT 1 FROM event_sources es WHERE es.raw_id=r.id) ORDER BY CASE WHEN r.source_id IN ('lianpu','techevent','wechat-chaihuo','sogou-discovery') THEN 0 ELSE 1 END,r.id LIMIT ?",(limit,))]
     sources={s['id']:s for s in json.loads((ROOT/'sources.json').read_text())};processed=0;failed=False
     for start in range(0,len(rows),6):
@@ -218,3 +224,4 @@ def main():
         if args.job in ('analyze','all'):analyze(args.limit)
         if args.job=='retry':retry_one()
 if __name__=='__main__':main()
+

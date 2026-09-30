@@ -30,7 +30,7 @@ async function loadStatus(background=false){
   const budgetOpen=$('.analysis-budget details')?.open;
   const active=s.sources.filter(x=>x.retry&&['queued','running'].includes(x.retry.state));
   $('#status-panel').innerHTML=`<p class="status-intro">下面区分“源页看到多少”“实际解析多少”和“本站纳入多少”。读取完成只代表这一轮已检查的范围，不代表覆盖全网。刷新状态只更新看板；重新检查按钮才会检查对应来源。</p>
-  <section class="analysis-budget" aria-label="AI分析用量"><div><h3>今日 AI 分析</h3><strong>${number(s.budget.calls)} 次请求 <span>· ${number(s.budget.tokens)} tokens</span></strong><p>待 AI 内容分析 ${number(s.analysis_pending??0)} 条；待 Schema.org 活动类型补全 ${number(s.type_pending??0)} 条。活动类型会在现有每日预算内逐批补齐，不单独突破额度。</p><p>每日保护上限：${number(s.limits.daily_calls)} 次请求 / ${number(s.limits.daily_tokens)} tokens</p></div><details><summary>这个数字是什么意思？</summary><p>tokens 是模型处理文字的计量单位，不是活动条数，也不是人民币金额。系统只分析新增或内容有变化的记录；未变化的缓存不会重复分析。失败请求可能暂留预算预占，实际收费以 API 平台账单为准。达到上限后暂停 AI 分析，已有活动和采集仍可使用。</p></details></section>
+  ${s.analysis_enabled?`<section class="analysis-budget" aria-label="AI分析用量"><div><h3>今日 AI 分析</h3><strong>${number(s.budget.calls)} 次请求 <span>· ${number(s.budget.tokens)} tokens</span></strong><p>待 AI 内容分析 ${number(s.analysis_pending??0)} 条；待 Schema.org 活动类型补全 ${number(s.type_pending??0)} 条。活动类型会在现有每日预算内逐批补齐，不单独突破额度。</p><p>每日保护上限：${number(s.limits.daily_calls)} 次请求 / ${number(s.limits.daily_tokens)} tokens</p></div><details><summary>这个数字是什么意思？</summary><p>tokens 是模型处理文字的计量单位，不是活动条数，也不是人民币金额。系统只分析新增或内容有变化的记录；未变化的缓存不会重复分析。失败请求可能暂留预算预占，实际收费以 API 平台账单为准。达到上限后暂停 AI 分析，已有活动和采集仍可使用。</p></details></section>`:`<section class="analysis-budget" aria-label="整理状态"><div><h3>外部模型自动分析已停用</h3><p>自动采集继续运行，活动内容由 dot 核查后补充。新增待整理 ${number(s.analysis_pending??0)} 条，类型待补充 ${number(s.type_pending??0)} 条。</p><p>已核查内容可正常浏览，详情仍以主办方发布为准。</p></div></section>`}
   <div class="status-summary"><span>共 <b>${s.sources.length}</b> 个来源</span><span>活动数据库 <b>${(s.db_bytes/1048576).toFixed(2)} MB</b></span><span>过往活动保留 <b>${s.retention_days} 天</b></span>${active.length?`<span role="status">${active.length} 个来源排队/检查中，将自动更新</span>`:''}</div>
   <div class="status-actions"><button id="copy-ics" class="secondary">复制我的收藏日历订阅链接</button><button class="secondary" data-change-view="review">查看待确认线索</button><button class="secondary" data-change-view="past">查看过往活动</button><button class="secondary" id="refresh-status">刷新看板（不重新抓取）</button></div>
   <div class="source-grid">${s.sources.map(coverageCard).join('')}</div>
@@ -38,7 +38,7 @@ async function loadStatus(background=false){
   ${s.candidates.length?`<div class="table-wrap"><table><thead><tr><th>公众号 / 发布者</th><th>关键词</th><th>命中</th></tr></thead><tbody>${s.candidates.map(c=>`<tr><td><a href="${esc(RadarUI.safeUrl(c.url))}" target="_blank" rel="noopener noreferrer">${esc(c.name)}</a></td><td>${esc(c.query)}</td><td>${number(c.hits)}</td></tr>`).join('')}</tbody></table></div>`:'<p>暂无线索</p>'}
   <div class="section-heading"><div><h2>最近运行记录</h2><p>日志只记录运行结果，不记录密钥或密码。</p></div></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>任务</th><th>结果</th></tr></thead><tbody>${s.runs.map(r=>{let d={};try{d=JSON.parse(r.details)}catch{}return `<tr><td>${esc(timeText(r.finished_at))}</td><td>${esc(({source:'来源采集',collect:'采集汇总',analysis:'内容分析',type_backfill:'活动类型补全',geocode:'地区补全'})[r.kind]||r.kind)}</td><td>${esc(d.message||('状态 '+r.status+(d.processed!==undefined?' · 已处理 '+d.processed+' 条':'')))}</td></tr>`}).join('')}</tbody></table></div>`;
   $('#copy-ics').onclick=async()=>{const link=new URL(s.ics_url,location.origin).href;try{await navigator.clipboard.writeText(link);toast('已复制私人收藏日历链接，请勿公开分享。')}catch{prompt('私人收藏日历链接，请勿公开分享',link)}};
-  if(budgetOpen)$('.analysis-budget details').open=true;
+  if(budgetOpen&&$('.analysis-budget details'))$('.analysis-budget details').open=true;
   $('#refresh-status').onclick=()=>{loadStatus();stats()};
   if(focused)$$('[data-retry-source]').find(b=>b.dataset.retrySource===focused)?.focus({preventScroll:true});
   if(active.length)statusPoll=setTimeout(()=>{if(authenticated&&view==='status')loadStatus(true)},3000);
@@ -48,3 +48,4 @@ async function loadStatus(background=false){
   else $('#status-panel').innerHTML=`<div class="notice">${esc(e.message)} <button data-action="retry-status" class="secondary">重试</button></div>`;
  }finally{if(ticket===statusTicket)$('#status-panel').setAttribute('aria-busy','false')}
 }
+

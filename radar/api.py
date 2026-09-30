@@ -20,7 +20,7 @@ ATTEMPTS=defaultdict(deque);ATTEMPT_LOCK=threading.Lock()
 def initialize_settings():
     private=ROOT/'.private';private.mkdir(exist_ok=True);private.chmod(0o700);p=private/'settings.json'
     if not p.exists():
-        cfg={'session_secret':secrets.token_hex(32),'feed_token':secrets.token_urlsafe(32),'daily_tokens':200000,'daily_calls':60,'model_base':'https://ark.cn-beijing.volces.com/api/v3','model':'deepseek-v4-flash-ga-260731'}
+        cfg={'analysis_enabled':False,'session_secret':secrets.token_hex(32),'feed_token':secrets.token_urlsafe(32),'daily_tokens':200000,'daily_calls':60,'model_base':'https://ark.cn-beijing.volces.com/api/v3','model':'deepseek-v4-flash-ga-260731'}
         fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
         with os.fdopen(fd,'w') as f:json.dump(cfg,f)
     return config()
@@ -96,7 +96,7 @@ def logout(request:Request):
 @app.get('/events/api/session')
 def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
-def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
+def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
     require(request)
     if period not in ('upcoming','week','weekend','review','past','saved','calendar'):raise HTTPException(400,'无效日期筛选')
     if sort not in ('asc','desc'):raise HTTPException(400,'无效排序方式')
@@ -110,7 +110,7 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
         span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
         if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'日历范围需在93天内')
     if period=='saved':favorites=True
-    rows=events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics)
+    rows=[] if type_none or topic_none else events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics)
     return {'items':rows[offset:offset+limit],'total':len(rows),'offset':offset,'has_more':len(rows)>offset+limit}
 @app.get('/events/api/stats')
 def stats(request:Request):
@@ -121,7 +121,7 @@ def stats(request:Request):
     type_facets=[{'value':v,'label':label,'count':type_counts.get(v,0)} for v,label in EVENT_TYPES.items() if v!='Event']
     type_facets.append({'value':'Event','label':'其他活动','count':type_counts.get('Event',0)})
     topic_facets=[{'value':v,'label':v,'count':topic_counts.get(v,0)} for v in TOPICS]
-    topic_facets.append({'value':'其他','label':'其他主题','count':topic_counts.get('其他',0)})
+    topic_facets.append({'value':'其他','label':'主题待归类','count':topic_counts.get('其他',0)})
     return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend',hide_long=True)),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'type_pending':type_pending,'long_running':max(0,len(up)-len(clean_up)),'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(TOPICS),'event_types':type_facets,'topics':topic_facets,'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
 @app.get('/events/api/status')
 def status(request:Request):
@@ -135,7 +135,7 @@ def status(request:Request):
     for source in sources:
         source['coverage']=json.loads(source.get('coverage') or '{}')
         source['retry']=pending_jobs.get(source['id'])
-    return {'analysis_pending':analysis_pending,'type_pending':type_pending,'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
+    return {'analysis_enabled':cfg.get('analysis_enabled') is True,'analysis_pending':analysis_pending,'type_pending':type_pending,'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
 @app.post('/events/api/sources/{source_id}/retry',status_code=202)
 def retry_source(source_id:str,request:Request):
     require(request)
@@ -176,3 +176,4 @@ def redirect():return RedirectResponse('/events/',status_code=308)
 @app.get('/events/')
 def index():return FileResponse(ROOT/'static/index.html')
 app.mount('/events/static',StaticFiles(directory=ROOT/'static'),name='static')
+

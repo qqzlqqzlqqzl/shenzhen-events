@@ -11,7 +11,9 @@
     "max_seconds": 160,
     "coverage_mode": "city_pages",
     "city_scope": "深圳",
-    "max_pages": 20
+    "max_pages": 20,
+    "enrich_dated": true,
+    "detail_budget": 12
   },
   {
     "id": "techevent",
@@ -24,7 +26,9 @@
     "request_delay": 0.65,
     "max_seconds": 160,
     "coverage_mode": "page_inventory",
-    "city_scope": ""
+    "city_scope": "",
+    "enrich_dated": true,
+    "detail_budget": 12
   },
   {
     "id": "bendibao",
@@ -50,7 +54,9 @@
     "request_delay": 0.65,
     "max_seconds": 160,
     "coverage_mode": "page_inventory",
-    "city_scope": "深圳"
+    "city_scope": "深圳",
+    "enrich_dated": true,
+    "detail_budget": 12
   },
   {
     "id": "huodongxing",
@@ -65,7 +71,9 @@
     "max_seconds": 270,
     "coverage_mode": "city_pages",
     "max_pages": 250,
-    "proxy": "http://127.0.0.1:17890"
+    "proxy": "http://127.0.0.1:17890",
+    "enrich_dated": true,
+    "detail_budget": 12
   },
   {
     "id": "douban",
@@ -79,7 +87,9 @@
     "max_seconds": 160,
     "coverage_mode": "city_pages",
     "city_scope": "深圳",
-    "max_pages": 100
+    "max_pages": 100,
+    "enrich_dated": true,
+    "detail_budget": 12
   },
   {
     "id": "meetup",
@@ -107,7 +117,8 @@
     "max_seconds": 100,
     "coverage_mode": "search_index",
     "detail_budget": 12,
-    "allow_leads": true
+    "allow_leads": true,
+    "enrich_dated": true
   },
   {
     "id": "sogou-discovery",
@@ -121,6 +132,51 @@
     "max_seconds": 100,
     "coverage_mode": "search_index",
     "detail_budget": 12,
-    "allow_leads": true
+    "allow_leads": true,
+    "enrich_dated": true,
+    "queries": [
+      "深圳 创客 工作坊 报名",
+      "深圳 机器人 活动 报名",
+      "深圳 开源 技术 沙龙",
+      "深圳 AI 黑客松 报名",
+      "深圳 嵌入式 开发者 交流",
+      "深圳 光电 半导体 展览",
+      "深圳 音乐 演出 展览",
+      "深圳 图书馆 讲座 活动",
+      "深圳 博物馆 文化 活动",
+      "深圳 户外 徒步 活动",
+      "CIOE 中国光博会",
+      "柴火创客空间 活动",
+      "深圳湾 活动",
+      "深圳开放创新实验室 工作坊",
+      "深圳会展中心 展会",
+      "深圳发布 活动"
+    ],
+    "queries_per_run": 4,
+    "results_per_query": 10
+  },
+  {
+    "id": "szcec-official",
+    "name": "深圳会展中心 · 官方展览排期",
+    "kind": "szcec",
+    "url": "https://www.szcec.com/szcec/cn-schedule/zl/index.html",
+    "priority": 10,
+    "interval_hours": 24,
+    "max_entries": 500,
+    "max_seconds": 40,
+    "coverage_mode": "page_inventory",
+    "city_scope": "深圳"
+  },
+  {
+    "id": "cioe-official",
+    "name": "CIOE中国光博会 · 官方发布",
+    "kind": "cioe",
+    "url": "https://www.cioe.cn/",
+    "priority": 10,
+    "interval_hours": 24,
+    "max_entries": 10,
+    "max_seconds": 30,
+    "coverage_mode": "single_page",
+    "city_scope": "深圳"
   }
 ]

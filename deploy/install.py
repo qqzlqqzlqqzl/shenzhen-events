@@ -78,7 +78,8 @@ WantedBy=timers.target
 '''
         write(f'/etc/systemd/system/shenzhen-events-{job}.timer',timer)
     run('systemctl','daemon-reload');run('systemctl','enable','--now','shenzhen-events.service')
-    run('systemctl','enable','--now','shenzhen-events-collect.timer','shenzhen-events-analyze.timer')
+    run('systemctl','enable','--now','shenzhen-events-collect.timer')
+    run('systemctl','disable','--now','shenzhen-events-analyze.timer')
     retry_service()
 
 def retry_service():
