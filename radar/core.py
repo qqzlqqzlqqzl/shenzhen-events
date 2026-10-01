@@ -40,6 +40,20 @@ TOPICS.update({'社交交流':['交友','相亲','社交','桌游','英语角','
 TOPICS['软件开发'] = []  # Explicit source categories only, not broad title keywords.
 CATEGORIES = TOPICS
 DISTRICTS = ['南山','福田','宝安','龙岗','龙华','罗湖','盐田','光明','坪山','大鹏','深汕']
+FEEDBACK_SIGNALS = {
+    'interested':'感兴趣',
+    'not_interested':'不感兴趣',
+    'attended':'已参加',
+}
+FEEDBACK_TAGS = {
+    'time_conflict':'时间不合适',
+    'location_inconvenient':'地点不方便',
+    'price_issue':'价格原因',
+    'topic_like':'主题喜欢',
+    'vibe_like':'氛围喜欢',
+    'more_like_this':'以后多推',
+    'less_like_this':'以后少推',
+}
 VERSION = 'radar-v1.1'
 LONG_RUNNING_DAYS = 14
 def now(): return datetime.now(TZ)
@@ -156,7 +170,7 @@ def init():
         CREATE INDEX IF NOT EXISTS idx_events_time ON events(start_at);
         CREATE INDEX IF NOT EXISTS idx_raw_source_title ON raw_items(source_id,title);
         CREATE TABLE IF NOT EXISTS event_sources(event_id TEXT REFERENCES events(id) ON DELETE CASCADE,source_id TEXT,url TEXT,raw_id INTEGER,seen_at TEXT,PRIMARY KEY(source_id,url));
-        CREATE TABLE IF NOT EXISTS preferences(event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,favorite INTEGER DEFAULT 0,hidden INTEGER DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS preferences(event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,favorite INTEGER DEFAULT 0,hidden INTEGER DEFAULT 0,feedback TEXT NOT NULL DEFAULT '',feedback_tags TEXT NOT NULL DEFAULT '[]',feedback_updated_at TEXT);
         CREATE TABLE IF NOT EXISTS source_health(id TEXT PRIMARY KEY,name TEXT,url TEXT,status TEXT DEFAULT 'pending',message TEXT DEFAULT '',last_attempt TEXT,last_success TEXT,raw_count INTEGER DEFAULT 0,event_count INTEGER DEFAULT 0,failure_count INTEGER DEFAULT 0,next_attempt TEXT);
         CREATE TABLE IF NOT EXISTS runs(id INTEGER PRIMARY KEY,kind TEXT,started_at TEXT,finished_at TEXT,status TEXT,details TEXT);
         CREATE TABLE IF NOT EXISTS budget(day TEXT PRIMARY KEY,calls INTEGER DEFAULT 0,tokens INTEGER DEFAULT 0);
@@ -165,6 +179,10 @@ def init():
         ''')
         if 'coverage' not in {r[1] for r in c.execute('PRAGMA table_info(source_health)')}:
             c.execute("ALTER TABLE source_health ADD COLUMN coverage TEXT NOT NULL DEFAULT '{}'")
+        pref_cols={r[1] for r in c.execute('PRAGMA table_info(preferences)')}
+        if 'feedback' not in pref_cols:c.execute("ALTER TABLE preferences ADD COLUMN feedback TEXT NOT NULL DEFAULT ''")
+        if 'feedback_tags' not in pref_cols:c.execute("ALTER TABLE preferences ADD COLUMN feedback_tags TEXT NOT NULL DEFAULT '[]'")
+        if 'feedback_updated_at' not in pref_cols:c.execute("ALTER TABLE preferences ADD COLUMN feedback_updated_at TEXT")
         event_cols={r[1] for r in c.execute('PRAGMA table_info(events)')}
         if 'details' not in event_cols:c.execute("ALTER TABLE events ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")
         if 'event_type' not in event_cols:c.execute("ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'Event'")
@@ -195,6 +213,32 @@ def alias_for(e):
         if a.get('date')==day and url in {canon_url(x) for x in a.get('urls',[])}:return a
     return None
 
+def decode_feedback_tags(value):
+    try:values=json.loads(value or '[]')
+    except (ValueError,TypeError):return []
+    if not isinstance(values,list):return []
+    return list(dict.fromkeys(x for x in values if isinstance(x,str) and x in FEEDBACK_TAGS))
+
+def merge_preferences(c,winner,loser):
+    loser_pref=c.execute('SELECT * FROM preferences WHERE event_id=?',(loser,)).fetchone()
+    if not loser_pref:return
+    loser_pref=dict(loser_pref)
+    c.execute('INSERT OR IGNORE INTO preferences(event_id) VALUES(?)',(winner,))
+    winner_pref=dict(c.execute('SELECT * FROM preferences WHERE event_id=?',(winner,)).fetchone())
+    c.execute('UPDATE preferences SET favorite=MAX(favorite,?),hidden=MAX(hidden,?) WHERE event_id=?',
+              (int(loser_pref.get('favorite') or 0),int(loser_pref.get('hidden') or 0),winner))
+    loser_tags=decode_feedback_tags(loser_pref.get('feedback_tags'))
+    winner_tags=decode_feedback_tags(winner_pref.get('feedback_tags'))
+    loser_feedback=loser_pref.get('feedback') if loser_pref.get('feedback') in FEEDBACK_SIGNALS else ''
+    winner_feedback=winner_pref.get('feedback') if winner_pref.get('feedback') in FEEDBACK_SIGNALS else ''
+    loser_has=bool(loser_feedback or loser_tags)
+    winner_has=bool(winner_feedback or winner_tags)
+    loser_time=loser_pref.get('feedback_updated_at') or ''
+    winner_time=winner_pref.get('feedback_updated_at') or ''
+    if loser_has and (not winner_has or (loser_time and loser_time>winner_time)):
+        c.execute('UPDATE preferences SET feedback=?,feedback_tags=?,feedback_updated_at=? WHERE event_id=?',
+                  (loser_feedback,json.dumps(loser_tags,ensure_ascii=False),loser_pref.get('feedback_updated_at'),winner))
+
 def reconcile_aliases():
     merged=[]
     with db() as c:
@@ -210,8 +254,7 @@ def reconcile_aliases():
             preferred=canon_url(a.get('preferred_url',''));preferred_ids={x[0] for x in c.execute('SELECT event_id FROM event_sources WHERE url=?',(preferred,))} if preferred else set()
             rows.sort(key=lambda r:(r['id'] not in preferred_ids,r.get('origin_priority',50),r.get('first_seen',''),r['id']));winner=rows[0]['id']
             for loser in rows[1:]:
-                pref=c.execute('SELECT favorite,hidden FROM preferences WHERE event_id=?',(loser['id'],)).fetchone()
-                if pref:c.execute('INSERT INTO preferences(event_id,favorite,hidden) VALUES(?,?,?) ON CONFLICT(event_id) DO UPDATE SET favorite=MAX(favorite,excluded.favorite),hidden=MAX(hidden,excluded.hidden)',(winner,pref['favorite'],pref['hidden']))
+                merge_preferences(c,winner,loser['id'])
                 c.execute('UPDATE event_sources SET event_id=? WHERE event_id=?',(winner,loser['id']))
                 c.execute('UPDATE event_redirects SET target_id=? WHERE target_id=?',(winner,loser['id']))
                 c.execute('INSERT OR REPLACE INTO event_redirects(alias_id,target_id) VALUES(?,?)',(loser['id'],winner))
@@ -311,12 +354,14 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         saturday=day+timedelta(days=(5-day.weekday())%7) if day.weekday()<5 else day-timedelta(days=day.weekday()-5)
         from_dt=max(current,datetime.combine(saturday,datetime.min.time(),TZ));to_dt=datetime.combine(saturday+timedelta(days=2),datetime.min.time(),TZ)
     with db() as c:
-        rows=[dict(r) for r in c.execute('SELECT e.*,COALESCE(p.favorite,0) favorite,COALESCE(p.hidden,0) hidden FROM events e LEFT JOIN preferences p ON e.id=p.event_id ORDER BY e.start_at,e.id LIMIT 10000')];links={}
+        rows=[dict(r) for r in c.execute("SELECT e.*,COALESCE(p.favorite,0) favorite,COALESCE(p.hidden,0) hidden,COALESCE(p.feedback,'') feedback,COALESCE(p.feedback_tags,'[]') feedback_tags,p.feedback_updated_at feedback_updated_at FROM events e LEFT JOIN preferences p ON e.id=p.event_id ORDER BY e.start_at,e.id LIMIT 10000")];links={}
         for r in c.execute('SELECT es.event_id,es.url,sh.name,es.source_id FROM event_sources es JOIN source_health sh ON sh.id=es.source_id'):links.setdefault(r['event_id'],[]).append(dict(r))
     out=[]
     for e in rows:
         if event_id and e['id']!=event_id:continue
         if not include_hidden and e['hidden']:continue
+        e['feedback']=e.get('feedback') if e.get('feedback') in FEEDBACK_SIGNALS else ''
+        e['feedback_tags']=decode_feedback_tags(e.get('feedback_tags'))
         days=span_days(e);e['span_days']=round(days,1);e['long_running']=days>=LONG_RUNNING_DAYS;e['display_at']=e.get('start_at');e['period_label']=''
         if hide_long and e['long_running'] and period!='record':continue
         if period=='review':

@@ -53,7 +53,7 @@ def test_unchanged_legacy_refresh_preserves_ai_dates_location_and_favorite(monke
         c.execute("UPDATE events SET start_at=?,end_at=?,all_day=1,location=?,district='南山',status='scheduled',summary=?,reason=? WHERE id=?", (
             '2026-10-03T00:00:00+08:00', '2026-10-04T00:00:00+08:00',
             '深圳南山区社区中心', '已核实的活动资料', '已有参与理由', eid))
-        c.execute('INSERT INTO preferences VALUES(?,1,0)', (eid,))
+        c.execute('INSERT INTO preferences(event_id,favorite,hidden) VALUES(?,1,0)', (eid,))
     core.init()
     before = snapshot()
 
