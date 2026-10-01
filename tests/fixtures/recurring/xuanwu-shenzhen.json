@@ -1,0 +1,122 @@
+[
+  {
+    "url": "/articles/activity/261017-rust-teaching-seminar-shenzhen.html",
+    "frontmatter": {
+      "type": "activity",
+      "title": "欢迎参会，可申差旅资助！Rust 高校顶级师资研讨会重磅来袭！",
+      "sponsor": "开放原子开源基金会、开放原子旋武开源社区、Rust 编程语言与应用虚拟教研室、RustChinaConf Shenzhen 2026",
+      "date": "2026-10-17",
+      "createTime": "2026-09-18",
+      "startTime": "2026-10-17 9:30:00",
+      "endTime": "2026-10-17 18:30:00",
+      "location": "中国 · 深圳",
+      "lon": 114.08159,
+      "lat": 22.661939,
+      "addressName": "深圳南山伊敦酒店",
+      "address": "广东省深圳市南山区伊敦酒店海汉厅",
+      "signUpLink": "https://mp.weixin.qq.com/s/rnVI9kJict20uio2qsezWQ",
+      "reviewUrl": "",
+      "desc": "聚焦 Rust 语言与编译原理教学实践。"
+    }
+  },
+  {
+    "url": "/articles/activity/260905-rust-shenzhen-meetup-review.html",
+    "frontmatter": {
+      "type": "activity",
+      "title": "【活动回顾】Rust 赋能国产终端：开放原子旋武开源社区深圳技术沙龙",
+      "sponsor": "开放原子开源基金会、开放原子旋武开源社区、华为技术有限公司、深圳龙岗工业和信息化局（鸿蒙办）、深圳市龙岗区人才工作局、深圳市龙岗区产业投资服务集团有限公司、AtomGit",
+      "date": "2026-9-9",
+      "createTime": "2026-9-9",
+      "startTime": "2026-9-5 14:00:00",
+      "endTime": "2026-9-5 17:40:00",
+      "location": "中国 · 深圳",
+      "lon": 114.08159,
+      "lat": 22.661939,
+      "addressName": "深圳龙岗工业软件园",
+      "address": "广东省深圳市龙岗区坂田街道深圳工业软件园A座201",
+      "signUpLink": "",
+      "reviewUrl": "https://mp.weixin.qq.com/s/s7AZLRCwZ18F0m2Q4q10BQ",
+      "desc": "9 月 5 日，由开放原子旋武开源社区与华为联合主办的「Rust × 国产终端软件」技术沙龙在 深圳龙岗·工业软件园 圆满落幕。本次活动聚焦"
+    }
+  },
+  {
+    "url": "/articles/activity/260905-rust-shenzhen-meetup.html",
+    "frontmatter": {
+      "type": "activity",
+      "title": "9月5日深圳见，Rust × 国产终端软件・深圳站正式启幕！",
+      "sponsor": "开放原子开源基金会、开放原子旋武开源社区、华为技术有限公司、深圳龙岗工业和信息化局（鸿蒙办）、深圳市龙岗区人才工作局、深圳市龙岗区产业投资服务集团有限公司、AtomGit",
+      "date": "2026-09-05",
+      "createTime": "2026-09-03",
+      "startTime": "2026-09-05 14:00:00",
+      "endTime": "2026-09-05 17:30:00",
+      "location": "中国 · 深圳",
+      "lon": 114.08159,
+      "lat": 22.661939,
+      "addressName": "深圳龙岗工业软件园",
+      "address": "广东省深圳市龙岗区坂田街道深圳工业软件园A座201",
+      "signUpLink": "https://mp.weixin.qq.com/s/GoUnbuqBb514IMjG3OZOUA",
+      "reviewUrl": "",
+      "desc": "当高性能、高安全遇上 OpenHarmony、端侧 AI、海思 IoT，会碰撞出怎样的落地火花？9月5日，开放原子旋武开源社区「Rust 赋"
+    }
+  },
+  {
+    "url": "/articles/activity/250830-rust-china-tour-shenzhen.html",
+    "frontmatter": {
+      "type": "activity",
+      "title": "Rust China Tour 深圳 Meetup",
+      "sponsor": "开放原子技术沙龙、开放原子旋武开源社区、RustCC、OpenBuild、小红花、CCF SERust SIG、黄大年茶思屋、vivo",
+      "date": "2025-08-30",
+      "createTime": "2025-09-05",
+      "startTime": "2025-08-30 13:30:00",
+      "endTime": "2025-08-30 17:30:00",
+      "location": "中国 · 深圳",
+      "lon": 114.05,
+      "lat": 22.54,
+      "addressName": "深圳市南山鹏润达商业广场",
+      "address": "广东省深圳市南山区后海滨路3368号鹏润达商业广场西座11楼国际会议中心川舟厅",
+      "signUpLink": "https://3081487532077.huodongxing.com/event/4821324422700",
+      "reviewUrl": "",
+      "desc": "2025 年 8 月 30 日，由开放原子旋武开源社区携手 RustCC、OpenBuild、小红花、CCF SERust SIG 等开发者"
+    }
+  },
+  {
+    "url": "/articles/activity/250322-rust-china-tour-shenzhen.html",
+    "frontmatter": {
+      "type": "activity",
+      "title": "Rust China Tour 深圳 Meetup",
+      "sponsor": "蚂蚁集团、华为、RustCC、OpenBuild、小红花、CCF SERust SIG、黄大年茶思屋",
+      "date": "2025-03-22",
+      "createTime": "2025-03-26",
+      "startTime": "2025-03-22 13:30:00",
+      "endTime": "2025-03-22 18:00:00",
+      "location": "中国 · 深圳",
+      "lon": 114.05,
+      "lat": 22.54,
+      "addressName": "深圳市希尔顿惠庭酒店",
+      "address": "深圳市南山科技园希尔顿惠庭酒店富强厅",
+      "signUpLink": "",
+      "reviewUrl": "",
+      "desc": "开发者线下参与，线上直播。"
+    }
+  },
+  {
+    "url": "/articles/activity/240831-rust-china-tour-shenzhen.html",
+    "frontmatter": {
+      "type": "activity",
+      "title": "Rust China Tour 深圳 Meetup",
+      "sponsor": "蚂蚁集团、华为、RustCC、OpenBuild",
+      "date": "2024-08-31",
+      "createTime": "2024-09-05",
+      "startTime": "2024-08-31 13:30:00",
+      "endTime": "2024-08-31 17:30:00",
+      "location": "中国 · 深圳",
+      "lon": 113.99791,
+      "lat": 22.542165,
+      "addressName": "深圳侨香路君子广场",
+      "address": "深圳市福田区侨香路君子广场3楼修享茶家多功能室",
+      "signUpLink": "",
+      "reviewUrl": "",
+      "desc": "同时超过 1100 名观众在线上观看了直播。"
+    }
+  }
+]

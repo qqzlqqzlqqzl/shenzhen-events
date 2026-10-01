@@ -223,5 +223,53 @@
     "max_seconds": 180,
     "coverage_mode": "page_inventory",
     "allow_online": true
+  },
+  {
+    "id": "elecfans_webinar",
+    "name": "电子发烧友 · 持续线上研讨会",
+    "kind": "elecfans_webinar",
+    "url": "https://webinar.elecfans.com/webinar/forthcoming.html",
+    "priority": 20,
+    "interval_hours": 12,
+    "max_pages": 3,
+    "max_entries": 100,
+    "max_seconds": 70,
+    "request_delay": 1,
+    "detail_budget": 8,
+    "allow_online": true,
+    "coverage_mode": "page_inventory",
+    "enrich_dated": false
+  },
+  {
+    "id": "xuanwu_activity",
+    "name": "开放原子旋武社区 · 活动目录",
+    "kind": "xuanwu_activity",
+    "url": "https://xuanwu.openatom.org/activity/",
+    "priority": 15,
+    "interval_hours": 12,
+    "max_pages": 1,
+    "max_entries": 300,
+    "max_seconds": 55,
+    "request_delay": 1,
+    "detail_budget": 4,
+    "scope": "national",
+    "coverage_mode": "page_inventory",
+    "enrich_dated": true
+  },
+  {
+    "id": "shenzhenware_events",
+    "name": "深圳湾 · 持续硬件创业活动",
+    "kind": "shenzhenware_events",
+    "url": "https://www.shenzhenware.com/events",
+    "priority": 20,
+    "interval_hours": 12,
+    "max_pages": 5,
+    "max_entries": 100,
+    "max_seconds": 100,
+    "request_delay": 1,
+    "detail_budget": 8,
+    "scope": "national",
+    "coverage_mode": "page_inventory",
+    "enrich_dated": true
   }
 ]
