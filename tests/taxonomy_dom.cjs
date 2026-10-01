@@ -31,7 +31,7 @@ async function check(w,kind,value){const input=[...w.document.querySelectorAll('
 
 test('legacy tag and repeated topic URLs retain the culture selection',async()=>{
  for(const key of ['tag','topic']){const r=await ready('?view=all&'+new URLSearchParams({[key]:'展览文化'}));try{
-  assert.equal(r.w.document.querySelector('#topic-summary').textContent,'已选 1');assert.deepEqual(titles(r.w),['museum']);
+  assert.equal(r.w.document.querySelector('#topic-summary').textContent,'已选 1 个主题');assert.deepEqual(titles(r.w),['museum']);
   assert.deepEqual([...r.w.__test.urlParams().getAll('topic')],['文化艺术']);
   r.w.__test.readURL();await r.w.__test.applyFilters();await settle(r.w);assert.deepEqual(titles(r.w),['museum']);assert.deepEqual(r.errors,[]);
  }finally{r.close();}}
@@ -63,10 +63,10 @@ test('inverting an exclusion and history restore checkbox state',async()=>{
 
 test('zero-count generic filters survive favorites/past deep links and refresh',async()=>{
  for(const view of ['favorites','past']){const r=await ready('?view='+view+'&type=Event&topic='+encodeURIComponent('其他'),0);try{const {w}=r;
-  assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1');assert.equal(w.document.querySelector('#topic-summary').textContent,'已选 1');
+  assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1 类');assert.equal(w.document.querySelector('#topic-summary').textContent,'已选 1 个主题');
   assert.deepEqual(r.requests.at(-1).searchParams.getAll('type'),['Event']);assert.deepEqual(r.requests.at(-1).searchParams.getAll('topic'),['其他']);
   w.document.querySelector('#refresh-data').click();await settle(w);
-  assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1');assert.equal(w.document.querySelector('#topic-summary').textContent,'已选 1');
+  assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1 类');assert.equal(w.document.querySelector('#topic-summary').textContent,'已选 1 个主题');
   assert.deepEqual(r.requests.at(-1).searchParams.getAll('type'),['Event']);assert.deepEqual(r.requests.at(-1).searchParams.getAll('topic'),['其他']);
   w.__test.readURL();await w.__test.applyFilters();await settle(w);
   assert.equal(new URL(w.location.href).searchParams.get('type'),'Event');assert.equal(new URL(w.location.href).searchParams.get('topic'),'其他');assert.deepEqual(r.errors,[]);
@@ -78,7 +78,7 @@ test('all to none inverse means zero results, persists URL and refresh',async()=
 });
 
 test('normal signed-in flow prioritizes activities and shows only concise filter chips',async()=>{
- const r=await ready('?view=all&type=MusicEvent');try{const {w}=r;assert.equal(w.document.querySelector('.hero').hidden,true);assert.equal(w.document.querySelector('#manage-sources').hidden,false);assert.equal(w.document.querySelectorAll('.tabs [data-view="status"]').length,0);assert.equal(w.document.querySelectorAll('.filter-chip').length,1);assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1');assert.ok(!w.document.querySelector('#event-list').textContent.includes('费用未注明'));assert.deepEqual(r.errors,[])}finally{r.close()}
+ const r=await ready('?view=all&type=MusicEvent');try{const {w}=r;assert.equal(w.document.querySelector('.hero').hidden,true);assert.equal(w.document.querySelector('#manage-sources').hidden,false);assert.equal(w.document.querySelectorAll('.tabs [data-view="status"]').length,0);assert.equal(w.document.querySelectorAll('.filter-chip').length,1);assert.equal(w.document.querySelector('#type-summary').textContent,'已选 1 类');assert.ok(!w.document.querySelector('#event-list').textContent.includes('费用未注明'));assert.deepEqual(r.errors,[])}finally{r.close()}
 });
 
 test('price placeholders are hidden and detail evidence is escaped',async()=>{
@@ -109,3 +109,4 @@ test('invalid or unavailable local storage does not break browsing',async()=>{
 test('online mode hides physical district without losing the offline preference',async()=>{
  const r=await ready('?view=all&attendance=online&district='+encodeURIComponent('南山'));try{assert.equal(r.w.document.querySelector('#district-filter').hidden,true);assert.ok(!r.requests.at(-1).searchParams.has('district'));assert.ok(!r.requests.at(-1).searchParams.has('districts'));assert.ok(!r.requests.at(-1).searchParams.has('district_none'));r.w.document.querySelector('#attendance').value='all';r.w.document.querySelector('#attendance').dispatchEvent(new r.w.Event('change',{bubbles:true}));await settle(r.w);assert.equal(r.w.document.querySelector('#district-filter').hidden,false);assert.deepEqual(r.requests.at(-1).searchParams.getAll('districts'),['南山']);assert.equal(r.w.document.querySelector('#district-options input[value="南山"]').checked,true);assert.deepEqual(r.errors,[])}finally{r.close()}
 });
+

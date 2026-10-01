@@ -118,8 +118,9 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
     if period=='saved':favorites=True
     if period=='feedback' and not feedback:feedback='any'
     if period=='history':viewed='seen'
-    rows=[] if type_none or topic_none or district_none else events(query=q,period=period,district=district,districts=districts,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics,attendance=attendance,feedback=feedback,feedback_tag=feedback_tag,viewed=viewed)
-    return {'items':rows[offset:offset+limit],'total':len(rows),'offset':offset,'has_more':len(rows)>offset+limit}
+    from .filtering import contextual_listing
+    candidates=events(query=q,period=period,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=False,sort=sort,attendance=attendance,feedback=feedback,feedback_tag=feedback_tag,viewed=viewed)
+    return contextual_listing(candidates,event_types=event_types,topics=topics,tag=tag,district=district,districts=districts,type_none=type_none,topic_none=topic_none,district_none=district_none,hide_long=hide_long and period not in ('saved','feedback','history'),offset=offset,limit=limit)
 @app.get('/events/api/calendar-summary')
 def calendar_summary(request:Request):
     require(request)
@@ -206,4 +207,5 @@ def redirect():return RedirectResponse('/events/',status_code=308)
 @app.get('/events/')
 def index():return FileResponse(ROOT/'static/index.html')
 app.mount('/events/static',StaticFiles(directory=ROOT/'static'),name='static')
+
 

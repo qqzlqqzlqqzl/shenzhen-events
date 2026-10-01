@@ -54,7 +54,7 @@ try:
     h.check('district_mobile_draft_no_request',not calls)
     p.locator('#cancel-filter-draft').click()
     expect(p.locator('.event-card')).to_have_count(2)
-    expect(p.locator('#district-summary')).to_have_text('已选 2')
+    expect(p.locator('#district-summary')).to_have_text('已选 2 区')
     h.check('district_mobile_cancel_restores',not calls)
     p.locator('#open-filters').click()
     if not p.locator('#district-filter').evaluate('(el)=>el.open'):p.locator('#district-filter summary').click()
@@ -68,3 +68,4 @@ try:
     p.screenshot(path=str(h.out/'mobile-district.png'),full_page=True)
 except Exception as exc:h.report['errors'].append(str(exc));raise
 finally:h.close()
+
