@@ -1,6 +1,6 @@
 /* Readable source coverage and persistent one-source retry controls. */
 'use strict';
-let statusPoll=null,sourceSearch='',sourceState='all',statusData=null;
+let statusPoll=null,sourceSearch='',sourceState='all',statusData=null,statusSampledAt=null;
 const modes={city_pages:'城市分页列表',page_inventory:'指定汇总页',single_page:'指定公开页面',search_index:'搜索索引（非全量）',discovery_only:'发现入口（非全量）',fallback_only:'兜底订阅（非全量）'};
 const number=v=>Number.isFinite(Number(v))&&v!==null?Number(v).toLocaleString():'—';
 function coverageCard(s){
@@ -27,9 +27,12 @@ async function loadStatus(background=false){
  clearTimeout(statusPoll);if(background&&document.hidden)return;const epoch=authEpoch,ticket=++statusTicket;$('#status-panel').setAttribute('aria-busy','true');
  try{
   const s=await api('status');if(!authenticated||epoch!==authEpoch||ticket!==statusTicket||view!=='status')return;
-  const focused=document.activeElement?.dataset.retrySource,focusedId=document.activeElement?.id,selection=document.activeElement?.selectionStart;
+  const activeElement=document.activeElement,focusedId=activeElement?.id;
+  const focusedSource=activeElement?.closest('[data-source]')?.dataset.source;
+  const focusedKind=activeElement?.matches('.source-inspection summary')?'summary':activeElement?.matches('[data-retry-source]')?'retry':activeElement?.matches('.source-card a')?'link':null;
+  const selection=activeElement?.id==='source-search'?[activeElement.selectionStart,activeElement.selectionEnd,activeElement.selectionDirection]:null;
   const expanded=new Set($$('.source-inspection[open]').map(x=>x.closest('[data-source]').dataset.source));
-  statusData=s;
+  statusData=s;statusSampledAt=new Date().toISOString();
   const budgetOpen=$('.analysis-budget details')?.open;
   const active=s.sources.filter(x=>x.retry&&['queued','running'].includes(x.retry.state));
   $('#status-panel').innerHTML=`<p class="status-intro">下面区分“源页看到多少”“实际解析多少”和“本站纳入多少”。读取完成只代表这一轮已检查的范围，不代表覆盖全网。刷新状态只更新看板；重新检查按钮才会检查对应来源。</p>
@@ -44,12 +47,18 @@ async function loadStatus(background=false){
   if(budgetOpen&&$('.analysis-budget details'))$('.analysis-budget details').open=true;
   $('#refresh-status').onclick=()=>{loadStatus();stats()};$('#source-state').value=sourceState;$('#source-search').oninput=e=>{sourceSearch=e.target.value;filterSources()};$('#source-state').onchange=e=>{sourceState=e.target.value;filterSources()};$('#reset-source-search').onclick=()=>{sourceSearch='';sourceState='all';$('#source-search').value='';$('#source-state').value='all';filterSources()};filterSources();
   for(const id of expanded){const card=$$('[data-source]').find(x=>x.dataset.source===id);if(card?.querySelector('.source-inspection'))card.querySelector('.source-inspection').open=true}
-  if(focusedId&&['source-search','source-state'].includes(focusedId)){const el=$('#'+focusedId);el.focus({preventScroll:true});if(focusedId==='source-search'&&selection!==null)el.setSelectionRange(selection,selection)}
-  if(focused)$$('[data-retry-source]').find(b=>b.dataset.retrySource===focused)?.focus({preventScroll:true});
+  const focusedControl=focusedId?document.getElementById(focusedId):null;
+  if(focusedControl&&$('#status-panel').contains(focusedControl)){
+    focusedControl.focus({preventScroll:true});
+    if(focusedId==='source-search'&&selection)focusedControl.setSelectionRange(...selection);
+  }else if(focusedSource&&focusedKind){
+    const sourceCard=$$('#status-panel [data-source]').find(x=>x.dataset.source===focusedSource);
+    sourceCard?.querySelector({summary:'.source-inspection summary',retry:'[data-retry-source]',link:'a'}[focusedKind])?.focus({preventScroll:true});
+  }
   if(active.length)statusPoll=setTimeout(()=>{if(authenticated&&view==='status'&&!document.hidden)loadStatus(true)},3000);
  }catch(e){
   if(e.name==='AbortError'||!authenticated||epoch!==authEpoch||ticket!==statusTicket||view!=='status')return;
-  if(background||$('#status-panel .source-card')){if($('#source-snapshot'))$('#source-snapshot').textContent='刷新失败，保留上次看板快照；可再次刷新。';toast(e.message);statusPoll=setTimeout(()=>{if(authenticated&&view==='status'&&!document.hidden)loadStatus(true)},8000)}
+  if(statusData){if($('#source-snapshot'))$('#source-snapshot').textContent=`刷新失败，保留上次看板快照（${timeText(statusSampledAt)}）；可再次刷新。`;toast(e.message);statusPoll=setTimeout(()=>{if(authenticated&&view==='status'&&!document.hidden)loadStatus(true)},8000)}
   else $('#status-panel').innerHTML=`<div class="notice">${esc(e.message)} <button data-action="retry-status" class="secondary">重试</button></div>`;
  }finally{if(ticket===statusTicket)$('#status-panel').setAttribute('aria-busy','false')}
 }
@@ -61,4 +70,4 @@ function filterSources(){if(!statusData||!$('#source-match-count'))return;const 
  $('#source-match-count').textContent=`匹配 ${matches} / ${statusData.sources.length} 个来源`;$('#source-empty').hidden=matches>0;
 }
 function initStatusRecovery(){document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(statusPoll);else if(authenticated&&view==='status')loadStatus(true)})}
-function resetStatusRecovery(){clearTimeout(statusPoll);sourceSearch='';sourceState='all';statusData=null}
+function resetStatusRecovery(){clearTimeout(statusPoll);sourceSearch='';sourceState='all';statusData=null;statusSampledAt=null}
