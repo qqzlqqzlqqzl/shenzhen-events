@@ -56,11 +56,13 @@ async function api(path,options={}) {
   finally {clearTimeout(timer);inflight.delete(c);options.signal?.removeEventListener('abort',abort)}
 }
 function showLogin(message='') {
-  resetStatusRecovery();personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
+  // Invalidate session callbacks before closing dialogs or restoring any focus.
+  authenticated=false;authEpoch++;
+  resetStatusRecovery();personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
-  $('.hero').hidden=false;$('#manage-sources').hidden=true;$('#workspace').hidden=true;$('#login-panel').hidden=false;$('#logout').hidden=true;$('#toast').hidden=true;
+  $('.hero').hidden=false;$('#manage-sources').hidden=true;$('#workspace').hidden=true;$('#login-panel').hidden=false;$('#logout').hidden=true;clearTimeout(toast.t);$('#toast').hidden=true;$('#toast').textContent='';
   $('#login-error').textContent=message;$('#password').value='';$('#username').focus();
 }
 async function stats() {
@@ -370,7 +372,7 @@ $('#undo-feedback').onclick=()=>{const u=undoFeedback;if(!u||Date.now()>u.expire
 
 function beginFilterDraft(){if(!authenticated||filterDraft)return;clearTimeout(debounce);filterDraft=$$('#filter-panel input,#filter-panel select,#calendar-saved-only').map(el=>({el,value:el.value,checked:el.checked}));filterDraft.dateLoadError=dateLoadError;syncFilterControls();$('#filter-draft-body').append($('#filter-panel'));$('#filter-dialog').showModal();$('#cancel-filter-draft').focus()}
 function finishFilterDraft(apply){if(!filterDraft)return;clearTimeout(debounce);if(apply){if(!validateDateInputs())return}else{for(const s of filterDraft){s.el.value=s.value;if(s.checked!==undefined)s.el.checked=s.checked}dateLoadError=filterDraft.dateLoadError}
-  filterDraft=null;$('#filter-dialog').close();$('#filter-home').after($('#filter-panel'));updateFacetSummary('type');updateFacetSummary('topic');updateFacetSummary('district');$('#open-filters').focus();syncFilterControls();if(apply)applyFilters();else{$('#date-error').textContent=dateLoadError;renderActiveFilters();}}
+  filterDraft=null;$('#filter-dialog').close();$('#filter-home').after($('#filter-panel'));updateFacetSummary('type');updateFacetSummary('topic');updateFacetSummary('district');if(authenticated)$('#open-filters').focus();syncFilterControls();if(apply)applyFilters();else{$('#date-error').textContent=dateLoadError;renderActiveFilters();}}
 $('#open-filters').onclick=beginFilterDraft;$('#cancel-filter-draft').onclick=()=>finishFilterDraft(false);$('#apply-filter-draft').onclick=()=>finishFilterDraft(true);$('#reset-filter-draft').onclick=()=>clearFilters();$('#filter-dialog').addEventListener('cancel',e=>{e.preventDefault();finishFilterDraft(false)});
 $('#apply-dates').onclick=()=>applyFilters();$('#clear-dates').onclick=()=>{$('#date-from').value='';$('#date-until').value='';dateLoadError='';applyFilters()};RadarPlanner.init();
 
