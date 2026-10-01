@@ -112,3 +112,51 @@ test('closing a deep-linked detail removes only the event even when legacy dates
  const r=await ready('?view=all&from=garbage&until=garbage&event=0');try{assert.equal(r.$('#detail').open,true);r.w.probe.closeDetail();await wait();const p=new URL(r.w.location.href).searchParams;assert.equal(p.has('event'),false);assert.equal(p.get('from'),'garbage');assert.equal(p.get('until'),'garbage');assert.equal(saved(r),null);assert.equal(r.$('#detail').open,false);r.w.probe.restoreNavigation();await wait();assert.equal(r.$('#detail').open,false);assert.equal(r.calls.length,0);assert.ok(r.$('#date-error').textContent);
  }finally{r.close()}
 });
+
+
+test('blocked invalid-date edit cannot persist non-date controls via detail',async()=>{
+ const r=await ready('?view=all&'+applied);try{const oldSaved=saved(r),n=r.calls.length;
+ r.$('#date-until').value='';r.change('#attendance','online');await wait();
+ assert.equal(r.calls.length,n);assert.equal(saved(r),oldSaved);assert.ok(r.$('#date-error').textContent);
+ await r.w.probe.openDetail('0');assert.equal(saved(r),oldSaved);assert.equal(new URL(r.w.location.href).searchParams.has('attendance'),false);
+ }finally{r.close()}
+});
+test('blocked invalid-date edit cannot alter refresh query',async()=>{
+ const r=await ready('?view=all&'+applied);try{const oldQuery=r.calls.at(-1).toString();
+ r.$('#date-until').value='';r.change('#attendance','online');await wait();await r.w.probe.load();
+ assert.equal(r.calls.at(-1).toString(),oldQuery);
+ }finally{r.close()}
+});
+test('cancelling a fast mobile search draft must make zero listing requests',async()=>{
+ const r=await ready('?view=all&'+applied);try{const n=r.calls.length;
+ r.$('#open-filters').click();r.$('#search').value='pending';r.$('#search').dispatchEvent(new r.w.Event('input',{bubbles:true}));r.$('#cancel-filter-draft').click();
+ await new Promise(res=>setTimeout(res,350));assert.equal(r.calls.length,n);
+ }finally{r.close()}
+});
+test('cancelling mobile search draft cannot commit preexisting pending dates',async()=>{
+ const r=await ready('?view=all');try{const oldSaved=saved(r),oldURL=r.w.location.href;
+ r.$('#date-from').value='2026-10-01';r.$('#date-until').value='2026-10-31';
+ r.$('#open-filters').click();r.$('#search').value='pending';r.$('#search').dispatchEvent(new r.w.Event('input',{bubbles:true}));r.$('#cancel-filter-draft').click();
+ await new Promise(res=>setTimeout(res,350));assert.equal(r.w.location.href,oldURL);assert.equal(saved(r),oldSaved);
+ }finally{r.close()}
+});
+
+
+test('all non-date controls remain a draft after validation fails; result summaries and recovery stay applied',async()=>{
+ const r=await ready('?view=all&'+applied);try{const oldSaved=saved(r),oldQuery=r.calls.at(-1).toString(),oldSummary=r.$('#active-filters').textContent;
+  r.$('#date-until').value='';r.change('#attendance','online');r.change('#search','pending text');r.change('#sort','desc');r.$('#free').checked=true;r.$('#free').dispatchEvent(new r.w.Event('change',{bubbles:true}));r.$('[data-facet-kind="type"][data-facet-action="none"]').click();
+  await r.w.probe.openDetail('0');assert.equal(saved(r),oldSaved);await r.w.probe.load();assert.equal(r.calls.at(-1).toString(),oldQuery);assert.equal(r.$('#active-filters').textContent,oldSummary);assert.equal(r.$('#attendance').value,'online');assert.equal(r.$('#search').value,'pending text');
+  r.$('#date-until').value='2026-10-31';const n=r.calls.length;r.$('#apply-dates').click();await wait();assert.equal(r.calls.length,n+1);const p=r.calls.at(-1);assert.equal(p.get('attendance'),'online');assert.equal(p.get('q'),'pending text');assert.equal(p.get('sort'),'desc');assert.equal(p.get('free'),'true');assert.equal(p.get('type_none'),'true');assert.ok(r.$('#active-filters').textContent.includes('pending text'));
+ }finally{r.close()}
+});
+
+test('draft search and IME cancel never query; applying a draft queries exactly once after debounce time',async()=>{
+ for(const action of ['cancel','apply']){const r=await ready('?view=all&'+applied);try{const n=r.calls.length,oldURL=r.w.location.href;r.$('#open-filters').click();r.$('#search').dispatchEvent(new r.w.Event('compositionstart',{bubbles:true}));r.$('#search').value='中文';r.$('#search').dispatchEvent(new r.w.Event('input',{bubbles:true}));r.$('#search').dispatchEvent(new r.w.Event('compositionend',{bubbles:true}));r.$('#'+action+'-filter-draft').click();await new Promise(resolve=>setTimeout(resolve,350));assert.equal(r.calls.length,n+(action==='apply'?1:0));if(action==='cancel'){assert.equal(r.w.location.href,oldURL);assert.equal(r.$('#search').value,'')}else assert.equal(r.calls.at(-1).get('q'),'中文');
+ }finally{r.close()}}
+});
+
+test('unsupported Gregorian and exclusive-end years fail before persistence and require explicit correction',async()=>{
+ for(const dates of ['from=0000-01-01&until=0000-01-02','from=9999-12-30&until=9999-12-31']){const raw=JSON.stringify({version:1,query:dates}),r=await ready('',raw);try{assert.equal(r.calls.length,0);assert.equal(saved(r),raw);assert.ok(r.$('#date-error').textContent);r.change('#attendance','online');assert.equal(saved(r),raw);assert.equal(r.calls.length,0);r.$('#clear-dates').click();await wait();assert.equal(r.calls.length,1);assert.equal(r.calls.at(-1).get('attendance'),'online');assert.equal(r.calls.at(-1).has('start'),false);
+ }finally{r.close()}}
+ const r=await ready('?view=all&from=9999-12-30&until=9999-12-30');try{assert.equal(r.calls.at(-1).get('start'),'9999-12-30');assert.equal(r.calls.at(-1).get('end'),'9999-12-31')}finally{r.close()}
+});

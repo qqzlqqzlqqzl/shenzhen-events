@@ -25,15 +25,20 @@ def run(h):
     expect(p.locator('#view-title')).to_have_text('全部活动')
     assert p.url == original_url and len(requests) == count
     assert p.evaluate('(key)=>localStorage.getItem(key)', key) == original_saved
+    p.locator('#attendance').select_option('online')
+    assert len(requests) == count and p.url == original_url
     p.locator('.title-button').press('Enter')
     expect(p.locator('#detail')).to_be_visible()
     assert parse_qs(urlparse(p.url).query)['until'] == [until]
+    assert 'attendance' not in parse_qs(urlparse(p.url).query)
+    assert p.evaluate('(key)=>localStorage.getItem(key)', key) == original_saved
     p.locator('#close-detail').click()
     expect(p.locator('#detail')).to_be_hidden()
     assert len(requests) == count
     p.locator('#refresh-data').click()
     expect(p.locator('#event-list')).to_have_attribute('aria-busy', 'false')
     assert requests[-1]['start'] == [start]
+    assert 'attendance' not in requests[-1]
     h.check('F77_invalid_navigation_and_detail_keep_applied_date_pair')
 
     # Real DOM input normalization cannot turn an invalid stored pair into an unrestricted query.
@@ -88,6 +93,12 @@ def run(h):
     p.set_viewport_size({'width': 390, 'height': 844})
     count, original_url = len(requests), p.url
     p.locator('#open-filters').click()
+    p.locator('#search').fill('取消尾请求')
+    p.locator('#cancel-filter-draft').click()
+    p.wait_for_timeout(350)
+    assert len(requests) == count and p.url == original_url
+    h.check('F77_fast_search_cancel_has_no_delayed_query')
+    p.locator('#open-filters').click()
     p.locator('#attendance').select_option('offline')
     expect(p.locator('#district-filter')).to_be_visible()
     p.locator('#district-filter summary').click()
@@ -113,6 +124,7 @@ def run(h):
     p.locator('#apply-filter-draft').click()
     expect(p.locator('#filter-dialog')).to_be_hidden()
     expect(p.locator('#event-list')).to_have_attribute('aria-busy', 'false')
+    p.wait_for_timeout(350)
     assert len(requests) == count + 1
     assert requests[-1]['attendance'] == ['offline'] and requests[-1]['districts'] == ['福田']
     assert p.evaluate('document.documentElement.scrollWidth<=innerWidth')
@@ -131,3 +143,11 @@ def run(h):
     expect(p.locator('#calendar')).to_have_attribute('aria-busy', 'false')
     assert requests[-1]['period'] == ['calendar'] and requests[-1]['favorites'] == ['true']
     h.check('F77_calendar_uses_month_and_cancel_preserves_saved_only')
+
+    for invalid in ['from=0000-01-01&until=0000-01-02', 'from=9999-12-30&until=9999-12-31']:
+        count = len(requests)
+        h.goto('?view=all&' + invalid)
+        expect(p.locator('#notice')).to_contain_text('日期')
+        expect(p.locator('#event-list')).to_have_attribute('aria-busy', 'false')
+        assert len(requests) == count
+    h.check('F77_unsupported_years_fail_before_query')
