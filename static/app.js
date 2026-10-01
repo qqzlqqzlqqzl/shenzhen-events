@@ -237,10 +237,16 @@ function syncPersonalSnapshots(id,result){
   }
 }
 function syncPersonal(id,result){const current=records.get(id);if(current)Object.assign(current,result);syncPersonalSnapshots(id,result);paintFeedback(id);paintFavorite(id)}
+function positionFeedbackUndo(){
+  const bar=$('#undo-bar'),dialog=$('#detail'),inside=dialog.open;
+  const host=inside?dialog:document.body;
+  if(bar.parentElement!==host)host.appendChild(bar);
+  bar.classList.toggle('in-detail',inside);
+}
 async function updateFeedback(id,patch,message,undo=false){const e=records.get(id);if(!e||feedbackSaving.has(id)||saving.has(id)||!authenticated)return;
   const before={feedback:e.feedback||'',feedback_tags:[...(e.feedback_tags||[])]},epoch=authEpoch;feedbackSaving.add(id);paintFeedback(id);paintFavorite(id);
   try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({...patch,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
-    syncPersonal(id,result);toast(message);undoFeedback=undo?null:{id,before,revision:result.revision,expires:Date.now()+30000};$('#undo-bar').hidden=!undoFeedback;
+    syncPersonal(id,result);toast(message);undoFeedback=undo?null:{id,before,revision:result.revision,expires:Date.now()+30000};$('#undo-bar').hidden=!undoFeedback;positionFeedbackUndo();
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}
   finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch){paintFeedback(id);paintFavorite(id)}}
 }
@@ -257,11 +263,11 @@ async function openDetail(id,push=true){
   if(!authenticated)return;if(push||!detailId)RadarEventWorkflows.beginDetail(id);const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
   try{const e=records.get(id)||await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
     records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
-    if(!$('#detail').open)$('#detail').showModal();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
+    if(!$('#detail').open)$('#detail').showModal();positionFeedbackUndo();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch){toast(e.message);writeURL('replace');detailId=null}}
 }
 function closeDetail(updateHistory=true){
-  detailTicket++;const had=detailId;detailId=null;if($('#detail').open)$('#detail').close();document.body.classList.remove('modal-open');
+  detailTicket++;const had=detailId;detailId=null;if($('#detail').open)$('#detail').close();positionFeedbackUndo();document.body.classList.remove('modal-open');
   if(updateHistory&&had){if(history.state?.radarModal)history.back();else writeURL('replace')}
   if(authenticated&&opener?.isConnected)opener.focus({preventScroll:true});if(authenticated)RadarEventWorkflows.restoreFocus();opener=null;
 }
