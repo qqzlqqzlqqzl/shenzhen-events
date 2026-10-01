@@ -84,6 +84,7 @@ check('selected_chip_removal_and_back_restore',removable_chip_and_history)
 
 def mobile_checkbox_filter():
     page.set_viewport_size({'width':390,'height':844});ready()
+    page.locator('#open-filters').click();expect(page.locator('#filter-dialog')).to_be_visible()
     page.locator('#type-filter > summary').focus();page.keyboard.press('Enter');page.locator('#type-options').wait_for(state='visible')
     box=page.locator('#type-filter .filter-popover').bounding_box();ok(box and box['x']>=0 and box['x']+box['width']<=390,box)
     ok(page.get_by_label('喜剧 / 脱口秀').is_visible());ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
