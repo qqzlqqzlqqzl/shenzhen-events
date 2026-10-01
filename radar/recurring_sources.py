@@ -103,7 +103,21 @@ def _local_clock(value):
 
 
 def _mode(text, location):
-    live = bool(re.search(r'线上直播|在线(?:上)?观看.{0,12}直播|(?:同步|同时).{0,12}直播', text))
+    positive = r'线上直播|在线(?:上)?观看.{0,12}直播|(?:同步|同时).{0,12}直播'
+    negative_prefix = (r'(?:不(?:会|再|能)?(?:提供|支持|安排|设置|设|开设|进行|开放|举办|采用|开展|计划|打算|做|是|为)'
+                       r'|未(?:提供|安排|设置|开设|开放|开播)|无(?!需|须)|没有|并非|而非|取消|停止|暂停|禁止)'
+                       r'.{0,12}$|(?:不(?:会|再|能)?|未)$')
+    negative_suffix = (r'^\s*[：:]?\s*(?:已经|已|将|暂时|暂)?(?:取消|暂停|停止|关闭|不存在|'
+                       r'不(?:会)?(?:开放|提供|进行|安排|举办|开展|开播)|未(?:开播|开放))')
+    live = False
+    # Negation applies within its clause. A later positive clause such as
+    # “上次没有直播，但本次会同步直播” still supplies positive evidence.
+    for clause in re.split(r'[。！？；;，,\n]|但是?|不过|然而|而是', str(text or '')):
+        for match in re.finditer(positive, clause):
+            if (re.search(negative_prefix, clause[max(0, match.start()-32):match.start()])
+                    or re.search(negative_suffix, clause[match.end():])):
+                continue
+            live = True
     return 'hybrid' if location and live else 'offline' if location else 'unknown'
 
 

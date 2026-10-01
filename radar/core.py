@@ -290,7 +290,17 @@ def is_duplicate(a,b):
         # this heuristic, and existing same-source URL links bypass it.
         if 'online' in (am,bm):return False
         if {am,bm}=={'hybrid','offline'}:
-            same_venue=(la==lb and len(la)>5 and la not in ('广东省深圳市',)
+            region_names=r'(?:中华人民共和国|中国|广东(?:省)?|深圳(?:市)?|(?:'+ '|'.join(map(re.escape,DISTRICTS))+r')(?:新区|区)?)+'
+            remainder=re.sub('^'+region_names,'',la)
+            # Remove administrative components, not a named campus/venue.
+            # An iterative prefix scan avoids an ambiguous repeated regex over
+            # source-controlled address text.
+            if not (len(remainder)>2 and remainder.endswith(('校区','园区'))):
+                while remainder:
+                    part=re.match(r'[\u3400-\u9fff]{1,12}?(?:自治区|自治州|特别行政区|街道|新区|省|市|区|县|镇|乡|村)',remainder)
+                    if not part:break
+                    remainder=remainder[part.end():]
+            same_venue=(la==lb and len(la)>5 and bool(remainder)
                         and not re.search(r'待确认|待定|通知|未知',clean(a.get('location'))))
             same_organizer=bool(norm(a.get('organizer','')) and norm(a.get('organizer',''))==norm(b.get('organizer','')))
             same_clock=(not a.get('all_day') and not b.get('all_day') and a['start_at']==b['start_at'])
@@ -365,12 +375,13 @@ def ingest(source,e,body=None):
 
 def span_days(e):
     if not e.get('start_at') or not e.get('end_at'):return 0.0
-    try:return max(0.0,(datetime.fromisoformat(e['end_at'])-datetime.fromisoformat(e['start_at'])).total_seconds()/86400)
+    try:return max(0.0,(_query_datetime(e['end_at'])-_query_datetime(e['start_at'])).total_seconds()/86400)
     except ValueError:return 0.0
 
 
 def period_bounds(period, current):
     """An exclusive upper boundary, in the existing Shanghai period semantics."""
+    current=_query_datetime(current)
     day=current.date();begin=current;finish=None
     if period=='week':
         finish=datetime.combine(day+timedelta(days=7-day.weekday()),datetime.min.time(),TZ)
@@ -382,7 +393,7 @@ def period_bounds(period, current):
 
 
 def _query_datetime(value):
-    result=datetime.fromisoformat(value)
+    result=value if isinstance(value,datetime) else datetime.fromisoformat(value)
     return result.replace(tzinfo=TZ) if result.tzinfo is None else result.astimezone(TZ)
 
 
@@ -394,7 +405,7 @@ def all_day_end(e):
         try:
             end=_query_datetime(value)
             if end>start and end.date()>start.date():
-                return iso(end)
+                return end.isoformat()
         except ValueError:
             pass
     return iso(datetime.combine(start.date()+timedelta(days=1),datetime.min.time(),TZ))
@@ -402,7 +413,7 @@ def all_day_end(e):
 
 def upcoming_end(e):
     # Timed unknown ends retain the established three-hour upcoming window.
-    return all_day_end(e) if e['all_day'] else e.get('end_at') or iso(datetime.fromisoformat(e['start_at'])+timedelta(hours=3))
+    return all_day_end(e) if e['all_day'] else e.get('end_at') or (_query_datetime(e['start_at'])+timedelta(hours=3)).isoformat()
 
 
 def overlaps_range(e, range_start=None, range_end=None):
@@ -426,7 +437,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     aliases=dedupe_aliases()
     topics_filter=[canonical_topic(x) for x in topics_filter or []]
     if tag:topics_filter.append(canonical_topic(tag))
-    current=now();from_dt,to_dt=period_bounds(period,current)
+    current=_query_datetime(now());from_dt,to_dt=period_bounds(period,current)
     range_start=_query_datetime(range_start).isoformat() if range_start else None
     range_end=_query_datetime(range_end).isoformat() if range_end else None
     if sort not in ('asc','desc'):raise ValueError('invalid sort')
@@ -449,25 +460,31 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     elif district:add('e.district=?',district)
     if event_types:
         add("COALESCE(e.event_type_state,'')<>'pending' AND COALESCE(NULLIF(e.event_type,''),'Event') IN ("+','.join('?' for _ in event_types)+')',*event_types)
+    # Only the canonical Shanghai representation is safe for text comparisons.
+    # Every other valid legacy representation reaches the datetime predicates.
+    canonical_time="????-??-??T??:??:??+08:00"
+    legacy_start=f"e.start_at NOT GLOB '{canonical_time}'"
+    legacy_end=f"(COALESCE(e.end_at,'')<>'' AND e.end_at NOT GLOB '{canonical_time}')"
+    legacy_time=f"({legacy_start} OR {legacy_end})"
     if period=='review':
         add("e.status='needs_review'")
     elif period in ('calendar','range'):
         add("e.start_at IS NOT NULL AND e.start_at<>'' AND e.status='scheduled'")
     elif period=='past':
         add("e.start_at IS NOT NULL AND e.start_at<>''")
-        add('(e.start_at<=? OR e.end_at<=?)',current.isoformat(),current.isoformat())
+        add(f'(e.start_at<=? OR e.end_at<=? OR {legacy_time})',current.isoformat(),current.isoformat())
     elif period not in ('saved','record','feedback','history'):
         add("e.start_at IS NOT NULL AND e.start_at<>'' AND COALESCE(e.status,'') NOT IN ('cancelled','needs_review','not_event')")
-        add("(e.end_at>? OR e.start_at>? OR (COALESCE(e.all_day,0)<>0 AND substr(e.start_at,1,10)>=?) OR substr(e.start_at,-6)<>'+08:00')",
+        add(f"(e.end_at>? OR e.start_at>? OR (COALESCE(e.all_day,0)<>0 AND substr(e.start_at,1,10)>=?) OR {legacy_time})",
             from_dt.isoformat(),iso(from_dt-timedelta(hours=3)),from_dt.date().isoformat())
-        if to_dt:add('e.start_at<?',to_dt.isoformat())
+        if to_dt:add(f'(e.start_at<? OR {legacy_start})',to_dt.isoformat())
     # Explicit date bounds intersect every view; they never replace its policy.
     if range_start or range_end:
         add("e.start_at IS NOT NULL AND e.start_at<>''")
         # Prune conservatively; non-Shanghai/legacy offsets are checked in Python.
-        if range_end:add("(e.start_at<? OR substr(e.start_at,-6)<>'+08:00')",range_end)
+        if range_end:add(f'(e.start_at<? OR {legacy_start})',range_end)
         if range_start:
-            add("(e.end_at>? OR substr(e.start_at,1,10)>=? OR substr(e.start_at,-6)<>'+08:00')",
+            add(f'(e.end_at>? OR substr(e.start_at,1,10)>=? OR {legacy_time})',
                 range_start,datetime.fromisoformat(range_start).date().isoformat())
     where=' AND '.join(clauses) or '1'
     out=[]
@@ -490,6 +507,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
                 if feedback_tag and feedback_tag not in e['feedback_tags']:continue
                 if viewed=='seen' and not e['viewed_at']:continue
                 if viewed=='unseen' and e['viewed_at']:continue
+                start_dt=_query_datetime(e['start_at']) if e['start_at'] else None
                 days=span_days(e);e['span_days']=round(days,1);e['long_running']=days>=LONG_RUNNING_DAYS;e['display_at']=e.get('start_at');e['period_label']=''
                 if hide_long and e['long_running'] and period not in ('record','saved','feedback','history'):continue
                 if period=='review':
@@ -502,14 +520,14 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
                     if not e['start_at']:continue
                     end=all_day_end(e) if e['all_day'] else e['end_at']
                     if end:
-                        if end>current.isoformat():continue
-                    elif e['start_at']>=current.isoformat():continue
+                        if _query_datetime(end)>current:continue
+                    elif start_dt>=current:continue
                 else:
                     if not e['start_at'] or e['status'] in ('cancelled','needs_review','not_event'):continue
-                    end=upcoming_end(e)
-                    if end<=from_dt.isoformat():continue
-                    if to_dt and e['start_at']>=to_dt.isoformat():continue
-                    if e['long_running'] and e['start_at']<from_dt.isoformat():
+                    end=_query_datetime(upcoming_end(e))
+                    if end<=from_dt:continue
+                    if to_dt and start_dt>=to_dt:continue
+                    if e['long_running'] and start_dt<from_dt:
                         e['display_at']=from_dt.isoformat(timespec='seconds')
                         e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
                 if (range_start or range_end) and not overlaps_range(e,range_start,range_end):continue
@@ -534,12 +552,11 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
                 if free and not e['cost_free']:continue
                 if recommended and (e['priority'] not in ('high','medium') or e['commercial']=='high'):continue
                 if favorites and not e['favorite']:continue
-                e['stale']=(current-datetime.fromisoformat(e['last_seen'])).days>=7;out.append(e)
+                e['stale']=(current-_query_datetime(e['last_seen'])).days>=7;out.append(e)
     def key(e):
         value=e.get('display_at') or e.get('start_at')
-        return (value is None,value or '',e['id'])
-    if sort=='asc':out.sort(key=key)
-    else:out.sort(key=lambda e:((e.get('display_at') or e.get('start_at')) is not None,e.get('display_at') or e.get('start_at') or '',e['id']),reverse=True)
+        return (value is None if sort=='asc' else value is not None,_query_datetime(value) if value else datetime.min.replace(tzinfo=TZ),e['id'])
+    out.sort(key=key,reverse=sort=='desc')
     if period=='history':out.sort(key=lambda e:e.get('viewed_at') or '',reverse=True)
     if period=='feedback':out.sort(key=lambda e:e.get('feedback_updated_at') or '',reverse=True)
     return out

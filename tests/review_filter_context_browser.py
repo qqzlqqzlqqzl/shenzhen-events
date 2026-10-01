@@ -47,5 +47,7 @@ try:
     expect(p.locator('#type-options input')).to_have_count(23)
     h.check('all_options_remain_available_on_mobile')
     p.get_by_role('button',name='取消筛选',exact=True).click()
+    from filter_state_browser_cases import run
+    run(h)
 except Exception as exc:h.report['errors'].append(str(exc));raise
 finally:h.close()

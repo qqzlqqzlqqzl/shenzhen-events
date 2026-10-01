@@ -110,11 +110,11 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
     if len(event_types)>len(EVENT_TYPES) or any(x not in EVENT_TYPES for x in event_types):raise HTTPException(400,'无效活动类型筛选')
     if len(topics)>20 or any(x not in TOPICS and x!='其他' for x in topics):raise HTTPException(400,'无效主题筛选')
     begin,finish=None,None
-    if period in ('calendar','range'):
+    if period in ('calendar','range') or start or end:
         begin,finish=iso(start),iso(end)
-        if not begin or not finish:raise HTTPException(400,'日历起止日期无效')
+        if not begin or not finish:raise HTTPException(400,'活动起止日期无效')
         span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
-        if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'日历范围需在93天内')
+        if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'活动日期范围需在93天内')
     if period=='saved':favorites=True
     if period=='feedback' and not feedback:feedback='any'
     if period=='history':viewed='seen'
@@ -129,10 +129,10 @@ def calendar_summary(request:Request):
 
 @app.get('/events/api/stats')
 def stats(request:Request):
-    from .core import period_bounds, upcoming_end, now as query_now
+    from .core import period_bounds, upcoming_end, _query_datetime, now as query_now
     require(request);up=events();rec=[e for e in up if e['priority'] in ('high','medium') and e['commercial']!='high']
     begin,finish=period_bounds('weekend',query_now())
-    weekend=sum(not e['long_running'] and upcoming_end(e)>begin.isoformat() and e['start_at']<finish.isoformat() for e in up)
+    weekend=sum(not e['long_running'] and _query_datetime(upcoming_end(e))>begin and _query_datetime(e['start_at'])<finish for e in up)
     long_running=sum(e['long_running'] for e in up)
     with db() as c:
         health=[dict(x) for x in c.execute('SELECT * FROM source_health')];raw=c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0];pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0];type_pending=c.execute("SELECT COUNT(*) FROM events WHERE event_type_state='pending' AND status='scheduled'").fetchone()[0]

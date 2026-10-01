@@ -509,3 +509,70 @@ def test_exact_event_url_can_match_attendance_refinement():
     online = base_event(details={'attendance': 'online'}, location='线上')
     hybrid = base_event(details=json.dumps({'attendance': 'hybrid'}))
     assert core.is_duplicate(online, hybrid)
+
+
+@pytest.mark.parametrize('location', [
+    '广东省深圳市南山区', '中国广东省深圳市', '中华人民共和国广东省深圳市南山区',
+    '中国广东深圳南山', '广东省深圳市南山区粤海街道', '上海市黄浦区',
+    '深圳市南山区', '广西壮族自治区南宁市武鸣区',
+])
+@pytest.mark.parametrize('reverse', [False, True])
+def test_administrative_locality_is_not_specific_hybrid_venue(location, reverse):
+    a = base_event(location=location, organizer='同一主办方', details={'attendance': 'hybrid'})
+    b = base_event(location=location, organizer=a['organizer'], url='https://www.shenzhenware.com/events/694',
+                   details=json.dumps({'attendance': 'offline'}))
+    assert not core.is_duplicate(*( (b, a) if reverse else (a, b) ))
+
+
+@pytest.mark.parametrize('location', [
+    '广东省深圳市南山区伊敦酒店海汉厅', '深圳龙岗工业软件园',
+    '深圳市南山区深圳大学粤海校区', '深圳市南山区某路100号2楼会议室',
+])
+def test_specific_hybrid_venue_still_matches_in_both_directions(location):
+    a = base_event(location=location, organizer='同一主办方', details={'attendance': 'hybrid'})
+    b = base_event(location=location, organizer=a['organizer'], url='https://www.shenzhenware.com/events/695',
+                   details=json.dumps({'attendance': 'offline'}))
+    assert core.is_duplicate(a, b) and core.is_duplicate(b, a)
+
+
+def test_exact_event_evidence_still_matches_with_administrative_address():
+    a = base_event(location='广东省深圳市南山区', details={'attendance': 'hybrid'})
+    b = base_event(location=a['location'], details=json.dumps({'attendance': 'offline'}))
+    assert core.is_duplicate(a, b) and core.is_duplicate(b, a)
+
+
+@pytest.mark.parametrize('desc', [
+    '本次活动不提供线上直播，仅限线下参加', '活动没有线上直播', '本次不会同步直播',
+    '不安排同步线上直播', '本次不设线上直播', '线上直播已取消', '线上直播：已取消',
+    '本次线上直播不会开放', '仅线下参加，并非线上直播', '本次未提供在线上观看的直播',
+    '本次暂无线上直播', '活动不做线上直播',
+])
+def test_negated_live_broadcast_stays_offline_in_inventory_and_detail(desc):
+    row = copy.deepcopy(xrows()[0])
+    row['frontmatter']['desc'] = desc
+    event = rs.xuanwu_events(module([row]), MODULE)[0][0]
+    assert event['details']['attendance'] == 'offline'
+    patch = rs.detail('xuanwu_activity', event, soup('<div class="vp-doc"><p>'+desc+'</p></div>'), event['url'])
+    assert patch['details']['attendance'] == 'offline'
+    enriched = rs.merge_detail(event, patch)
+    core.ingest(source('xuanwu_activity'), enriched)
+    assert core.events(attendance='online') == []
+    assert len(core.events(attendance='offline')) == 1
+
+
+@pytest.mark.parametrize('desc', [
+    '现场活动将同步直播', '现场活动同时进行线上直播', '大家可在线上观看了直播',
+    '不仅有线下活动，也有线上直播', '不仅支持线上直播，也可现场参加',
+    '无需报名即可观看线上直播', '线上直播不需要报名', '线上直播不免费',
+    '上次没有提供线上直播，但本次将同步直播',
+])
+def test_positive_live_broadcast_still_enriches_and_enters_both_filters(desc):
+    row = copy.deepcopy(xrows()[0])
+    row['frontmatter']['desc'] = '现场教学研讨'
+    event = rs.xuanwu_events(module([row]), MODULE)[0][0]
+    assert event['details']['attendance'] == 'offline'
+    patch = rs.detail('xuanwu_activity', event, soup('<div class="vp-doc"><p>'+desc+'</p></div>'), event['url'])
+    assert patch['details']['attendance'] == 'hybrid'
+    assert rs._mode(desc, event['location']) == 'hybrid'
+    core.ingest(source('xuanwu_activity'), rs.merge_detail(event, patch))
+    assert len(core.events(attendance='online')) == len(core.events(attendance='offline')) == 1
