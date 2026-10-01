@@ -204,7 +204,7 @@ def analyze(limit=48):
 def retention():
     cutoff=(now()-timedelta(days=45)).isoformat()
     with db() as c:
-        c.execute("DELETE FROM events WHERE COALESCE(end_at,start_at)<? AND id NOT IN (SELECT event_id FROM preferences WHERE favorite=1)",(cutoff,))
+        c.execute("DELETE FROM events WHERE COALESCE(end_at,start_at)<? AND id NOT IN (SELECT event_id FROM preferences WHERE favorite=1 OR feedback<>'' OR feedback_tags<>'[]')",(cutoff,))
         c.execute('DELETE FROM raw_items WHERE collected_at<? AND id NOT IN (SELECT raw_id FROM event_sources)',(cutoff,))
         c.execute("UPDATE raw_items SET analysis_state='archived' WHERE analysis_state='pending' AND id NOT IN (SELECT raw_id FROM event_sources)")
         c.execute('DELETE FROM detail_cache WHERE checked_at<?',(cutoff,))

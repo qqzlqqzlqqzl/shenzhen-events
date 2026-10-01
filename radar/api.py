@@ -96,10 +96,11 @@ def logout(request:Request):
 @app.get('/events/api/session')
 def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
-def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,attendance:str='all',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
+def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,attendance:str='all',feedback:str='',feedback_tag:str='',viewed:str='all',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
     require(request)
-    if period not in ('upcoming','week','weekend','review','past','saved','calendar'):raise HTTPException(400,'无效日期筛选')
+    if period not in ('upcoming','week','weekend','review','past','saved','calendar','feedback','history'):raise HTTPException(400,'无效日期筛选')
     if attendance not in ('all','online','offline','hybrid','unknown'):raise HTTPException(400,'无效参加方式')
+    if feedback not in ('','any','none',*FEEDBACK_SIGNALS) or feedback_tag not in ('',*FEEDBACK_TAGS) or viewed not in ('all','seen','unseen'):raise HTTPException(400,'无效个人状态筛选')
     if attendance=='online':district=''
     if sort not in ('asc','desc'):raise HTTPException(400,'无效排序方式')
     event_types=list(dict.fromkeys(event_types or []));topics=list(dict.fromkeys(canonical_topic(x) for x in topics or []))
@@ -112,7 +113,9 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
         span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
         if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'日历范围需在93天内')
     if period=='saved':favorites=True
-    rows=[] if type_none or topic_none else events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics,attendance=attendance)
+    if period=='feedback' and not feedback:feedback='any'
+    if period=='history':viewed='seen'
+    rows=[] if type_none or topic_none else events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics,attendance=attendance,feedback=feedback,feedback_tag=feedback_tag,viewed=viewed)
     return {'items':rows[offset:offset+limit],'total':len(rows),'offset':offset,'has_more':len(rows)>offset+limit}
 @app.get('/events/api/stats')
 def stats(request:Request):
@@ -145,6 +148,7 @@ def retry_source(source_id:str,request:Request):
     except jobs.QueueError as exc:raise HTTPException(exc.status,str(exc))
 
 class Preference(BaseModel):
+    expected_revision:int|None=Field(default=None,ge=0)
     favorite:bool|None=None
     hidden:bool|None=None
     feedback:str|None=Field(default=None,max_length=32)
@@ -152,24 +156,26 @@ class Preference(BaseModel):
 @app.post('/events/api/preferences/{event_id}')
 def preference(event_id:str,body:Preference,request:Request):
     require(request)
-    from .core import resolve_event_id
-    event_id=resolve_event_id(event_id)
-    with db() as c:
-        if not c.execute('SELECT 1 FROM events WHERE id=?',(event_id,)).fetchone():raise HTTPException(404,'活动不存在')
-        c.execute('INSERT OR IGNORE INTO preferences(event_id) VALUES(?)',(event_id,))
-        if body.favorite is not None:c.execute('UPDATE preferences SET favorite=? WHERE event_id=?',(int(body.favorite),event_id))
-        if body.hidden is not None:c.execute('UPDATE preferences SET hidden=? WHERE event_id=?',(int(body.hidden),event_id))
-        feedback_touched=body.feedback is not None or body.feedback_tags is not None
-        if body.feedback is not None:
-            if body.feedback and body.feedback not in FEEDBACK_SIGNALS:raise HTTPException(400,'无效兴趣反馈')
-            c.execute('UPDATE preferences SET feedback=? WHERE event_id=?',(body.feedback,event_id))
-        if body.feedback_tags is not None:
-            tags=list(dict.fromkeys(body.feedback_tags))
-            if any(x not in FEEDBACK_TAGS for x in tags):raise HTTPException(400,'无效反馈标签')
-            c.execute('UPDATE preferences SET feedback_tags=? WHERE event_id=?',(json.dumps(tags,ensure_ascii=False),event_id))
-        if feedback_touched:c.execute('UPDATE preferences SET feedback_updated_at=? WHERE event_id=?',(stamp(),event_id))
-        state=dict(c.execute('SELECT favorite,hidden,feedback,feedback_tags,feedback_updated_at FROM preferences WHERE event_id=?',(event_id,)).fetchone())
-    return {'ok':True,'favorite':bool(state['favorite']),'hidden':bool(state['hidden']),'feedback':state['feedback'] if state['feedback'] in FEEDBACK_SIGNALS else '','feedback_tags':decode_feedback_tags(state['feedback_tags']),'feedback_updated_at':state['feedback_updated_at']}
+    from . import personal
+    try:return personal.update(event_id, body.model_dump(exclude={'expected_revision'}), body.expected_revision)
+    except personal.Conflict as exc:return JSONResponse({'detail':'活动状态已在其他页面更新，请核对后重试。','current':exc.current},status_code=409)
+    except ValueError as exc:raise HTTPException(400,str(exc))
+    except LookupError as exc:raise HTTPException(404,str(exc))
+
+@app.post('/events/api/viewed/{event_id}')
+def mark_viewed(event_id:str,request:Request):
+    require(request)
+    from . import personal
+    try:return personal.viewed(event_id)
+    except LookupError as exc:raise HTTPException(404,str(exc))
+
+@app.get('/events/api/feedback-export')
+def feedback_export(request:Request):
+    require(request)
+    rows=events(period='feedback',include_hidden=True,feedback='any')
+    fields=('id','title','url','start_at','end_at','feedback','feedback_tags','feedback_updated_at','favorite','revision')
+    return JSONResponse({'version':1,'exported_at':stamp(),'count':len(rows),'items':[{k:e.get(k) for k in fields} for e in rows]},headers={'Content-Disposition':'attachment; filename="event-feedback.json"'})
+
 @app.get('/events/calendar.ics')
 def calendar(request:Request,token:str='',favorites:bool=False,recommended:bool=False):
     if not read_session(request.cookies.get(COOKIE,'')) and not hmac.compare_digest(token,config().get('feed_token','__invalid__')):raise HTTPException(401,'日历订阅需要私人链接')

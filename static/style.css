@@ -137,3 +137,10 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 .feedback-reason.selected,.feedback-reason[aria-pressed="true"]{background:#e2ecd5;border-color:#adc492;color:#39563d;font-weight:650}
 .feedback-tag-heading{font-size:11px;font-weight:650;margin:15px 0 8px}.feedback-tag-heading span{color:var(--muted);font-size:9px;font-weight:400;margin-left:5px}
 @media(max-width:620px){.personal-feedback{padding:15px}.feedback-heading{display:block}.feedback-clear{margin-top:8px}.feedback-choice,.feedback-reason{min-height:44px;font-size:11px;padding:9px 12px}}
+
+/* Owner review and recovery controls */
+#personal-actions{display:flex;align-items:center;flex-wrap:wrap;gap:16px;margin:14px 0;font-size:12px;color:var(--muted)}
+.undo-bar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:220;background:var(--ink);color:white;display:flex;gap:12px;align-items:center;padding:12px 16px;border-radius:12px;box-shadow:0 8px 25px #0002;max-width:calc(100% - 24px);font-size:12px}
+.undo-bar button{color:inherit;background:transparent;border:1px solid #fff7;padding:9px;border-radius:7px;min-height:40px;white-space:nowrap}
+.viewed-tag{color:#64766b;background:#edf0e9}
+[hidden]{display:none!important}
