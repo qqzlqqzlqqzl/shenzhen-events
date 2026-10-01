@@ -64,13 +64,18 @@ def test_attendance_filter_and_no_online_geocoding(database,monkeypatch):
  start=core.iso(core.now()+timedelta(days=2))
  for n,mode in enumerate(['online','offline','hybrid']):
   core.ingest({'id':'a','priority':10},{'title':mode+'开发者活动','url':'https://example.org/'+str(n),'start_at':start,'location':'待确认' if mode=='online' else '深圳南山测试会场','details':{'attendance':mode}})
- assert len(core.events())==3 and len(core.events(attendance='online'))==1
- assert core.events(attendance='online')[0]['attendance_label']=='线上'
+ assert len(core.events())==3
+ assert {e['attendance'] for e in core.events(attendance='online')}=={'online','hybrid'}
+ assert {e['attendance'] for e in core.events(attendance='offline')}=={'offline','hybrid'}
+ assert {e['attendance'] for e in core.events(attendance='hybrid')}=={'hybrid'}
+ assert {e['attendance_label'] for e in core.events(attendance='online')}=={'线上','线上＋线下'}
  with patch.object(geocode,'load_key',return_value='unit-test'),patch.object(geocode,'resolve_location',side_effect=AssertionError('online must not geocode')):
   result=geocode.enrich_pending();assert result['skipped']==1
  with TestClient(api.app) as client:
   client.cookies.set(api.COOKIE,api.sign_session({'id':1,'username':'owner'}))
-  assert client.get('/events/api/events?attendance=online').json()['total']==1
+  assert client.get('/events/api/events?attendance=online').json()['total']==2
+  assert client.get('/events/api/events?attendance=offline').json()['total']==2
+  assert client.get('/events/api/events?attendance=hybrid').json()['total']==1
   assert client.get('/events/api/events?attendance=invalid').status_code==400
 
 
