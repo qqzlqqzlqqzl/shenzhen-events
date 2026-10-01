@@ -176,6 +176,8 @@ def init():
         CREATE TABLE IF NOT EXISTS budget(day TEXT PRIMARY KEY,calls INTEGER DEFAULT 0,tokens INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS candidates(name TEXT PRIMARY KEY,query TEXT,url TEXT,hits INTEGER DEFAULT 1,last_seen TEXT);
         CREATE TABLE IF NOT EXISTS event_redirects(alias_id TEXT PRIMARY KEY,target_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE);
+        CREATE INDEX IF NOT EXISTS idx_event_sources_event ON event_sources(event_id);
+        CREATE INDEX IF NOT EXISTS idx_events_query_time ON events(start_at,id);
         ''')
         if 'coverage' not in {r[1] for r in c.execute('PRAGMA table_info(source_health)')}:
             c.execute("ALTER TABLE source_health ADD COLUMN coverage TEXT NOT NULL DEFAULT '{}'")
@@ -347,78 +349,173 @@ def span_days(e):
     try:return max(0.0,(datetime.fromisoformat(e['end_at'])-datetime.fromisoformat(e['start_at'])).total_seconds()/86400)
     except ValueError:return 0.0
 
+
+def period_bounds(period, current):
+    """An exclusive upper boundary, in the existing Shanghai period semantics."""
+    day=current.date();begin=current;finish=None
+    if period=='week':
+        finish=datetime.combine(day+timedelta(days=7-day.weekday()),datetime.min.time(),TZ)
+    elif period=='weekend':
+        saturday=day+timedelta(days=(5-day.weekday())%7) if day.weekday()<5 else day-timedelta(days=day.weekday()-5)
+        begin=max(current,datetime.combine(saturday,datetime.min.time(),TZ))
+        finish=datetime.combine(saturday+timedelta(days=2),datetime.min.time(),TZ)
+    return begin,finish
+
+
+def _query_datetime(value):
+    result=datetime.fromisoformat(value)
+    return result.replace(tzinfo=TZ) if result.tzinfo is None else result.astimezone(TZ)
+
+
+def all_day_end(e):
+    """Query-only end: one full Shanghai date when no usable exclusive end exists."""
+    start=_query_datetime(e['start_at'])
+    value=e.get('end_at')
+    if value:
+        try:
+            end=_query_datetime(value)
+            if end>start and end.date()>start.date():
+                return iso(end)
+        except ValueError:
+            pass
+    return iso(datetime.combine(start.date()+timedelta(days=1),datetime.min.time(),TZ))
+
+
+def upcoming_end(e):
+    # Timed unknown ends retain the established three-hour upcoming window.
+    return all_day_end(e) if e['all_day'] else e.get('end_at') or iso(datetime.fromisoformat(e['start_at'])+timedelta(hours=3))
+
+
+def overlaps_range(e, range_start=None, range_end=None):
+    """Half-open date intersection, independent of a view's status/personal policy."""
+    if not e.get('start_at'):return False
+    start=_query_datetime(e['start_at'])
+    end=_query_datetime(all_day_end(e)) if e['all_day'] else _query_datetime(e['end_at']) if e.get('end_at') else None
+    if end is None or end<=start:end=start+timedelta(seconds=1)
+    return (not range_start or end>_query_datetime(range_start)) and (not range_end or start<_query_datetime(range_end))
+
+
+def _source_links(c, event_ids):
+    marks=','.join('?' for _ in event_ids)
+    links={}
+    for row in c.execute(f'SELECT es.event_id,es.url,sh.name,es.source_id FROM event_sources es JOIN source_health sh ON sh.id=es.source_id WHERE es.event_id IN ({marks}) ORDER BY es.rowid',event_ids):
+        links.setdefault(row['event_id'],[]).append(dict(row))
+    return links
+
 def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None,attendance='all',feedback='',feedback_tag='',viewed='all',districts=None):
     if event_id:event_id=resolve_event_id(event_id)
     aliases=dedupe_aliases()
     topics_filter=[canonical_topic(x) for x in topics_filter or []]
     if tag:topics_filter.append(canonical_topic(tag))
-    current=now();day=current.date();from_dt=current;to_dt=None
+    current=now();from_dt,to_dt=period_bounds(period,current)
+    range_start=_query_datetime(range_start).isoformat() if range_start else None
+    range_end=_query_datetime(range_end).isoformat() if range_end else None
     if sort not in ('asc','desc'):raise ValueError('invalid sort')
-    if period=='week':to_dt=datetime.combine(day+timedelta(days=7-day.weekday()),datetime.min.time(),TZ)
-    if period=='weekend':
-        saturday=day+timedelta(days=(5-day.weekday())%7) if day.weekday()<5 else day-timedelta(days=day.weekday()-5)
-        from_dt=max(current,datetime.combine(saturday,datetime.min.time(),TZ));to_dt=datetime.combine(saturday+timedelta(days=2),datetime.min.time(),TZ)
-    with db() as c:
-        rows=[dict(r) for r in c.execute("SELECT e.*,COALESCE(p.favorite,0) favorite,COALESCE(p.hidden,0) hidden,COALESCE(p.feedback,'') feedback,COALESCE(p.feedback_tags,'[]') feedback_tags,p.feedback_updated_at feedback_updated_at,COALESCE(p.revision,0) revision,p.viewed_at viewed_at FROM events e LEFT JOIN preferences p ON e.id=p.event_id ORDER BY e.start_at,e.id LIMIT 10000")];links={}
-        for r in c.execute('SELECT es.event_id,es.url,sh.name,es.source_id FROM event_sources es JOIN source_health sh ON sh.id=es.source_id'):links.setdefault(r['event_id'],[]).append(dict(r))
+    # Push only predicates that cannot be changed by alias/topic normalization.
+    # Python still owns Unicode search, canonical topics, attendance and facets.
+    clauses=[];params=[]
+    def add(sql,*values):
+        clauses.append(sql);params.extend(values)
+    if event_id:add('e.id=?',event_id)
+    if not include_hidden:add('COALESCE(p.hidden,0)=0')
+    if favorites:add('COALESCE(p.favorite,0)<>0')
+    if free:add('COALESCE(e.cost_free,0)<>0')
+    if recommended:add("e.priority IN ('high','medium') AND COALESCE(e.commercial,'')<>'high'")
+    if viewed=='seen':add("COALESCE(p.viewed_at,'')<>''")
+    elif viewed=='unseen':add("COALESCE(p.viewed_at,'')=''")
+    if feedback in FEEDBACK_SIGNALS:add('p.feedback=?',feedback)
+    if districts is not None:
+        if districts:add('e.district IN ('+','.join('?' for _ in districts)+')',*districts)
+        else:add('0')
+    elif district:add('e.district=?',district)
+    if event_types:
+        add("COALESCE(e.event_type_state,'')<>'pending' AND COALESCE(NULLIF(e.event_type,''),'Event') IN ("+','.join('?' for _ in event_types)+')',*event_types)
+    if period=='review':
+        add("e.status='needs_review'")
+    elif period in ('calendar','range'):
+        add("e.start_at IS NOT NULL AND e.start_at<>'' AND e.status='scheduled'")
+    elif period=='past':
+        add("e.start_at IS NOT NULL AND e.start_at<>''")
+        add('(e.start_at<=? OR e.end_at<=?)',current.isoformat(),current.isoformat())
+    elif period not in ('saved','record','feedback','history'):
+        add("e.start_at IS NOT NULL AND e.start_at<>'' AND COALESCE(e.status,'') NOT IN ('cancelled','needs_review','not_event')")
+        add("(e.end_at>? OR e.start_at>? OR (COALESCE(e.all_day,0)<>0 AND substr(e.start_at,1,10)>=?) OR substr(e.start_at,-6)<>'+08:00')",
+            from_dt.isoformat(),iso(from_dt-timedelta(hours=3)),from_dt.date().isoformat())
+        if to_dt:add('e.start_at<?',to_dt.isoformat())
+    # Explicit date bounds intersect every view; they never replace its policy.
+    if range_start or range_end:
+        add("e.start_at IS NOT NULL AND e.start_at<>''")
+        # Prune conservatively; non-Shanghai/legacy offsets are checked in Python.
+        if range_end:add("(e.start_at<? OR substr(e.start_at,-6)<>'+08:00')",range_end)
+        if range_start:
+            add("(e.end_at>? OR substr(e.start_at,1,10)>=? OR substr(e.start_at,-6)<>'+08:00')",
+                range_start,datetime.fromisoformat(range_start).date().isoformat())
+    where=' AND '.join(clauses) or '1'
     out=[]
-    for e in rows:
-        if event_id and e['id']!=event_id:continue
-        if not include_hidden and e['hidden']:continue
-        e['feedback']=e.get('feedback') if e.get('feedback') in FEEDBACK_SIGNALS else ''
-        e['feedback_tags']=decode_feedback_tags(e.get('feedback_tags'))
-        if feedback=='any' and not (e['feedback'] or e['feedback_tags']):continue
-        if feedback=='none' and (e['feedback'] or e['feedback_tags']):continue
-        if feedback in FEEDBACK_SIGNALS and e['feedback']!=feedback:continue
-        if feedback_tag and feedback_tag not in e['feedback_tags']:continue
-        if viewed=='seen' and not e['viewed_at']:continue
-        if viewed=='unseen' and e['viewed_at']:continue
-        days=span_days(e);e['span_days']=round(days,1);e['long_running']=days>=LONG_RUNNING_DAYS;e['display_at']=e.get('start_at');e['period_label']=''
-        if hide_long and e['long_running'] and period not in ('record','saved','feedback','history'):continue
-        if period=='review':
-            if e['status']!='needs_review':continue
-        elif period in ('saved','record','feedback','history'):
-            pass
-        elif period in ('calendar','range'):
-            if not e['start_at'] or e['status']!='scheduled':continue
-            end=e['end_at']
-            if not end or end<=e['start_at'] or (e['all_day'] and end[:10]<=e['start_at'][:10]):
-                start=datetime.fromisoformat(e['start_at'])
-                # A known all-day date with no usable end occupies that date only.
-                end=iso(datetime.combine(start.date()+timedelta(days=1),datetime.min.time(),TZ) if e['all_day'] else start+timedelta(seconds=1))
-            if end<=range_start or e['start_at']>=range_end:continue
-        elif period=='past':
-            if not e['start_at'] or (e['end_at'] or e['start_at'])>=current.isoformat():continue
-        else:
-            if not e['start_at'] or e['status'] in ('cancelled','needs_review','not_event'):continue
-            end=e['end_at'] or iso(datetime.fromisoformat(e['start_at'])+timedelta(hours=3))
-            if end<=from_dt.isoformat():continue
-            if to_dt and e['start_at']>=to_dt.isoformat():continue
-            if e['long_running'] and e['start_at']<from_dt.isoformat():
-                e['display_at']=from_dt.isoformat(timespec='seconds')
-                e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
-        from .posters import display_details
-        e['details']=display_details(json.loads(e.get('details') or '{}'),ROOT)
-        for a in aliases:
-            if a.get('date')==(e.get('start_at') or '')[:10] and any(canon_url(x.get('url','')) in a.get('urls',[]) for x in links.get(e['id'],[])):
-                fix=a.get('canonical',{})
-                for field in ('title','location'):
-                    if isinstance(fix.get(field),str):e[field]=fix[field]
-                if isinstance(fix.get('topics'),list):e['topics']=json.dumps(fix['topics'],ensure_ascii=False)
-        e['attendance']=event_attendance(e);e['attendance_label']=ATTENDANCE_LABELS[e['attendance']]
-        if attendance!='all' and e['attendance'] not in ({'online':('online','hybrid'),'offline':('offline','hybrid')}.get(attendance,(attendance,))):continue
-        e['topics']=resolved_topics(json.loads(e['topics'] or '[]'),e.get('event_type','Event'),e['title'],e['summary'])
-        e['event_type']=e.get('event_type') or 'Event';e['event_type_label']='待分类' if e.get('event_type_state')=='pending' else EVENT_TYPES.get(e['event_type'],'其他活动');e['sources']=links.get(e['id'],[])
-        if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue
-        if districts is not None:
-            if e['district'] not in districts:continue
-        elif district and e['district']!=district:continue
-        if event_types and (e.get('event_type_state')=='pending' or e['event_type'] not in set(event_types)):continue
-        if topics_filter and not set(topics_filter).intersection(e['topics']):continue
-        if free and not e['cost_free']:continue
-        if recommended and (e['priority'] not in ('high','medium') or e['commercial']=='high'):continue
-        if favorites and not e['favorite']:continue
-        e['stale']=(current-datetime.fromisoformat(e['last_seen'])).days>=7;out.append(e)
+    with db() as c:
+        # One read snapshot binds event rows and their source attribution.
+        c.execute('BEGIN')
+        cursor=c.execute("SELECT e.*,COALESCE(p.favorite,0) favorite,COALESCE(p.hidden,0) hidden,COALESCE(p.feedback,'') feedback,COALESCE(p.feedback_tags,'[]') feedback_tags,p.feedback_updated_at feedback_updated_at,COALESCE(p.revision,0) revision,p.viewed_at viewed_at FROM events e LEFT JOIN preferences p ON e.id=p.event_id WHERE "+where+" ORDER BY e.start_at,e.id",params)
+        # Bound intermediate hydration, not the matching set used for totals/facets.
+        while batch:=cursor.fetchmany(256):
+            rows=[dict(row) for row in batch]
+            links=_source_links(c,[e['id'] for e in rows])
+            for e in rows:
+                if event_id and e['id']!=event_id:continue
+                if not include_hidden and e['hidden']:continue
+                e['feedback']=e.get('feedback') if e.get('feedback') in FEEDBACK_SIGNALS else ''
+                e['feedback_tags']=decode_feedback_tags(e.get('feedback_tags'))
+                if feedback=='any' and not (e['feedback'] or e['feedback_tags']):continue
+                if feedback=='none' and (e['feedback'] or e['feedback_tags']):continue
+                if feedback in FEEDBACK_SIGNALS and e['feedback']!=feedback:continue
+                if feedback_tag and feedback_tag not in e['feedback_tags']:continue
+                if viewed=='seen' and not e['viewed_at']:continue
+                if viewed=='unseen' and e['viewed_at']:continue
+                days=span_days(e);e['span_days']=round(days,1);e['long_running']=days>=LONG_RUNNING_DAYS;e['display_at']=e.get('start_at');e['period_label']=''
+                if hide_long and e['long_running'] and period not in ('record','saved','feedback','history'):continue
+                if period=='review':
+                    if e['status']!='needs_review':continue
+                elif period in ('saved','record','feedback','history'):
+                    pass
+                elif period in ('calendar','range'):
+                    if not e['start_at'] or e['status']!='scheduled':continue
+                elif period=='past':
+                    if not e['start_at']:continue
+                    end=all_day_end(e) if e['all_day'] else e['end_at']
+                    if end:
+                        if end>current.isoformat():continue
+                    elif e['start_at']>=current.isoformat():continue
+                else:
+                    if not e['start_at'] or e['status'] in ('cancelled','needs_review','not_event'):continue
+                    end=upcoming_end(e)
+                    if end<=from_dt.isoformat():continue
+                    if to_dt and e['start_at']>=to_dt.isoformat():continue
+                    if e['long_running'] and e['start_at']<from_dt.isoformat():
+                        e['display_at']=from_dt.isoformat(timespec='seconds')
+                        e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
+                if (range_start or range_end) and not overlaps_range(e,range_start,range_end):continue
+                from .posters import display_details
+                e['details']=display_details(json.loads(e.get('details') or '{}'),ROOT)
+                for a in aliases:
+                    if a.get('date')==(e.get('start_at') or '')[:10] and any(canon_url(x.get('url','')) in a.get('urls',[]) for x in links.get(e['id'],[])):
+                        fix=a.get('canonical',{})
+                        for field in ('title','location'):
+                            if isinstance(fix.get(field),str):e[field]=fix[field]
+                        if isinstance(fix.get('topics'),list):e['topics']=json.dumps(fix['topics'],ensure_ascii=False)
+                e['attendance']=event_attendance(e);e['attendance_label']=ATTENDANCE_LABELS[e['attendance']]
+                if attendance!='all' and e['attendance'] not in ({'online':('online','hybrid'),'offline':('offline','hybrid')}.get(attendance,(attendance,))):continue
+                e['topics']=resolved_topics(json.loads(e['topics'] or '[]'),e.get('event_type','Event'),e['title'],e['summary'])
+                e['event_type']=e.get('event_type') or 'Event';e['event_type_label']='待分类' if e.get('event_type_state')=='pending' else EVENT_TYPES.get(e['event_type'],'其他活动');e['sources']=links.get(e['id'],[])
+                if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue
+                if districts is not None:
+                    if e['district'] not in districts:continue
+                elif district and e['district']!=district:continue
+                if event_types and (e.get('event_type_state')=='pending' or e['event_type'] not in set(event_types)):continue
+                if topics_filter and not set(topics_filter).intersection(e['topics']):continue
+                if free and not e['cost_free']:continue
+                if recommended and (e['priority'] not in ('high','medium') or e['commercial']=='high'):continue
+                if favorites and not e['favorite']:continue
+                e['stale']=(current-datetime.fromisoformat(e['last_seen'])).days>=7;out.append(e)
     def key(e):
         value=e.get('display_at') or e.get('start_at')
         return (value is None,value or '',e['id'])

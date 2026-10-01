@@ -96,7 +96,7 @@ def logout(request:Request):
 @app.get('/events/api/session')
 def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
-def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',districts:list[str]|None=Query(None),district_none:bool=False,tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,attendance:str='all',feedback:str='',feedback_tag:str='',viewed:str='all',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
+def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',districts:list[str]|None=Query(None),district_none:bool=False,tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,attendance:str='all',feedback:str='',feedback_tag:str='',viewed:str='all',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
     require(request)
     if period not in ('upcoming','week','weekend','review','past','saved','calendar','feedback','history','range'):raise HTTPException(400,'无效日期筛选')
     if attendance not in ('all','online','offline','hybrid','unknown'):raise HTTPException(400,'无效参加方式')
@@ -129,7 +129,11 @@ def calendar_summary(request:Request):
 
 @app.get('/events/api/stats')
 def stats(request:Request):
-    require(request);up=events();rec=[e for e in up if e['priority'] in ('high','medium') and e['commercial']!='high'];clean_up=events(hide_long=True)
+    from .core import period_bounds, upcoming_end, now as query_now
+    require(request);up=events();rec=[e for e in up if e['priority'] in ('high','medium') and e['commercial']!='high']
+    begin,finish=period_bounds('weekend',query_now())
+    weekend=sum(not e['long_running'] and upcoming_end(e)>begin.isoformat() and e['start_at']<finish.isoformat() for e in up)
+    long_running=sum(e['long_running'] for e in up)
     with db() as c:
         health=[dict(x) for x in c.execute('SELECT * FROM source_health')];raw=c.execute('SELECT COUNT(*) FROM raw_items').fetchone()[0];pending=c.execute("SELECT COUNT(*) FROM raw_items WHERE analysis_state='pending'").fetchone()[0];type_pending=c.execute("SELECT COUNT(*) FROM events WHERE event_type_state='pending' AND status='scheduled'").fetchone()[0]
     type_counts=Counter(e.get('event_type') or 'Event' for e in up if e.get('event_type_state')!='pending');topic_counts=Counter(t for e in up for t in e.get('topics',[]))
@@ -137,7 +141,7 @@ def stats(request:Request):
     type_facets.append({'value':'Event','label':'其他活动','count':type_counts.get('Event',0)})
     topic_facets=[{'value':v,'label':v,'count':topic_counts.get(v,0)} for v in TOPICS]
     topic_facets.append({'value':'其他','label':'主题待归类','count':topic_counts.get('其他',0)})
-    return {'upcoming':len(up),'recommended':len(rec),'weekend':len(events(period='weekend',hide_long=True)),'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'type_pending':type_pending,'long_running':max(0,len(up)-len(clean_up)),'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(TOPICS),'event_types':type_facets,'topics':topic_facets,'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
+    return {'upcoming':len(up),'recommended':len(rec),'weekend':weekend,'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'type_pending':type_pending,'long_running':long_running,'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(TOPICS),'event_types':type_facets,'topics':topic_facets,'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
 @app.get('/events/api/status')
 def status(request:Request):
     require(request);cfg=config()

@@ -189,7 +189,7 @@ async function loadCalendar(info){
   try{let cursor=0,metadata=null;const data=[];
     while(true){const p=query('calendar');p.set('start',info.startStr.slice(0,10));p.set('end',info.endStr.slice(0,10));p.set('offset',cursor);p.set('limit',500);
       const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated||view!=='calendar')return;
-      if(!metadata)metadata=res;data.push(...res.items);cursor+=res.items.length;if(!res.has_more)break;if(!res.items.length||cursor>=10000)throw new Error('该范围活动过多，请用地区或兴趣缩小筛选。');
+      if(!metadata)metadata=res;data.push(...res.items);cursor+=res.items.length;if(!res.has_more)break;if(!res.items.length)throw new Error('该范围活动过多，请用地区或兴趣缩小筛选。');
     }
     calendar.removeAllEvents();records.clear();for(const e of data)records.set(e.id,e);calendarSnapshot={key:requestKey,items:data,facets:metadata?.facets||null,excluded:metadata?.excluded_long||null,at:Date.now()};updateFacetCounts(metadata?.facets);renderExcluded(metadata?.excluded_long);$('#calendar').dataset.hasSnapshot='true';
     const long=data.filter(e=>e.long_running);
