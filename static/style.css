@@ -120,3 +120,20 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 /* Keep cards readable: one / two / three / four columns as space permits. */
 @media(min-width:1280px){.shell{max-width:1480px}.event-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .filters{flex-wrap:wrap}#attendance{min-width:115px}#sort{min-width:160px}
+
+/* Personal feedback: explicit supervision signal, separate from bookmarks. */
+.tag.user-feedback-tag{background:#e8edf8;color:#526681;border:1px solid #d5deee;font-weight:650}
+.tag.user-feedback-tag[data-feedback-value="interested"]{background:#e5f1de;color:#42603d;border-color:#cfe0c5}
+.tag.user-feedback-tag[data-feedback-value="not_interested"]{background:#f4ebe6;color:#875f50;border-color:#ead8cf}
+.tag.user-feedback-tag[data-feedback-value="attended"]{background:#e8edf8;color:#465f83;border-color:#d2ddef}
+.personal-feedback{margin:24px 0 10px;padding:18px;border:1px solid var(--line);border-radius:14px;background:#f8faf3}
+.feedback-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:13px}
+.feedback-heading b{display:block;font-size:13px}.feedback-heading span{display:block;color:var(--muted);font-size:10px;line-height:1.7;margin-top:4px}
+.feedback-clear{font-size:10px;padding:6px 9px;white-space:nowrap}
+.feedback-signals,.feedback-reasons{display:flex;gap:7px;flex-wrap:wrap}
+.feedback-choice,.feedback-reason{border:1px solid #d2dcc7;background:#fffefa;color:var(--ink);border-radius:999px;font-size:11px;padding:8px 12px;min-height:36px}
+.feedback-choice:hover,.feedback-reason:hover{background:#edf3e5}
+.feedback-choice.selected,.feedback-choice[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:white}
+.feedback-reason.selected,.feedback-reason[aria-pressed="true"]{background:#e2ecd5;border-color:#adc492;color:#39563d;font-weight:650}
+.feedback-tag-heading{font-size:11px;font-weight:650;margin:15px 0 8px}.feedback-tag-heading span{color:var(--muted);font-size:9px;font-weight:400;margin-left:5px}
+@media(max-width:620px){.personal-feedback{padding:15px}.feedback-heading{display:block}.feedback-clear{margin-top:8px}.feedback-choice,.feedback-reason{min-height:44px;font-size:11px;padding:9px 12px}}

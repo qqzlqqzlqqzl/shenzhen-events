@@ -2,7 +2,7 @@
 let view='discover',offset=0,total=0,sequence=0,calendar=null,controller=null;
 let authenticated=false,authEpoch=0,statusTicket=0,statsTicket=0,detailTicket=0,busy=false;
 let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=false,opener=null;
-const records=new Map(),inflight=new Set(),saving=new Set();
+const records=new Map(),inflight=new Set(),saving=new Set(),feedbackSaving=new Set();
 const facetCatalog={type:new Map(),topic:new Map()};
 function checkedFacet(kind){return $$(`#${kind}-options input[type="checkbox"]:checked`).map(x=>x.value)}
 function updateFacetSummary(kind){const n=checkedFacet(kind).length,total=$$(`#${kind}-options input[type="checkbox"]`).length;$(`#${kind}-summary`).textContent=n===total?'全部':!n?'未选择':n>total/2?`已排除 ${total-n}`:`已选 ${n}`}
@@ -41,7 +41,7 @@ async function api(path,options={}) {
 function showLogin(message='') {
   authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
-  closeDetail(false);records.clear();saving.clear();calendar?.destroy();calendar=null;calendarRange=null;
+  closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
   $('.hero').hidden=false;$('#manage-sources').hidden=true;$('#workspace').hidden=true;$('#login-panel').hidden=false;$('#logout').hidden=true;$('#toast').hidden=true;
   $('#login-error').textContent=message;$('#password').value='';$('#username').focus();
@@ -171,14 +171,41 @@ async function loadCalendar(info){
   }catch(e){if(seq!==sequence||!authenticated||view!=='calendar'||!calendar)return;calendar.removeAllEvents();records.clear();renderLongCalendar([]);if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent='日历加载失败';showError(e)}}
   finally{if(seq===sequence){busy=false;$('#calendar').setAttribute('aria-busy','false')}}
 }
+function mountFeedback(e){
+  const actions=$('#detail-body .detail-actions');if(!actions)return;
+  const panel=document.createElement('section');panel.className='personal-feedback';panel.dataset.feedbackPanel=e.id;
+  const head=document.createElement('div');head.className='feedback-heading';const intro=document.createElement('div');const title=document.createElement('b');title.textContent='我的反馈';const hint=document.createElement('span');hint.textContent='收藏是留着以后看；这里记录你看完后的判断，方便以后推荐学习。';intro.append(title,hint);
+  const clear=document.createElement('button');clear.type='button';clear.className='quiet feedback-clear';clear.dataset.feedbackClear=e.id;clear.textContent='清除反馈';head.append(intro,clear);panel.append(head);
+  const signals=document.createElement('div');signals.className='feedback-signals';signals.setAttribute('role','group');signals.setAttribute('aria-label','兴趣反馈');
+  for(const [value,label] of Object.entries(feedbackSignals)){const b=document.createElement('button');b.type='button';b.className='feedback-choice';b.dataset.feedbackSignal=value;b.dataset.feedbackEvent=e.id;b.textContent=label;signals.append(b)}panel.append(signals);
+  const sub=document.createElement('div');sub.className='feedback-tag-heading';sub.textContent='补充标签 ';const small=document.createElement('span');small.textContent='可多选';sub.append(small);panel.append(sub);
+  const tags=document.createElement('div');tags.className='feedback-reasons';tags.setAttribute('role','group');tags.setAttribute('aria-label','反馈标签');
+  for(const [value,label] of Object.entries(feedbackTagLabels)){const b=document.createElement('button');b.type='button';b.className='feedback-reason';b.dataset.feedbackTag=value;b.dataset.feedbackEvent=e.id;b.textContent=label;tags.append(b)}panel.append(tags);
+  actions.before(panel);paintFeedback(e.id)
+}
+function paintFeedback(id){const e=records.get(id);if(!e)return;const summary=feedbackSummary(e);
+  for(const tag of $$('[data-feedback-for]'))if(tag.dataset.feedbackFor===id){tag.hidden=!summary;tag.textContent=summary?'我的反馈 · '+summary:'';tag.dataset.feedbackValue=e.feedback||''}
+  if(detailId===id){for(const b of $$('[data-feedback-signal]'))if(b.dataset.feedbackEvent===id){const on=b.dataset.feedbackSignal===e.feedback;b.setAttribute('aria-pressed',String(on));b.classList.toggle('selected',on);b.disabled=feedbackSaving.has(id)}
+    const selected=new Set(e.feedback_tags||[]);for(const b of $$('[data-feedback-tag]'))if(b.dataset.feedbackEvent===id){const on=selected.has(b.dataset.feedbackTag);b.setAttribute('aria-pressed',String(on));b.classList.toggle('selected',on);b.disabled=feedbackSaving.has(id)}
+    const clear=$$('[data-feedback-clear]').find(b=>b.dataset.feedbackClear===id);if(clear){clear.hidden=!(e.feedback||selected.size);clear.disabled=feedbackSaving.has(id)}
+  }
+}
+async function updateFeedback(id,patch,message){const e=records.get(id);if(!e||feedbackSaving.has(id)||!authenticated)return;const epoch=authEpoch;feedbackSaving.add(id);paintFeedback(id);
+  try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify(patch)});if(!authenticated||epoch!==authEpoch)return;e.feedback=result.feedback;e.feedback_tags=result.feedback_tags||[];e.feedback_updated_at=result.feedback_updated_at;paintFeedback(id);toast(message)}
+  catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast(err.message)}finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch)paintFeedback(id)}
+}
+function setFeedbackSignal(id,value){const e=records.get(id);if(!e)return;const target=e.feedback===value?'':value;updateFeedback(id,{feedback:target},target?'已记录“'+feedbackSignals[target]+'”。':'已清除主反馈。')}
+function toggleFeedbackTag(id,value){const e=records.get(id);if(!e)return;const tags=new Set(e.feedback_tags||[]);if(tags.has(value))tags.delete(value);else tags.add(value);updateFeedback(id,{feedback_tags:[...tags]},'反馈标签已更新。')}
+function clearFeedback(id){updateFeedback(id,{feedback:'',feedback_tags:[]},'已清除这条活动反馈。')}
 function renderDetail(e){
   const state=RadarUI.lifecycle(e);const ended=state==='已结束'||e.status==='cancelled'||e.status==='not_event';
   $('#detail-body').innerHTML=`<div class="card-tags"><span class="tag type-tag">${esc(e.event_type_label||'其他活动')}</span>${(e.topics||[]).map(t=>`<span class="tag topic-tag">${esc(t)}</span>`).join('')}${e.long_running?'<span class="tag long-tag">长期/重复</span>':''}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p>${costText(e)?`<p><b>费用</b>${esc(costText(e))}</p>`:''}${e.organizer?`<p><b>${esc(organizerLabel(e))}</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}${detailExtras(e)}<div class="detail-actions"><a class="primary" href="${esc(RadarUI.safeUrl(e.url))}" target="_blank" rel="noopener noreferrer">${ended?'查看历史原文':'查看原文 / 报名'} ↗</a>${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：<a href="${esc(RadarUI.safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
+  mountFeedback(e);
 }
 async function openDetail(id,push=true){
   if(!authenticated)return;const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
   try{const e=records.get(id)||await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
-    records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
+    records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
     if(!$('#detail').open)$('#detail').showModal();document.body.classList.add('modal-open');$('#close-detail').focus();
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch){toast(e.message);writeURL('replace');detailId=null}}
 }
@@ -208,7 +235,11 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('button,[data-open]');if(!b||b.disabled)return;
   if(b.dataset.facetAction){const kind=b.dataset.facetKind;$$(`#${kind}-options input`).forEach(x=>x.checked=b.dataset.facetAction==='all'?true:b.dataset.facetAction==='none'?false:!x.checked);updateFacetSummary(kind);applyFilters();return}
   if(b.dataset.facetRemove){const kind=b.dataset.facetRemove,value=b.dataset.facetValue;$$(`#${kind}-options input[type="checkbox"]`).forEach(x=>{if(x.value===value)x.checked=b.dataset.facetExcluded==='true'});updateFacetSummary(kind);applyFilters();return}
-  if(b.dataset.retrySource){retrySource(b.dataset.retrySource,b);return}if(b.dataset.save){save(b.dataset.save);return}if(b.dataset.open){openDetail(b.dataset.open);return}
+  if(b.dataset.retrySource){retrySource(b.dataset.retrySource,b);return}
+  if(b.dataset.feedbackSignal){setFeedbackSignal(b.dataset.feedbackEvent,b.dataset.feedbackSignal);return}
+  if(b.dataset.feedbackTag){toggleFeedbackTag(b.dataset.feedbackEvent,b.dataset.feedbackTag);return}
+  if(b.dataset.feedbackClear){clearFeedback(b.dataset.feedbackClear);return}
+  if(b.dataset.save){save(b.dataset.save);return}if(b.dataset.open){openDetail(b.dataset.open);return}
   if(b.dataset.view||b.dataset.changeView){navigate(b.dataset.view||b.dataset.changeView);return}
   const action=b.dataset.action;
   if(action==='browse-all'){navigate('all',true);return}

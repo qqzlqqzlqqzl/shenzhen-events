@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json
+import json, sqlite3
 from datetime import datetime, timedelta, date
 from pathlib import Path
 import pytest
@@ -316,3 +316,84 @@ def test_calendar_all_day_unknown_or_nonpositive_end_covers_its_known_day(end):
             assert response.status_code==200 and response.json()['total']==1
         assert client.get('/events/api/events',params={'period':'calendar','start':'2026-10-02','end':'2026-10-03'}).json()['total']==0
     with core.db() as c:assert c.execute('SELECT end_at FROM events').fetchone()[0]==core.iso(end)
+
+
+def test_feedback_roundtrip_is_structured_and_independent_from_favorite():
+    core.ingest(source(),ev());eid=core.events()[0]['id']
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client);headers={'X-Radar-Request':'1'}
+        saved=client.post('/events/api/preferences/'+eid,headers=headers,json={'favorite':True})
+        assert saved.status_code==200 and saved.json()['favorite'] is True
+        r=client.post('/events/api/preferences/'+eid,headers=headers,json={
+            'feedback':'interested','feedback_tags':['topic_like','more_like_this','topic_like']})
+        body=r.json();assert r.status_code==200
+        assert body['feedback']=='interested' and body['feedback_tags']==['topic_like','more_like_this']
+        assert body['favorite'] is True and body['feedback_updated_at']
+        listed=client.get('/events/api/events').json()['items'][0]
+        assert listed['favorite']==1 and listed['feedback']=='interested'
+        assert listed['feedback_tags']==['topic_like','more_like_this']
+        detail=client.get('/events/api/event/'+eid).json()
+        assert detail['feedback']=='interested' and detail['favorite']==1
+
+
+def test_not_interested_is_feedback_not_automatic_hide_and_can_clear():
+    core.ingest(source(),ev());eid=core.events()[0]['id']
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client);headers={'X-Radar-Request':'1'}
+        r=client.post('/events/api/preferences/'+eid,headers=headers,json={
+            'feedback':'not_interested','feedback_tags':['time_conflict','less_like_this']})
+        assert r.status_code==200 and r.json()['hidden'] is False
+        assert client.get('/events/api/events').json()['total']==1
+        cleared=client.post('/events/api/preferences/'+eid,headers=headers,json={'feedback':'','feedback_tags':[]})
+        assert cleared.status_code==200 and cleared.json()['feedback']==''
+        assert cleared.json()['feedback_tags']==[] and client.get('/events/api/events').json()['total']==1
+
+
+def test_feedback_allowlists_and_caps_are_enforced():
+    core.ingest(source(),ev());eid=core.events()[0]['id']
+    with TestClient(api.app,base_url='https://testserver') as client:
+        auth(client);headers={'X-Radar-Request':'1'}
+        assert client.post('/events/api/preferences/'+eid,headers=headers,json={'feedback':'maybe'}).status_code==400
+        assert client.post('/events/api/preferences/'+eid,headers=headers,json={'feedback_tags':['unknown']}).status_code==400
+        assert client.post('/events/api/preferences/'+eid,headers=headers,json={'feedback_tags':['topic_like']*8}).status_code==422
+
+
+def test_feedback_decoder_filters_corrupt_or_unknown_values():
+    assert core.decode_feedback_tags('not-json')==[]
+    assert core.decode_feedback_tags('{"x":1}')==[]
+    assert core.decode_feedback_tags(json.dumps(['topic_like','unknown','topic_like',3]))==['topic_like']
+
+
+def test_feedback_schema_migrates_legacy_preferences_without_losing_flags(tmp_path,monkeypatch):
+    legacy=tmp_path/'legacy-feedback';(legacy/'data').mkdir(parents=True)
+    (legacy/'sources.json').write_text(json.dumps([{'id':'a','name':'源','url':'https://example.com'}]))
+    con=sqlite3.connect(legacy/'data/events.sqlite3')
+    con.execute('PRAGMA foreign_keys=OFF')
+    con.execute('CREATE TABLE preferences(event_id TEXT PRIMARY KEY,favorite INTEGER DEFAULT 0,hidden INTEGER DEFAULT 0)')
+    con.execute("INSERT INTO preferences VALUES('e1',1,1)");con.commit();con.close()
+    monkeypatch.setattr(core,'ROOT',legacy);core.init()
+    with core.db() as db:
+        cols={r[1] for r in db.execute('PRAGMA table_info(preferences)')}
+        row=dict(db.execute("SELECT * FROM preferences WHERE event_id='e1'").fetchone())
+    assert {'feedback','feedback_tags','feedback_updated_at'}<=cols
+    assert row['favorite']==1 and row['hidden']==1 and row['feedback']=='' and row['feedback_tags']=='[]'
+
+
+def test_alias_merge_keeps_latest_structured_feedback_and_flags(tmp_path):
+    a=ev(title='Alias A',start_at='2027-01-09T09:00:00+08:00',end_at='2027-01-09T17:00:00+08:00')
+    b=ev(title='Alias B',url='https://example.org/other',start_at='2027-01-09T00:00:00+08:00',end_at='2027-01-10T00:00:00+08:00',all_day=True)
+    core.ingest(source(),a);core.ingest(source('b'),b)
+    (tmp_path/'dedupe_aliases.json').write_text(json.dumps([{
+        'id':'feedback-alias','date':'2027-01-09',
+        'urls':['https://example.com/event/1','https://example.org/other']}]))
+    with core.db() as db:
+        ids=[x['id'] for x in db.execute('SELECT id FROM events ORDER BY origin_priority')]
+        db.execute("INSERT INTO preferences(event_id,favorite,hidden,feedback,feedback_tags,feedback_updated_at) VALUES(?,?,?,?,?,?)",
+                   (ids[0],0,1,'interested',json.dumps(['topic_like']),'2026-09-30T10:00:00+08:00'))
+        db.execute("INSERT INTO preferences(event_id,favorite,hidden,feedback,feedback_tags,feedback_updated_at) VALUES(?,?,?,?,?,?)",
+                   (ids[1],1,0,'not_interested',json.dumps(['time_conflict','less_like_this']),'2026-10-01T10:00:00+08:00'))
+    core.reconcile_aliases()
+    row=core.events(period='record',event_id=ids[0],include_hidden=True)[0]
+    assert row['favorite']==1 and row['hidden']==1
+    assert row['feedback']=='not_interested'
+    assert row['feedback_tags']==['time_conflict','less_like_this']

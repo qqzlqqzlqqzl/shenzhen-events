@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResp
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
-from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, TOPICS, EVENT_TYPES, DISTRICTS, iso, canonical_topic
+from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, TOPICS, EVENT_TYPES, DISTRICTS, FEEDBACK_SIGNALS, FEEDBACK_TAGS, decode_feedback_tags, iso, canonical_topic
 from .calendar import make_calendar
 from . import jobs
 COOKIE='sz_events_session'
@@ -147,6 +147,8 @@ def retry_source(source_id:str,request:Request):
 class Preference(BaseModel):
     favorite:bool|None=None
     hidden:bool|None=None
+    feedback:str|None=Field(default=None,max_length=32)
+    feedback_tags:list[str]|None=Field(default=None,max_length=len(FEEDBACK_TAGS))
 @app.post('/events/api/preferences/{event_id}')
 def preference(event_id:str,body:Preference,request:Request):
     require(request)
@@ -157,8 +159,17 @@ def preference(event_id:str,body:Preference,request:Request):
         c.execute('INSERT OR IGNORE INTO preferences(event_id) VALUES(?)',(event_id,))
         if body.favorite is not None:c.execute('UPDATE preferences SET favorite=? WHERE event_id=?',(int(body.favorite),event_id))
         if body.hidden is not None:c.execute('UPDATE preferences SET hidden=? WHERE event_id=?',(int(body.hidden),event_id))
-        state=dict(c.execute('SELECT favorite,hidden FROM preferences WHERE event_id=?',(event_id,)).fetchone())
-    return {'ok':True,'favorite':bool(state['favorite']),'hidden':bool(state['hidden'])}
+        feedback_touched=body.feedback is not None or body.feedback_tags is not None
+        if body.feedback is not None:
+            if body.feedback and body.feedback not in FEEDBACK_SIGNALS:raise HTTPException(400,'无效兴趣反馈')
+            c.execute('UPDATE preferences SET feedback=? WHERE event_id=?',(body.feedback,event_id))
+        if body.feedback_tags is not None:
+            tags=list(dict.fromkeys(body.feedback_tags))
+            if any(x not in FEEDBACK_TAGS for x in tags):raise HTTPException(400,'无效反馈标签')
+            c.execute('UPDATE preferences SET feedback_tags=? WHERE event_id=?',(json.dumps(tags,ensure_ascii=False),event_id))
+        if feedback_touched:c.execute('UPDATE preferences SET feedback_updated_at=? WHERE event_id=?',(stamp(),event_id))
+        state=dict(c.execute('SELECT favorite,hidden,feedback,feedback_tags,feedback_updated_at FROM preferences WHERE event_id=?',(event_id,)).fetchone())
+    return {'ok':True,'favorite':bool(state['favorite']),'hidden':bool(state['hidden']),'feedback':state['feedback'] if state['feedback'] in FEEDBACK_SIGNALS else '','feedback_tags':decode_feedback_tags(state['feedback_tags']),'feedback_updated_at':state['feedback_updated_at']}
 @app.get('/events/calendar.ics')
 def calendar(request:Request,token:str='',favorites:bool=False,recommended:bool=False):
     if not read_session(request.cookies.get(COOKIE,'')) and not hmac.compare_digest(token,config().get('feed_token','__invalid__')):raise HTTPException(401,'日历订阅需要私人链接')
