@@ -347,7 +347,7 @@ def span_days(e):
     try:return max(0.0,(datetime.fromisoformat(e['end_at'])-datetime.fromisoformat(e['start_at'])).total_seconds()/86400)
     except ValueError:return 0.0
 
-def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None,attendance='all',feedback='',feedback_tag='',viewed='all'):
+def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None,attendance='all',feedback='',feedback_tag='',viewed='all',districts=None):
     if event_id:event_id=resolve_event_id(event_id)
     aliases=dedupe_aliases()
     topics_filter=[canonical_topic(x) for x in topics_filter or []]
@@ -410,7 +410,9 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         e['topics']=resolved_topics(json.loads(e['topics'] or '[]'),e.get('event_type','Event'),e['title'],e['summary'])
         e['event_type']=e.get('event_type') or 'Event';e['event_type_label']='待分类' if e.get('event_type_state')=='pending' else EVENT_TYPES.get(e['event_type'],'其他活动');e['sources']=links.get(e['id'],[])
         if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue
-        if district and e['district']!=district:continue
+        if districts is not None:
+            if e['district'] not in districts:continue
+        elif district and e['district']!=district:continue
         if event_types and (e.get('event_type_state')=='pending' or e['event_type'] not in set(event_types)):continue
         if topics_filter and not set(topics_filter).intersection(e['topics']):continue
         if free and not e['cost_free']:continue

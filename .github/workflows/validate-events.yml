@@ -36,6 +36,7 @@ jobs:
           python -m venv .venv
           .venv/bin/python -m pip install -r requirements.lock.txt playwright==1.63.0
           .venv/bin/python -m playwright install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
           npm install --prefix "$RUNNER_TEMP/radar-dom" --ignore-scripts jsdom@30.1.1
           echo "NODE_PATH=$RUNNER_TEMP/radar-dom/node_modules" >> "$GITHUB_ENV"
           browser=$(.venv/bin/python - <<'PY'
@@ -61,7 +62,7 @@ jobs:
         shell: bash
         run: |
           result=0
-          for suite in taxonomy_browser multiday_browser calendar_browser review_personal_browser review_planning_browser review_decisions_browser review_recovery_browser feedback_browser review_browser coverage_browser; do
+          for suite in taxonomy_browser multiday_browser calendar_browser review_district_browser review_personal_browser review_planning_browser review_decisions_browser review_recovery_browser feedback_browser review_browser coverage_browser; do
             if [ -f "tests/$suite.py" ]; then
               .venv/bin/python "tests/$suite.py" 2>&1 | tee "artifacts/ci/$suite.log" || result=1
             fi

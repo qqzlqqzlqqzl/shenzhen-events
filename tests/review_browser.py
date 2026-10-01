@@ -51,9 +51,9 @@ def assert_true(x,message='assertion failed'):
     if not x:raise AssertionError(message)
 ready();print('INITIAL_CARDS',page.locator('.event-card').count(),flush=True)
 def navigation():
-    ready('?view=all');page.locator('#search').fill('机器人');page.wait_for_timeout(400);page.locator('#district').select_option('南山');page.wait_for_timeout(250)
-    assert_true('q=' in page.url and 'district=' in page.url);page.reload(wait_until='domcontentloaded');page.locator('.event-card').first.wait_for()
-    assert_true(page.locator('#search').input_value()=='机器人');assert_true(page.locator('#district').input_value()=='南山')
+    ready('?view=all');page.locator('#search').fill('机器人');page.wait_for_timeout(400);page.locator('#district-filter summary').click();page.locator('[data-facet-kind="district"][data-facet-action="none"]').click();page.locator('#district-options input[value="南山"]').check();page.locator('#district-filter summary').click();page.wait_for_timeout(250)
+    assert_true('q=' in page.url and 'districts=' in page.url);page.reload(wait_until='domcontentloaded');page.locator('.event-card').first.wait_for()
+    assert_true(page.locator('#search').input_value()=='机器人');assert_true(page.locator('#district-options input[value="南山"]').is_checked() and page.locator('#district-options input:checked').count()==1)
     page.locator('[data-view="favorites"]').click();page.wait_for_timeout(200);page.go_back(wait_until='domcontentloaded');page.wait_for_timeout(250)
     assert_true(page.locator('.tabs [aria-current="page"]').inner_text()=='全部活动');assert_true(page.locator('#search').input_value()=='机器人')
     page.go_forward(wait_until='domcontentloaded');page.wait_for_timeout(200);assert_true(page.locator('.tabs .active').inner_text()=='我的收藏')

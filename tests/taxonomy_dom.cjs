@@ -18,7 +18,7 @@ async function ready(query='?view=all',count=1,saved=null,brokenStorage=false){
  const w=dom.window;if(saved!==null)w.localStorage.setItem('radar.filters.v1:owner',saved);if(brokenStorage)Object.defineProperty(w,'localStorage',{get(){throw new Error('disabled')}});w.matchMedia=()=>({matches:false,addEventListener(){}});w.scrollTo=()=>{};
  w.fetch=async url=>{
   const p=new URL(url,w.location.href);let data={};
-  if(p.pathname.endsWith('/stats'))data={event_types:typeNames.map(value=>({value,label:value,count})),topics:['AI与开源','机器人','文化艺术','其他'].map(value=>({value,label:value,count})),districts:[],upcoming:4,recommended:2,weekend:0};
+  if(p.pathname.endsWith('/stats'))data={event_types:typeNames.map(value=>({value,label:value,count})),topics:['AI与开源','机器人','文化艺术','其他'].map(value=>({value,label:value,count})),districts:['南山','福田'],upcoming:4,recommended:2,weekend:0};
   if(p.pathname.endsWith('/events')){requests.push(p);const types=p.searchParams.getAll('type'),topics=p.searchParams.getAll('topic');const items=fixtures.filter(e=>p.searchParams.get('type_none')!=='true'&&p.searchParams.get('topic_none')!=='true'&&(!types.length||types.includes(e.event_type))&&(!topics.length||topics.some(t=>e.topics.includes(t))));data={items,total:items.length,has_more:false};}
   return {ok:true,status:200,json:async()=>data};
  };
@@ -107,5 +107,5 @@ test('invalid or unavailable local storage does not break browsing',async()=>{
 });
 
 test('online mode hides physical district without losing the offline preference',async()=>{
- const r=await ready('?view=all&attendance=online&district='+encodeURIComponent('南山'));try{assert.equal(r.w.document.querySelector('#district').hidden,true);assert.ok(!r.requests.at(-1).searchParams.has('district'));r.w.document.querySelector('#attendance').value='all';r.w.document.querySelector('#attendance').dispatchEvent(new r.w.Event('change',{bubbles:true}));await settle(r.w);assert.equal(r.w.document.querySelector('#district').hidden,false);assert.deepEqual(r.errors,[])}finally{r.close()}
+ const r=await ready('?view=all&attendance=online&district='+encodeURIComponent('南山'));try{assert.equal(r.w.document.querySelector('#district-filter').hidden,true);assert.ok(!r.requests.at(-1).searchParams.has('district'));assert.ok(!r.requests.at(-1).searchParams.has('districts'));assert.ok(!r.requests.at(-1).searchParams.has('district_none'));r.w.document.querySelector('#attendance').value='all';r.w.document.querySelector('#attendance').dispatchEvent(new r.w.Event('change',{bubbles:true}));await settle(r.w);assert.equal(r.w.document.querySelector('#district-filter').hidden,false);assert.deepEqual(r.requests.at(-1).searchParams.getAll('districts'),['南山']);assert.equal(r.w.document.querySelector('#district-options input[value="南山"]').checked,true);assert.deepEqual(r.errors,[])}finally{r.close()}
 });
