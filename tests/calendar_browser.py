@@ -23,6 +23,9 @@ put('长期博物馆展','https://example.com/long',(now-timedelta(days=100)).da
 put('周末工作坊','https://example.com/weekend',sat.isoformat(),(sat+timedelta(days=2)).isoformat(),True)
 put('排序较早','https://example.com/early',early.replace(hour=9).isoformat(),early.replace(hour=11).isoformat())
 put('排序较晚','https://example.com/late',late.replace(hour=9).isoformat(),late.replace(hour=11).isoformat())
+with core.db() as c:
+    favorite_id=c.execute("SELECT id FROM events WHERE url='https://example.com/early'").fetchone()[0]
+    c.execute('INSERT INTO preferences(event_id,favorite) VALUES(?,1)',(favorite_id,))
 sys.path.append('/home/ubuntu/ai-news/runtime/venv/lib/python3.12/site-packages')
 from playwright.sync_api import sync_playwright,expect
 spec=importlib.util.spec_from_file_location('accept',ROOT/'tests/browser_acceptance.py');accept=importlib.util.module_from_spec(spec);spec.loader.exec_module(accept)
@@ -90,8 +93,24 @@ def calendar_clean():
     ends=page.evaluate("calendar.getEvents().map(e=>e.end)")
     ok(all(x is not None for x in ends),str(ends))
     ok(page.evaluate('calendar.getEvents().every(e=>e.end-e.start<14*86400000)'))
+    fav=page.locator('.fc-event.favorite-event',has_text='排序较早').first
+    fav.wait_for();ok('★' in fav.inner_text(),fav.inner_text());ok('已收藏' in (fav.get_attribute('aria-label') or ''))
+    ok(page.locator('.calendar-legend span',has_text='我的收藏').is_visible())
     page.screenshot(path=str(ART/'desktop-month-clean.png'),full_page=True)
 check('month_calendar_preserves_short_intervals',calendar_clean)
+
+def calendar_favorite_updates_without_reload():
+    ready(CALENDAR_QUERY);expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
+    fav=page.locator('.fc-event.favorite-event',has_text='排序较早').first;fav.click()
+    page.locator('#detail').wait_for(state='visible')
+    b=page.locator('#detail [data-save]')
+    ok(b.get_attribute('aria-pressed')=='true')
+    b.click();expect(b).to_have_attribute('aria-pressed','false')
+    expect(page.locator('.fc-event.favorite-event',has_text='排序较早')).to_have_count(0)
+    b.click();expect(b).to_have_attribute('aria-pressed','true')
+    page.locator('#close-detail').click()
+    page.locator('.fc-event.favorite-event',has_text='排序较早').first.wait_for()
+check('calendar_favorite_updates_without_reload',calendar_favorite_updates_without_reload)
 
 def calendar_show_long():
     ready(CALENDAR_QUERY);page.locator('#hide-long').uncheck();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
@@ -105,6 +124,8 @@ def mobile_calendar():
     page.set_viewport_size({'width':390,'height':844});ready(CALENDAR_QUERY)
     page.locator('.fc-list').wait_for();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
     ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+    fav=page.locator('.fc-list-event.favorite-event',has_text='排序较早').first
+    fav.wait_for();ok('★' in fav.inner_text(),fav.inner_text());ok('已收藏' in (fav.get_attribute('aria-label') or ''))
     page.screenshot(path=str(ART/'mobile-month-list.png'),full_page=True)
 check('calendar_mobile_no_overflow',mobile_calendar)
 

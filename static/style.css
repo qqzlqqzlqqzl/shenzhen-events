@@ -53,6 +53,14 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 .calendar-event-range{display:block;font-size:9px;font-weight:500;opacity:.85}
 .fc-list-event .calendar-event-title,.fc-list-event .calendar-event-content{white-space:normal;overflow-wrap:anywhere}
 .legend-span{width:20px;height:8px;border-radius:3px;background:#dcebc9;border-left:3px solid #52745d;display:inline-block}
+.legend-favorite{display:inline-flex!important;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#fff1bd;color:#9b6b00!important;font-size:12px!important;font-style:normal;font-weight:800}
+.fc .fc-daygrid-event.favorite-event{background:#fff5d7!important;border-left:3px solid #c18a16!important;border-radius:4px;padding:3px 5px!important}
+.fc .fc-daygrid-event.favorite-event:hover{background:#ffedb8!important}
+.fc .fc-daygrid-event.favorite-event.multi-day-event{background:linear-gradient(90deg,#fff1c2,#dcebc9)!important}
+.fc-list-event.favorite-event>td{background:#fffaf0!important}
+.calendar-favorite-star{color:#a97300;font-weight:800}
+.calendar-long-item.favorite{border-color:#d9b75e;background:#fff9e8}
+.calendar-long-item.favorite:hover{border-color:#bf8f19;background:#fff3d1}
 .card-date-range{font-size:12px;line-height:1.7;color:#365c3e;font-weight:650;margin:0 0 12px}
 .card-date-range span{display:block;font-size:10px;color:var(--muted);font-weight:400}
 .result-count{white-space:normal;text-align:right;line-height:1.6}
