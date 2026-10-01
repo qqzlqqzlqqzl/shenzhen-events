@@ -2,14 +2,19 @@
 'use strict';
 globalThis.RadarPlanner=(()=>{
  const allowed=new Set(['view','month','q','district','districts','district_none','type','topic','type_none','topic_none','free','show_long','sort','attendance','feedback','feedback_tag','viewed','from','until','saved_only']);
- const cleanQuery=value=>{const q=new URLSearchParams(String(value||'').slice(0,4096));for(const [k,v] of [...q])if(!allowed.has(k)||v.length>180)q.delete(k);return q.toString()};
- function validDay(value){return /^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value}
+ const cleanQuery=value=>{const raw=new URLSearchParams(String(value||'')),q=new URLSearchParams(String(value||'').slice(0,4096));for(const [k,v] of [...q])if(!allowed.has(k)||v.length>180)q.delete(k);
+  // Sanitization must never erase a date constraint and silently widen a saved view.
+  for(const key of ['from','until'])if(raw.has(key)){const value=raw.get(key);q.set(key,value.length<=180?value:'invalid')}
+  return q.toString()};
+ function validDay(value){return /^\d{4}-\d{2}-\d{2}$/.test(value)&&!value.startsWith('0000-')&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value}
  function range(from,until){
   if(!from&&!until)return null;
   if(!validDay(from)||!validDay(until))throw new Error('请选择完整、有效的开始和结束日期。');
   const span=(Date.parse(until)-Date.parse(from))/86400000+1;
   if(span<1||span>93)throw new Error('结束日期不能早于开始日期，日期范围最多93天。');
-  return {start:from,end:new Date(Date.parse(until)+86400000).toISOString().slice(0,10),days:span};
+  const end=new Date(Date.parse(until)+86400000).toISOString().slice(0,10);
+  if(!validDay(end))throw new Error('结束日期超出支持范围，请选择9999-12-30或更早日期。');
+  return {start:from,end,days:span};
  }
  function decode(value){
   try{const data=JSON.parse(value||'[]');if(!Array.isArray(data))return [];
@@ -23,8 +28,8 @@ globalThis.RadarPlanner=(()=>{
  function selected(){const value=document.querySelector('#saved-view-choice').value;return value===''?-1:Number(value)}
  function init(){
   const name=document.querySelector('#saved-view-name');
-  document.querySelector('#save-view-form').onsubmit=e=>{e.preventDefault();const label=name.value.trim();if(!label||label.length>40){toast('视图名称需为1–40个字符。');return}if(profiles.some(x=>x.name.toLocaleLowerCase()===label.toLocaleLowerCase())){toast('已有同名视图，请改名或使用现有视图。');return}if(profiles.length>=12){toast('最多保存12个视图，请先整理旧视图。');return}try{range(document.querySelector('#date-from').value,document.querySelector('#date-until').value)}catch(err){toast(err.message);return}if(write([...profiles,{name:label,query:cleanQuery(urlParams())}])){toast('常用视图已保存到此浏览器。');name.value=''}};
-  document.querySelector('#apply-saved-view').onclick=()=>{const i=selected();if(i<0)return;closeDetail(false);history.pushState({radar:true},'',location.pathname+'?'+profiles[i].query);readURL();rememberFilters();load()};
+  document.querySelector('#save-view-form').onsubmit=e=>{e.preventDefault();const label=name.value.trim();if(!label||label.length>40){toast('视图名称需为1–40个字符。');return}if(profiles.some(x=>x.name.toLocaleLowerCase()===label.toLocaleLowerCase())){toast('已有同名视图，请改名或使用现有视图。');return}if(profiles.length>=12){toast('最多保存12个视图，请先整理旧视图。');return}if(!validateDateInputs())return;const params=draftParams();for(const [param,id] of [['from','date-from'],['until','date-until']]){const value=document.querySelector('#'+id).value;if(value)params.set(param,value);else params.delete(param)}if(write([...profiles,{name:label,query:cleanQuery(params)}])){toast('常用视图已保存到此浏览器。');name.value=''}};
+  document.querySelector('#apply-saved-view').onclick=()=>{const i=selected();if(i<0)return;const params=new URLSearchParams(profiles[i].query);try{range(params.get('from')||'',params.get('until')||'')}catch(err){toast(err.message);return}closeDetail(false);history.pushState({radar:true},'',location.pathname+'?'+profiles[i].query);readURL();rememberFilters();load()};
   document.querySelector('#rename-saved-view').onclick=()=>{const i=selected(),label=name.value.trim();if(i<0||!label||label.length>40){toast('选择视图并输入1–40字新名称。');return}if(profiles.some((x,j)=>j!==i&&x.name.toLocaleLowerCase()===label.toLocaleLowerCase())){toast('名称重复。');return}const next=profiles.map((x,j)=>j===i?{...x,name:label}:x);if(write(next))toast('视图已改名。')};
   document.querySelector('#delete-saved-view').onclick=()=>{const i=selected();if(i<0)return;const before=profiles.map(x=>({...x}));if(write(profiles.filter((_,j)=>j!==i))){undo={before,current:JSON.stringify(profiles)};document.querySelector('#undo-saved-view').hidden=false;toast('视图已移除，可以撤销。')}};
   document.querySelector('#undo-saved-view').onclick=()=>{if(!undo)return;let current;try{current=localStorage.getItem(key)}catch{return}if(current!==undo.current){toast('视图列表已变化，请重新核对。');return}if(write(undo.before)){undo=null;document.querySelector('#undo-saved-view').hidden=true}};
@@ -33,3 +38,4 @@ globalThis.RadarPlanner=(()=>{
  }
  return {cleanQuery,validDay,range,decode,user,init};
 })();
+
