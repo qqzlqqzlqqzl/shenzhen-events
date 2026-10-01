@@ -379,7 +379,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
             if e['status']!='needs_review':continue
         elif period in ('saved','record','feedback','history'):
             pass
-        elif period=='calendar':
+        elif period in ('calendar','range'):
             if not e['start_at'] or e['status']!='scheduled':continue
             end=e['end_at']
             if not end or end<=e['start_at'] or (e['all_day'] and end[:10]<=e['start_at'][:10]):

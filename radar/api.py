@@ -98,7 +98,7 @@ def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
 def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,attendance:str='all',feedback:str='',feedback_tag:str='',viewed:str='all',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0,le=10000),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
     require(request)
-    if period not in ('upcoming','week','weekend','review','past','saved','calendar','feedback','history'):raise HTTPException(400,'无效日期筛选')
+    if period not in ('upcoming','week','weekend','review','past','saved','calendar','feedback','history','range'):raise HTTPException(400,'无效日期筛选')
     if attendance not in ('all','online','offline','hybrid','unknown'):raise HTTPException(400,'无效参加方式')
     if feedback not in ('','any','none',*FEEDBACK_SIGNALS) or feedback_tag not in ('',*FEEDBACK_TAGS) or viewed not in ('all','seen','unseen'):raise HTTPException(400,'无效个人状态筛选')
     if attendance=='online':district=''
@@ -107,7 +107,7 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
     if len(event_types)>len(EVENT_TYPES) or any(x not in EVENT_TYPES for x in event_types):raise HTTPException(400,'无效活动类型筛选')
     if len(topics)>20 or any(x not in TOPICS and x!='其他' for x in topics):raise HTTPException(400,'无效主题筛选')
     begin,finish=None,None
-    if period=='calendar':
+    if period in ('calendar','range'):
         begin,finish=iso(start),iso(end)
         if not begin or not finish:raise HTTPException(400,'日历起止日期无效')
         span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
