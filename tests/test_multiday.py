@@ -57,6 +57,8 @@ def test_calendar_favorite_is_semantic_not_color_only():
     result=display(dict(id='fav',title='收藏活动',start_at='2026-10-14T19:00:00+08:00',end_at='2026-10-14T21:00:00+08:00',all_day=False,favorite=1))
     assert 'favorite-event' in result['calendar']['classNames']
     assert result['calendar']['extendedProps']['favorite'] is True
+    assert result['calendar']['extendedProps']['favoriteRank'] == 0
     plain=display(dict(id='plain',title='普通活动',start_at='2026-10-14T19:00:00+08:00',end_at='2026-10-14T21:00:00+08:00',all_day=False,favorite=0))
     assert 'favorite-event' not in plain['calendar']['classNames']
     assert plain['calendar']['extendedProps']['favorite'] is False
+    assert plain['calendar']['extendedProps']['favoriteRank'] == 1

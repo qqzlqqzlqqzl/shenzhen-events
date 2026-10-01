@@ -129,7 +129,7 @@ function renderCalendar(){
   calendar=new FullCalendar.Calendar($('#calendar'),{
     initialDate:calendarDate,initialView:innerWidth<620?'listMonth':'dayGridMonth',locale:'zh-cn',timeZone:'UTC',now:RadarUI.dayKey(new Date()),firstDay:1,height:'auto',
     buttonText:{today:'今天',month:'月',week:'周',list:'列表'},headerToolbar:{left:'prev,next today',center:'title',right:'dayGridMonth,listMonth'},
-    showNonCurrentDates:false,fixedWeekCount:false,dayMaxEvents:4,nextDayThreshold:'00:00:00',defaultTimedEventDuration:'00:00:01',allDayText:'活动期',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
+    showNonCurrentDates:false,fixedWeekCount:false,dayMaxEvents:4,eventOrder:'favoriteRank,start,title',eventOrderStrict:true,nextDayThreshold:'00:00:00',defaultTimedEventDuration:'00:00:01',allDayText:'活动期',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
     datesSet:info=>{calendarDate=info.view.currentStart.toISOString().slice(0,10);writeURL('replace',detailId);loadCalendar({startStr:calendarDate,endStr:info.view.currentEnd.toISOString().slice(0,10)})},
     eventClick:i=>{i.jsEvent.preventDefault();openDetail(i.event.id)},
     eventContent:i=>{if(i.view.type.startsWith('list'))return true;const label=i.event.extendedProps.rangeLabel;const box=document.createElement('span');box.className='calendar-event-content';const title=document.createElement('span');title.className='calendar-event-title';title.textContent=(i.event.extendedProps.favorite?'★ ':'')+(i.timeText&&!i.view.type.startsWith('list')?i.timeText+' ':'')+i.event.title;box.append(title);if(label){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=label;box.append(range)}return {domNodes:[box]}},
@@ -215,7 +215,7 @@ function closeDetail(updateHistory=true){
   if(authenticated&&opener?.isConnected)opener.focus();opener=null;
 }
 function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}
-  if(view==='calendar'&&calendar){const ce=calendar.getEventById(id);if(ce){const payload=RadarUI.calendarEvent(e);ce.setExtendedProp('favorite',!!e.favorite);ce.setProp('classNames',payload.classNames)}if(e.long_running)renderLongCalendar([...records.values()].filter(x=>x.long_running))}
+  if(view==='calendar'&&calendar){const ce=calendar.getEventById(id);if(ce){const payload=RadarUI.calendarEvent(e);ce.setExtendedProp('favorite',!!e.favorite);ce.setExtendedProp('favoriteRank',e.favorite?0:1);ce.setProp('classNames',payload.classNames)}if(e.long_running)renderLongCalendar([...records.values()].filter(x=>x.long_running))}
 }
 async function save(id){
   const e=records.get(id);if(!e||saving.has(id)||!authenticated)return;const epoch=authEpoch,target=!e.favorite;saving.add(id);paintFavorite(id);
