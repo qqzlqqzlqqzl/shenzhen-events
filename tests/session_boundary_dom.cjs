@@ -134,6 +134,7 @@ test('pending detail step cannot restore focus or rewrite history after a sessio
   r.w.eval('window.originalOpenDetail=openDetail;openDetail=async()=>new Promise(resolve=>window.releaseStep=resolve)');
   r.$('[data-detail-step="1"]').click();
   await boundary(r,'logout');r.w.eval('openDetail=window.originalOpenDetail');await fresh(r,'logout');await r.w.probe.openDetail('1');
-  await wait();const before=snapshot(r),query=r.w.location.search;r.w.releaseStep();await wait();assert.deepEqual(snapshot(r),before);assert.equal(r.w.location.search,query);
+  r.w.history.replaceState({radar:true,radarModal:false,marker:'fresh-session'},'',r.w.location.href);r.$('#detail').scrollTop=57;
+  await wait();const before=snapshot(r),query=r.w.location.search,historyState={...r.w.history.state};r.w.releaseStep();await wait();assert.deepEqual(snapshot(r),before);assert.equal(r.w.location.search,query);assert.deepEqual({...r.w.history.state},historyState);assert.equal(r.$('#detail').scrollTop,57);
  }finally{r.close()}
 });
