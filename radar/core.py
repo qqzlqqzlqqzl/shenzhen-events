@@ -178,6 +178,7 @@ def init():
         CREATE TABLE IF NOT EXISTS event_redirects(alias_id TEXT PRIMARY KEY,target_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE);
         CREATE INDEX IF NOT EXISTS idx_event_sources_event ON event_sources(event_id);
         CREATE INDEX IF NOT EXISTS idx_events_query_time ON events(start_at,id);
+        CREATE INDEX IF NOT EXISTS idx_preferences_favorite_nonzero ON preferences(event_id) WHERE favorite<>0;
         ''')
         if 'coverage' not in {r[1] for r in c.execute('PRAGMA table_info(source_health)')}:
             c.execute("ALTER TABLE source_health ADD COLUMN coverage TEXT NOT NULL DEFAULT '{}'")
@@ -448,7 +449,9 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         clauses.append(sql);params.extend(values)
     if event_id:add('e.id=?',event_id)
     if not include_hidden:add('COALESCE(p.hidden,0)=0')
-    if favorites:add('COALESCE(p.favorite,0)<>0')
+    # Seek the marked IDs instead of scanning every event to probe preferences.
+    # A subquery adds no per-favorite parameters and stays in this read snapshot.
+    if favorites:add('COALESCE(p.favorite,0)<>0 AND e.id IN (SELECT event_id FROM preferences WHERE favorite<>0)')
     if free:add('COALESCE(e.cost_free,0)<>0')
     if recommended:add("e.priority IN ('high','medium') AND COALESCE(e.commercial,'')<>'high'")
     if viewed=='seen':add("COALESCE(p.viewed_at,'')<>''")
