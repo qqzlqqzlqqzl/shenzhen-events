@@ -110,11 +110,11 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
     if len(event_types)>len(EVENT_TYPES) or any(x not in EVENT_TYPES for x in event_types):raise HTTPException(400,'无效活动类型筛选')
     if len(topics)>20 or any(x not in TOPICS and x!='其他' for x in topics):raise HTTPException(400,'无效主题筛选')
     begin,finish=None,None
-    if period in ('calendar','range'):
+    if period in ('calendar','range') or start or end:
         begin,finish=iso(start),iso(end)
-        if not begin or not finish:raise HTTPException(400,'日历起止日期无效')
+        if not begin or not finish:raise HTTPException(400,'活动起止日期无效')
         span=datetime.fromisoformat(finish)-datetime.fromisoformat(begin)
-        if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'日历范围需在93天内')
+        if span.total_seconds()<=0 or span>timedelta(days=93):raise HTTPException(400,'活动日期范围需在93天内')
     if period=='saved':favorites=True
     if period=='feedback' and not feedback:feedback='any'
     if period=='history':viewed='seen'
