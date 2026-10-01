@@ -52,7 +52,10 @@ p.on('dialog', on_dialog)
 def ready(source='public'):
     state.update(expired=False, version='A')
     prompts.clear()
-    p.goto(h.base + '/events/?view=' + ('status' if source == 'private' else 'all'))
+    response = p.goto(h.base + '/events/?view=' + ('status' if source == 'private' else 'all'))
+    # Exercise the real response policy; never weaken CSP for the fixture.
+    policy = response.headers.get('content-security-policy', '')
+    assert "script-src 'self'" in policy and "'unsafe-eval'" not in policy
     expect(p.locator('#workspace')).to_be_visible()
     if source == 'private':
         expect(p.locator('#copy-ics')).to_be_visible()
@@ -91,7 +94,9 @@ def fresh(kind):
     else:
         p.evaluate("async()=>await enter({username:'synthetic-B'})")
     expect(p.locator('#workspace')).to_be_visible()
-    p.wait_for_function("records.get('0')?.feedback==='not_interested'")
+    # Locator assertions wait for the fresh render without CSP-blocked string eval.
+    expect(p.locator('.title-button').first).to_have_text('B synthetic event 0')
+    assert p.evaluate("records.get('0')?.feedback==='not_interested'")
 
 
 def snapshot():
@@ -163,12 +168,18 @@ try:
                 if source == 'public':
                     p.locator('.title-button').first.click()
                 p.locator('#copy-ics' if source == 'private' else '.detail-utilities button').first.click()
-                p.evaluate("outcome=>outcome==='resolve'?pendingCopy.resolve():pendingCopy.reject(new Error('synthetic denial'))", outcome)
+                if source == 'private' and outcome == 'reject':
+                    # Register before rejection, then wait for the actual fallback prompt.
+                    with p.expect_event('dialog') as opened_prompt:
+                        p.evaluate("pendingCopy.reject(new Error('synthetic denial'))")
+                    assert opened_prompt.value.type == 'prompt'
+                else:
+                    p.evaluate("outcome=>outcome==='resolve'?pendingCopy.resolve():pendingCopy.reject(new Error('synthetic denial'))", outcome)
                 if outcome == 'resolve':
                     expect(p.locator('#toast')).to_be_visible()
                     expect(p.locator('#toast')).to_contain_text('已复制')
                 elif source == 'private':
-                    p.wait_for_function('copyWrites.length===1')
+                    assert p.evaluate('copyWrites.length') == 1
                     assert len(prompts) == 1
                     assert 'token=synthetic-calendar-bearer' in prompts[0]['value']
                 else:
