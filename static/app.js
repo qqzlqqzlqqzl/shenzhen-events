@@ -8,21 +8,31 @@ let undoFeedback=null;
 const records=new Map(),inflight=new Set(),saving=new Set(),feedbackSaving=new Set();
 const facetCatalog={type:new Map(),topic:new Map(),district:new Map()};
 function checkedFacet(kind){return $$(`#${kind}-options input[type="checkbox"]:checked`).map(x=>x.value)}
-function updateFacetSummary(kind){const n=checkedFacet(kind).length,total=$$(`#${kind}-options input[type="checkbox"]`).length;$(`#${kind}-summary`).textContent=n===total?'全部':!n?'未选择':n>total/2?`已排除 ${total-n}`:`已选 ${n}`}
+function updateFacetSummary(kind){const n=checkedFacet(kind).length,total=$$(`#${kind}-options input[type="checkbox"]`).length,unit={type:'类',topic:'个主题',district:'区'}[kind];$(`#${kind}-summary`).textContent=n===total?'全部':!n?'未选择':n>total/2?`已排除 ${total-n} ${unit}`:`已选 ${n} ${unit}`}
 function renderFacetOptions(kind,items,pending=0){
   const box=$(`#${kind}-options`),hadOptions=!!box.querySelector('input'),selected=new Set(checkedFacet(kind)),wasAll=hadOptions&&selected.size===box.querySelectorAll('input').length;facetCatalog[kind]=new Map((items||[]).map(x=>[x.value,x.label]));box.replaceChildren();
-  const extra=document.createElement('details');extra.className='facet-extra';const extraSummary=document.createElement('summary');extraSummary.textContent=kind==='type'?'更多类型（暂无近期活动）':'更多主题（暂无近期活动）';extra.append(extraSummary);const explicit=new Set(new URLSearchParams(location.search).getAll(kind));
   if(kind==='type'&&pending){const note=document.createElement('p');note.className='facet-progress';note.textContent='类型未明确的活动，在选择“全部”时仍会显示。';box.append(note)}
-  for(const item of items||[]){const label=document.createElement('label');label.className='facet-option';const input=document.createElement('input');input.type='checkbox';input.value=item.value;input.checked=!hadOptions||wasAll||selected.has(item.value);input.setAttribute('aria-label',item.label);const text=document.createElement('span');text.textContent=item.label;const count=document.createElement('small');count.textContent=Number(item.count||0).toLocaleString();label.append(input,text);if(kind!=='district')label.append(count);if(kind!=='district'&&!Number(item.count||0)){extra.append(label);if(explicit.has(item.value))extra.open=true}else box.append(label)}
-  if(extra.children.length>1)box.append(extra);
-  if(!(items||[]).length){const empty=document.createElement('p');empty.className='facet-empty';empty.textContent=kind==='type'?'暂无可筛选的活动类型。':'暂无可用主题标签。';box.append(empty)}
+  for(const item of items||[]){const label=document.createElement('label');label.className='facet-option';const input=document.createElement('input');input.type='checkbox';input.value=item.value;input.checked=!hadOptions||wasAll||selected.has(item.value);input.setAttribute('aria-label',item.label);const text=document.createElement('span');text.textContent=item.label;label.append(input,text);if(kind!=='district'){const count=document.createElement('small');count.dataset.facetCount='';count.textContent='—';count.title='数量按其他已应用筛选条件统计；—表示当前统计尚未取得。';label.append(count)}box.append(label)}
+  if(!(items||[]).length){const empty=document.createElement('p');empty.className='facet-empty';empty.textContent='暂无可用选项。';box.append(empty)}
   updateFacetSummary(kind);
+}
+function updateFacetCounts(facets){
+  for(const kind of ['type','topic','district']){const counts=new Map((facets?.[kind]||[]).map(x=>[x.value,x.count]));for(const input of $$(`#${kind}-options input`)){const label=input.closest('label'),count=counts.get(input.value),small=label.querySelector('[data-facet-count]');label.classList.toggle('is-empty',count===0);if(small)small.textContent=Number.isFinite(count)?String(count):'—'}}
+}
+function resultCountText(count,excluded){return `符合当前筛选 ${count} 个活动${excluded?.total?` · 另 ${excluded.total} 项长期/重复未计入（下方灰色列出）`:''}`}
+function renderExcluded(excluded){
+  const box=$('#excluded-events');box.replaceChildren();box.hidden=!excluded?.total||view==='status';if(box.hidden)return;
+  const heading=document.createElement('h3');heading.textContent=`未计入结果：${excluded.total} 项长期/重复活动`;
+  const hint=document.createElement('p');hint.textContent=`以下活动仍满足其他条件，只因开放或重复区间达到 ${excluded.threshold_days||14} 天，被当前“隐藏长期/重复”规则排除。`;
+  const include=document.createElement('button');include.type='button';include.className='secondary';include.dataset.action='include-long';include.textContent='纳入长期/重复活动';
+  const list=document.createElement('div');list.className='excluded-list';for(const e of excluded.items||[]){const row=document.createElement('div');row.className='excluded-event-row';const title=document.createElement('button');title.type='button';title.dataset.open=e.id;title.textContent=e.title;title.setAttribute('aria-label','查看未计入结果的活动：'+e.title);const meta=document.createElement('span');meta.textContent=RadarUI.fullTime(e)+' · 未计入：长期/重复';row.append(title,meta);list.append(row)}
+  box.append(heading,hint,include,list);if(excluded.truncated){const more=document.createElement('p');more.textContent=`已显示 ${excluded.items.length} 项，共 ${excluded.total} 项；点击“纳入长期/重复活动”后可查看全部。`;box.append(more)}
 }
 function renderActiveFilters(){
   const box=$('#active-filters');box.replaceChildren();
-  const addChip=(kind,value,exclude)=>{const b=document.createElement('button');b.type='button';b.className='filter-chip';b.dataset.facetRemove=kind;b.dataset.facetValue=value;b.dataset.facetExcluded=String(exclude);b.textContent=(exclude?'排除：':'')+(facetCatalog[kind].get(value)||value)+' ×';box.append(b)};
+  const addChip=(kind,value,exclude)=>{const b=document.createElement('button');b.type='button';b.className='filter-chip'+(exclude?' excluded-filter-chip':'');b.dataset.facetRemove=kind;b.dataset.facetValue=value;b.dataset.facetExcluded=String(exclude);b.textContent=(exclude?'排除：':'')+(facetCatalog[kind].get(value)||value)+' ×';box.append(b)};
   for(const kind of ['type','topic','district']){const all=$$(`#${kind}-options input`),selected=checkedFacet(kind);if(selected.length===all.length||(kind==='district'&&$('#attendance').value==='online'))continue;if(!selected.length){const note=document.createElement('span');note.textContent=({type:'活动类型',topic:'主题',district:'地区'}[kind])+'：未选择';box.append(note)}else{const exclude=selected.length>all.length/2;for(const x of all.filter(x=>exclude?!x.checked:x.checked))addChip(kind,x.value,exclude)}}
-  const rest=[$('#search').value?'关键词：'+$('#search').value:'',$('#free').checked?'只看免费':'',view==='favorites'?'收藏包含长期/重复':$('#hide-long').checked?'长期/重复已隐藏':'包含长期/重复',$('#sort').value==='desc'?'举办日期：从新到旧':'',$('#attendance').value!=='all'?$('#attendance').selectedOptions[0].textContent:''].filter(Boolean);
+  const rest=[$('#search').value?'关键词：'+$('#search').value:'',$('#free').checked?'只看免费':'',['favorites','feedback','history'].includes(view)?'此视图包含长期/重复':$('#hide-long').checked?'排除：长期/重复（≥14天）':'包含长期/重复',$('#sort').value==='desc'?'举办日期：从新到旧':'',$('#attendance').value!=='all'?$('#attendance').selectedOptions[0].textContent:''].filter(Boolean);
   if($('#date-from').value&&$('#date-until').value)rest.push($('#date-from').value+' 至 '+$('#date-until').value);
   for(const id of ['feedback-filter','feedback-tag-filter','viewed-filter']){const input=$('#'+id);if(input.value&&input.value!=='all')rest.push(input.selectedOptions[0]?.textContent||'')}
   if(rest.length){const span=document.createElement('span');span.className='filter-text';span.textContent=rest.join(' · ');box.append(span)}
@@ -44,7 +54,7 @@ async function api(path,options={}) {
   finally {clearTimeout(timer);inflight.delete(c);options.signal?.removeEventListener('abort',abort)}
 }
 function showLogin(message='') {
-  resetStatusRecovery();listSnapshot=null;calendarSnapshot=null;$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
+  resetStatusRecovery();listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
@@ -55,9 +65,9 @@ async function stats() {
   const epoch=authEpoch,ticket=++statsTicket;
   try {const s=await api('stats');if(!authenticated||epoch!==authEpoch||ticket!==statsTicket)return;
     $('#count-recommended').textContent=s.recommended;$('#count-upcoming').textContent=s.upcoming;$('#count-weekend').textContent=s.weekend;
-    $('#update-note').textContent=s.last_updated?'最近更新：'+timeText(s.last_updated):'活动正在整理中';
-    renderFacetOptions('district',[...(s.districts||[]).map(v=>({value:v,label:v})),{value:'待确认',label:'地区待确认'}]);
-    renderFacetOptions('type',s.event_types||[],s.type_pending||0);renderFacetOptions('topic',s.topics||[]);
+    $('#update-note').textContent=s.last_updated?'全站统计 · 最近更新：'+timeText(s.last_updated):'活动正在整理中';
+    if(!$('#district-options input'))renderFacetOptions('district',[...(s.districts||[]).map(v=>({value:v,label:v})),{value:'待确认',label:'地区待确认'}]);
+    if(!$('#type-options input'))renderFacetOptions('type',s.event_types||[],s.type_pending||0);if(!$('#topic-options input'))renderFacetOptions('topic',s.topics||[]);
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)$('#update-note').textContent=e.message}
 }
 let filterStorageKey='radar.filters.v1:owner';
@@ -113,7 +123,7 @@ function query(period) {const p=urlParams();const r=RadarPlanner.range(p.get('fr
 let failedAppend=false;
 function showError(error,append=false){failedAppend=append;$('#notice').hidden=false;$('#notice').replaceChildren();const t=document.createElement('span');t.textContent=error.message||'网络连接失败，请重试。';const b=document.createElement('button');b.className='secondary';b.dataset.action='retry';b.textContent='重试';$('#notice').append(t,b)}
 function showView(){
-  $('#hide-long').disabled=view==='favorites';
+  $('#hide-long').disabled=['favorites','feedback','history'].includes(view);$('#excluded-events').hidden=true;
   $('#personal-actions').hidden=view!=='feedback';$('#saved-views').hidden=view==='status';$('#open-filters').hidden=view==='status';
   $('#district-filter').hidden=$('#attendance').value==='online';$$('#district-options input').forEach(x=>x.disabled=$('#attendance').value==='online');
   $('#result-count').hidden=view==='status';$('#active-filters').hidden=view==='status';if(view==='status')$('#result-count').textContent='';
@@ -130,14 +140,14 @@ async function load(append=false){
   if(view==='calendar'){busy=false;renderCalendar();return}
   const requestKey=query().toString(),keep=!append&&listSnapshot?.key===requestKey;
   $('#event-list').dataset.hasSnapshot=String(keep||append);
-  if(keep){records.clear();for(const e of listSnapshot.items)records.set(e.id,e);$('#event-list').innerHTML=listSnapshot.items.map(card).join('')||emptyState();total=listSnapshot.total;offset=listSnapshot.offset;$('#more').hidden=!listSnapshot.hasMore;$('#result-count').textContent=`${total} 个活动 · 刷新中，保留上次结果`}
+  if(keep){updateFacetCounts(listSnapshot.facets);renderExcluded(listSnapshot.excluded);records.clear();for(const e of listSnapshot.items)records.set(e.id,e);$('#event-list').innerHTML=listSnapshot.items.map(card).join('')||emptyState();total=listSnapshot.total;offset=listSnapshot.offset;$('#more').hidden=!listSnapshot.hasMore;$('#result-count').textContent=`${total} 个活动 · 刷新中，保留上次结果`}
   $('#event-list').setAttribute('aria-busy','true');$('#more').disabled=true;$('#more').textContent='正在加载…';
-  if(!append&&!keep){offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
+  if(!append&&!keep){updateFacetCounts(null);renderExcluded(null);offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
   try{const p=new URLSearchParams(requestKey);p.set('offset',append?offset:0);p.set('limit',36);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
-    total=res.total;if(!append)$('#event-list').replaceChildren();
+    updateFacetCounts(res.facets);renderExcluded(res.excluded_long);total=res.total;if(!append)$('#event-list').replaceChildren();
     const fresh=append?res.items.filter(e=>!records.has(e.id)):res.items;if(!append)records.clear();for(const e of res.items)records.set(e.id,e);
     if(!res.items.length&&!append)$('#event-list').innerHTML=emptyState();else $('#event-list').insertAdjacentHTML('beforeend',fresh.map(card).join(''));
-    offset=append?offset+res.items.length:res.items.length;listSnapshot={key:requestKey,items:$$('.event-card[data-event]').map(n=>records.get(n.dataset.event)).filter(Boolean),total,offset,hasMore:!!res.has_more,at:Date.now()};$('#event-list').dataset.hasSnapshot='true';$('#result-count').textContent=`${total} 个活动`;$('#more').hidden=!res.has_more;
+    offset=append?offset+res.items.length:res.items.length;listSnapshot={key:requestKey,items:$$('.event-card[data-event]').map(n=>records.get(n.dataset.event)).filter(Boolean),total,offset,hasMore:!!res.has_more,facets:res.facets||null,excluded:res.excluded_long||null,at:Date.now()};$('#event-list').dataset.hasSnapshot='true';$('#result-count').textContent=resultCountText(total,res.excluded_long);$('#more').hidden=!res.has_more;
   }catch(e){if(e.name==='AbortError'||seq!==sequence||!authenticated)return;if(!append&&!keep){$('#event-list').replaceChildren();$('#result-count').textContent='加载失败'}if(keep){$('#result-count').textContent=`${total} 个活动 · 上次成功结果`;showError(new Error(e.message+' 正在保留此查询的上次结果，请手动重试。'),append)}else showError(e,append);if(append)$('#more').hidden=false}
   finally{if(seq===sequence){busy=false;$('#event-list').setAttribute('aria-busy','false');$('#more').disabled=false;$('#more').textContent='再看看更多 ↓'}}
 }
@@ -175,18 +185,18 @@ function renderLongCalendar(items){
 async function loadCalendar(info){
   if(!authenticated||view!=='calendar')return;calendarRange=info;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;
   const requestKey=query('calendar').toString()+'|'+info.startStr+'|'+info.endStr,keep=calendarSnapshot?.key===requestKey;
-  $('#notice').hidden=true;$('#calendar').dataset.hasSnapshot=String(keep);$('#calendar').setAttribute('aria-busy','true');$('#result-count').textContent=keep?'正在刷新 · 保留该月份上次结果':'正在加载当前月份';if(!keep){calendar.removeAllEvents();records.clear();$('#calendar-long').replaceChildren();$('#calendar-long').hidden=true}else{calendar.removeAllEvents();records.clear();for(const e of calendarSnapshot.items)records.set(e.id,e);renderLongCalendar(calendarSnapshot.items.filter(e=>e.long_running));calendar.addEventSource(calendarSnapshot.items.filter(e=>!e.long_running).map(RadarUI.calendarEvent))}
-  try{let cursor=0;const data=[];
+  $('#notice').hidden=true;$('#calendar').dataset.hasSnapshot=String(keep);$('#calendar').setAttribute('aria-busy','true');$('#result-count').textContent=keep?'正在刷新 · 保留该月份上次结果':'正在加载当前月份';if(!keep){updateFacetCounts(null);renderExcluded(null);calendar.removeAllEvents();records.clear();$('#calendar-long').replaceChildren();$('#calendar-long').hidden=true}else{updateFacetCounts(calendarSnapshot.facets);renderExcluded(calendarSnapshot.excluded);calendar.removeAllEvents();records.clear();for(const e of calendarSnapshot.items)records.set(e.id,e);renderLongCalendar(calendarSnapshot.items.filter(e=>e.long_running));calendar.addEventSource(calendarSnapshot.items.filter(e=>!e.long_running).map(RadarUI.calendarEvent))}
+  try{let cursor=0,metadata=null;const data=[];
     while(true){const p=query('calendar');p.set('start',info.startStr.slice(0,10));p.set('end',info.endStr.slice(0,10));p.set('offset',cursor);p.set('limit',500);
       const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated||view!=='calendar')return;
-      data.push(...res.items);cursor+=res.items.length;if(!res.has_more)break;if(!res.items.length||cursor>=10000)throw new Error('该范围活动过多，请用地区或兴趣缩小筛选。');
+      if(!metadata)metadata=res;data.push(...res.items);cursor+=res.items.length;if(!res.has_more)break;if(!res.items.length||cursor>=10000)throw new Error('该范围活动过多，请用地区或兴趣缩小筛选。');
     }
-    calendar.removeAllEvents();records.clear();for(const e of data)records.set(e.id,e);calendarSnapshot={key:requestKey,items:data,at:Date.now()};$('#calendar').dataset.hasSnapshot='true';
+    calendar.removeAllEvents();records.clear();for(const e of data)records.set(e.id,e);calendarSnapshot={key:requestKey,items:data,facets:metadata?.facets||null,excluded:metadata?.excluded_long||null,at:Date.now()};updateFacetCounts(metadata?.facets);renderExcluded(metadata?.excluded_long);$('#calendar').dataset.hasSnapshot='true';
     const long=data.filter(e=>e.long_running);
     const normal=data.filter(e=>!e.long_running); // API already selects interval overlap, including prior-month starts.
     renderLongCalendar(long);RadarEventWorkflows.unplanned();
     calendar.addEventSource(normal.map(RadarUI.calendarEvent));
-    const hiddenText=$('#hide-long').checked?' · 长期/重复已隐藏':long.length?` · ${long.length} 项长期/重复单列`:'';
+    const hiddenText=metadata?.excluded_long?.total?` · ${metadata.excluded_long.total} 项长期/重复未计入（上方灰色列出）`:$('#hide-long').checked?' · 已应用长期/重复排除规则':long.length?` · ${long.length} 项长期/重复单列`:'';
     $('#result-count').textContent=`本月 ${normal.length} 个活动 · 跨日活动按覆盖日期显示${hiddenText}`;calendar.updateSize();
   }catch(e){if(seq!==sequence||!authenticated||view!=='calendar'||!calendar)return;if(!keep){calendar.removeAllEvents();records.clear();renderLongCalendar([])}if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent=keep?'上次成功结果 · 当前月份刷新失败':'日历加载失败';showError(keep?new Error(e.message+' 保留该月份上次结果，其他月份不会混入。'):e)}}
   finally{if(seq===sequence){busy=false;$('#calendar').setAttribute('aria-busy','false')}}
@@ -211,15 +221,18 @@ function paintFeedback(id){const e=records.get(id);if(!e)return;const summary=fe
   }
 }
 function syncPersonalSnapshots(id,result){
+  if(listSnapshot)listSnapshot.facets=null;if(calendarSnapshot)calendarSnapshot.facets=null;updateFacetCounts(null);
   for(const snapshot of [listSnapshot,calendarSnapshot]){
     if(!snapshot)continue;
     for(const item of snapshot.items)if(item.id===id)Object.assign(item,result);
+    for(const item of snapshot.excluded?.items||[])if(item.id===id)Object.assign(item,result);
     // A confirmed un-save must not reappear from an older saved-only snapshot.
     if(result.favorite===false&&new URLSearchParams(snapshot.key.split('|')[0]).get('favorites')==='true'){
       const before=snapshot.items.length;snapshot.items=snapshot.items.filter(item=>item.id!==id);
       const removed=before-snapshot.items.length;
       if(Number.isFinite(snapshot.total))snapshot.total=Math.max(0,snapshot.total-removed);
       if(Number.isFinite(snapshot.offset))snapshot.offset=Math.max(0,snapshot.offset-removed);
+      if(snapshot.excluded){const previous=snapshot.excluded.items.length;snapshot.excluded.items=snapshot.excluded.items.filter(item=>item.id!==id);if(snapshot.excluded.items.length<previous)snapshot.excluded.total=Math.max(0,snapshot.excluded.total-1);else snapshot.excluded=null}
     }
   }
 }
@@ -260,7 +273,7 @@ async function save(id){
   try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({favorite:target,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
     Object.assign(e,result);syncPersonal(id,result);
     toast(result.favorite?'已收藏，其他设备登录后也能看到。':'已取消收藏。');
-    if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=`${total} 个活动`;if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
+    if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=resultCountText(total,res.excluded_long);if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}finally{saving.delete(id);if(authenticated&&epoch===authEpoch){paintFavorite(id);paintFeedback(id)}}
 }
 function navigate(next,reset=false){if(filterDraft)finishFilterDraft(false);clearTimeout(debounce);closeDetail(false);view=Object.hasOwn(views,next)?next:'discover';if(reset)clearFilters();writeURL();load()}
@@ -281,6 +294,7 @@ document.addEventListener('click',e=>{
   if(b.dataset.save){save(b.dataset.save);return}if(b.dataset.open){openDetail(b.dataset.open);return}
   if(b.dataset.view||b.dataset.changeView){navigate(b.dataset.view||b.dataset.changeView);return}
   const action=b.dataset.action;
+  if(action==='include-long'){$('#hide-long').checked=false;applyFilters();return}
   if(action==='browse-all'){navigate('all',true);return}
   if(action==='reset'){clearFilters();applyFilters();return}
   if(action==='retry-status'){loadStatus();return}
@@ -322,3 +336,4 @@ function updateConnectivity(){if(!authenticated)return;const offline=!navigator.
 addEventListener('offline',updateConnectivity);addEventListener('online',updateConnectivity);$('#network-retry').onclick=()=>{if(navigator.onLine){$('#network-banner').hidden=true;load()}};
 
 initStatusRecovery();
+

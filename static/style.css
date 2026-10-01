@@ -169,3 +169,9 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 #district-options .facet-option{grid-template-columns:auto minmax(0,1fr);gap:8px}
 #district-filter .filter-popover{width:300px;max-height:min(420px,70vh)}
 @media(max-width:620px){#filter-dialog #district-filter[open]{flex-basis:100%}#filter-dialog #district-filter .filter-popover{width:auto;max-height:none}}
+
+
+/* Exclusions remain visible and readable, rather than looking like missing data. */
+.facet-option:has(input:not(:checked)){color:#738078;background:#f3f4f0}.facet-option.is-empty{color:#7b847e}.facet-option input{opacity:1}.excluded-filter-chip{background:#edf0ec;color:#5e6b63;border-color:#cbd2cb}
+.excluded-events{margin:22px 0;padding:18px;border:1px dashed #bbc6bb;border-radius:14px;background:#eef1eb;color:#59675e}.excluded-events h3{font-size:15px;margin:0 0 9px}.excluded-events>p{font-size:12px;line-height:1.7}.excluded-events>.secondary{font-size:12px;min-height:40px;margin:4px 0 12px}.excluded-list{display:grid;gap:7px}.excluded-event-row{border-top:1px solid #d3dbd0;padding:8px 0}.excluded-event-row button{display:block;min-height:36px;border:0;background:none;text-align:left;padding:3px 0;color:#506057;font-size:13px;line-height:1.6}.excluded-event-row span{display:block;font-size:11px;line-height:1.7;color:#657367}.excluded-event-row button:hover{text-decoration:underline}.facet-progress{grid-column:1/-1}
+@media(max-width:620px){.excluded-event-row button,.excluded-events>.secondary{min-height:44px}.excluded-events{padding:14px}}

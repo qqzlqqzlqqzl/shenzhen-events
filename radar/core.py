@@ -406,7 +406,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
                     if isinstance(fix.get(field),str):e[field]=fix[field]
                 if isinstance(fix.get('topics'),list):e['topics']=json.dumps(fix['topics'],ensure_ascii=False)
         e['attendance']=event_attendance(e);e['attendance_label']=ATTENDANCE_LABELS[e['attendance']]
-        if attendance!='all' and e['attendance']!=attendance:continue
+        if attendance!='all' and e['attendance'] not in ({'online':('online','hybrid'),'offline':('offline','hybrid')}.get(attendance,(attendance,))):continue
         e['topics']=resolved_topics(json.loads(e['topics'] or '[]'),e.get('event_type','Event'),e['title'],e['summary'])
         e['event_type']=e.get('event_type') or 'Event';e['event_type_label']='待分类' if e.get('event_type_state')=='pending' else EVENT_TYPES.get(e['event_type'],'其他活动');e['sources']=links.get(e['id'],[])
         if query and query.casefold() not in (e['title']+' '+e['summary']+' '+e['location']+' '+e['organizer']).casefold():continue
@@ -427,4 +427,5 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     if period=='history':out.sort(key=lambda e:e.get('viewed_at') or '',reverse=True)
     if period=='feedback':out.sort(key=lambda e:e.get('feedback_updated_at') or '',reverse=True)
     return out
+
 
