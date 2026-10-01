@@ -78,3 +78,37 @@ test('mobile agenda keeps native focus, single keyboard/pointer activation and o
  assert.deepEqual(r.errors,[]);
  }finally{r.close();}
 });
+
+
+test('calendar pagination fetches the tail beyond 10000 without discarding its snapshot',async()=>{
+ const r=await ready(390);try{
+  const {w}=r,cal=w.__test.getCalendar();let rendered=[],offsets=[];
+  const originalAdd=cal.addEventSource.bind(cal);cal.addEventSource=events=>{rendered=events;return {remove(){}};};
+  w.fetch=async url=>{
+   const p=new URL(url,w.location.href);
+   if(!p.pathname.endsWith('/events'))return {ok:true,status:200,json:async()=>({})};
+   const offset=Number(p.searchParams.get('offset')),limit=Number(p.searchParams.get('limit'));
+   offsets.push(offset);const size=Math.min(limit,10013-offset);
+   const items=Array.from({length:size},(_,i)=>event('large-'+(offset+i),'2026-10-14T10:00:00+08:00','2026-10-14T11:00:00+08:00',false));
+   return {ok:true,status:200,json:async()=>({items,total:10013,offset,has_more:offset+size<10013})};
+  };
+  await w.__test.loadCalendar({startStr:'2026-10-01',endStr:'2026-11-01'});
+  assert.equal(rendered.length,10013);assert.equal(rendered.at(-1).id,'large-10012');
+  assert.equal(offsets.at(-1),10000);assert.equal(w.document.querySelector('#calendar').dataset.hasSnapshot,'true');
+  assert.match(w.document.querySelector('#result-count').textContent,/10013/);
+  assert.deepEqual(r.errors,[]);cal.addEventSource=originalAdd;
+ }finally{r.close();}
+});
+
+test('calendar pagination still rejects a nonprogressing page and retains the last valid snapshot',async()=>{
+ const r=await ready(390);try{
+  const {w}=r;w.fetch=async url=>{
+   const p=new URL(url,w.location.href);
+   return {ok:true,status:200,json:async()=>p.pathname.endsWith('/events')?{items:[],total:5,has_more:true}:{}};
+  };
+  await w.__test.loadCalendar({startStr:'2026-10-01',endStr:'2026-11-01'});
+  assert.equal(w.document.querySelector('#calendar').dataset.hasSnapshot,'true');
+  assert.ok(w.__test.getCalendar().getEventById('three'));
+  assert.deepEqual(r.errors,[]);
+ }finally{r.close();}
+});
