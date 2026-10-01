@@ -16,13 +16,22 @@ try:
     h.goto('?view=all&viewed=unseen');expect(page.locator('.event-card')).to_have_count(4);h.check('E05_unseen_filter')
     h.goto('?view=feedback');page.locator('.title-button').first.click()
     page.get_by_role('button',name='感兴趣',exact=True).click();expect(page.get_by_role('button',name='感兴趣',exact=True)).to_have_attribute('aria-pressed','true')
-    # Undo is available outside the modal after returning to the result list.
+    # Native modal top layer must not make the undo action inert behind its backdrop.
+    page.locator('#detail #undo-feedback').click()
+    expect(page.get_by_role('button',name='不感兴趣',exact=True)).to_have_attribute('aria-pressed','true')
+    expect(page.locator('#detail')).to_be_visible();h.check('E09_undo_inside_open_modal')
+    page.get_by_role('button',name='感兴趣',exact=True).click();expect(page.get_by_role('button',name='感兴趣',exact=True)).to_have_attribute('aria-pressed','true')
+    # The same undo also remains usable after closing the modal.
     page.locator('#close-detail').click();page.locator('#undo-feedback').click()
     expect(page.locator('[data-feedback-for]').first).to_contain_text('不感兴趣');h.check('E09_feedback_undo')
     page.reload();expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
     expect(page.locator('[data-feedback-for]').first).to_contain_text('不感兴趣');h.check('E09_undo_persisted')
     page.set_viewport_size({'width':390,'height':844});h.check('E01_E05_mobile_no_overflow',page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+    page.locator('.title-button').first.click();page.get_by_role('button',name='感兴趣',exact=True).click();expect(page.get_by_role('button',name='感兴趣',exact=True)).to_have_attribute('aria-pressed','true')
+    page.locator('#detail #undo-feedback').click();expect(page.get_by_role('button',name='不感兴趣',exact=True)).to_have_attribute('aria-pressed','true')
+    h.check('E09_mobile_modal_undo_no_overflow',page.locator('#detail').evaluate('e=>e.scrollWidth<=e.clientWidth'))
     page.screenshot(path=str(h.out/'mobile.png'),full_page=True)
 except Exception as exc:
     h.report['errors'].append(str(exc));raise
 finally:h.close()
+
