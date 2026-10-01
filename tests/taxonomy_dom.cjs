@@ -22,7 +22,7 @@ async function ready(query='?view=all',count=1,saved=null,brokenStorage=false){
   if(p.pathname.endsWith('/events')){requests.push(p);const types=p.searchParams.getAll('type'),topics=p.searchParams.getAll('topic');const items=fixtures.filter(e=>p.searchParams.get('type_none')!=='true'&&p.searchParams.get('topic_none')!=='true'&&(!types.length||types.includes(e.event_type))&&(!topics.length||topics.some(t=>e.topics.includes(t))));data={items,total:items.length,has_more:false};}
   return {ok:true,status:200,json:async()=>data};
  };
- const scripts=['vendor/fullcalendar.js','ui-state.js','render.js','planner.js','status.js','app.js'].map(f=>fs.readFileSync(path.join(root,'static',f),'utf8')).join('\n;\n');
+ const scripts=['vendor/fullcalendar.js','ui-state.js','render.js','planner.js','event-workflows.js','status.js','app.js'].map(f=>fs.readFileSync(path.join(root,'static',f),'utf8')).join('\n;\n');
  w.eval(scripts+'\n;window.__test={readURL,urlParams,applyFilters};');await settle(w);
  return {w,errors,requests,close(){dom.window.close();}};
 }

@@ -21,7 +21,7 @@ function renderActiveFilters(){
   const box=$('#active-filters');box.replaceChildren();
   const addChip=(kind,value,exclude)=>{const b=document.createElement('button');b.type='button';b.className='filter-chip';b.dataset.facetRemove=kind;b.dataset.facetValue=value;b.dataset.facetExcluded=String(exclude);b.textContent=(exclude?'排除：':'')+(facetCatalog[kind].get(value)||value)+' ×';box.append(b)};
   for(const kind of ['type','topic']){const all=$$(`#${kind}-options input`),selected=checkedFacet(kind);if(selected.length===all.length)continue;if(!selected.length){const note=document.createElement('span');note.textContent=(kind==='type'?'活动类型':'主题')+'：未选择';box.append(note)}else{const exclude=selected.length>all.length/2;for(const x of all.filter(x=>exclude?!x.checked:x.checked))addChip(kind,x.value,exclude)}}
-  const rest=[$('#search').value?'关键词：'+$('#search').value:'',$('#attendance').value==='online'?'':$('#district').value,$('#free').checked?'只看免费':'',$('#hide-long').checked?'长期/重复已隐藏':'包含长期/重复',$('#sort').value==='desc'?'举办日期：从新到旧':'',$('#attendance').value!=='all'?$('#attendance').selectedOptions[0].textContent:''].filter(Boolean);
+  const rest=[$('#search').value?'关键词：'+$('#search').value:'',$('#attendance').value==='online'?'':$('#district').value,$('#free').checked?'只看免费':'',view==='favorites'?'收藏包含长期/重复':$('#hide-long').checked?'长期/重复已隐藏':'包含长期/重复',$('#sort').value==='desc'?'举办日期：从新到旧':'',$('#attendance').value!=='all'?$('#attendance').selectedOptions[0].textContent:''].filter(Boolean);
   if($('#date-from').value&&$('#date-until').value)rest.push($('#date-from').value+' 至 '+$('#date-until').value);
   for(const id of ['feedback-filter','feedback-tag-filter','viewed-filter']){const input=$('#'+id);if(input.value&&input.value!=='all')rest.push(input.selectedOptions[0]?.textContent||'')}
   if(rest.length){const span=document.createElement('span');span.className='filter-text';span.textContent=rest.join(' · ');box.append(span)}
@@ -43,7 +43,7 @@ async function api(path,options={}) {
   finally {clearTimeout(timer);inflight.delete(c);options.signal?.removeEventListener('abort',abort)}
 }
 function showLogin(message='') {
-  if(filterDraft)finishFilterDraft(false);undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
+  if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
@@ -60,7 +60,7 @@ async function stats() {
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)$('#update-note').textContent=e.message}
 }
 let filterStorageKey='radar.filters.v1:owner';
-const filterKeys=new Set(['q','district','type','topic','type_none','topic_none','tag','free','show_long','sort','attendance','feedback','feedback_tag','viewed','from','until']);
+const filterKeys=new Set(['q','district','type','topic','type_none','topic_none','tag','free','show_long','sort','attendance','feedback','feedback_tag','viewed','from','until','saved_only']);
 function rememberFilters(){
   try{const p=urlParams();for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);localStorage.setItem(filterStorageKey,JSON.stringify({version:1,query:p.toString()}))}catch{}
 }
@@ -82,6 +82,7 @@ function readURL() {
   const topicAlias=x=>x==='展览文化'?'文化艺术':x;
   const selectedTypes=new Set(p.getAll('type')),selectedTopics=new Set(p.getAll('topic').map(topicAlias));const legacy=p.get('tag');if(legacy)selectedTopics.add(topicAlias(legacy));
   $$('#type-options input[type="checkbox"]').forEach(x=>x.checked=p.get('type_none')!=='true'&&(!selectedTypes.size||selectedTypes.has(x.value)));$$('#topic-options input[type="checkbox"]').forEach(x=>x.checked=p.get('topic_none')!=='true'&&(!selectedTopics.size||selectedTopics.has(x.value)));updateFacetSummary('type');updateFacetSummary('topic');
+  $('#calendar-saved-only').checked=p.get('saved_only')==='true';
   const month=p.get('month')||'';calendarDate=/^\d{4}-\d{2}-\d{2}$/.test(month)&&Number.isFinite(Date.parse(month))?month:RadarUI.dayKey(new Date());
 }
 function urlParams() {
@@ -89,6 +90,7 @@ function urlParams() {
   for(const [k,id] of [['q','search'],['district','district']]){const v=$('#'+id).value.trim();if(v)p.set(k,v)}
   for(const kind of ['type','topic']){const selected=checkedFacet(kind),total=$$(`#${kind}-options input`).length;if(total&&!selected.length)p.set(kind+'_none','true');else if(selected.length<total)for(const v of selected)p.append(kind,v)}
   for(const [key,id] of [['feedback','feedback-filter'],['feedback_tag','feedback-tag-filter'],['viewed','viewed-filter']]){const v=$('#'+id).value;if(v&&v!=='all')p.set(key,v)}
+  if($('#calendar-saved-only').checked)p.set('saved_only','true');
   if($('#date-from').value)p.set('from',$('#date-from').value);if($('#date-until').value)p.set('until',$('#date-until').value);
   if($('#attendance').value!=='all')p.set('attendance',$('#attendance').value);
   if($('#free').checked)p.set('free','true');if(!$('#hide-long').checked)p.set('show_long','true');if($('#sort').value==='desc')p.set('sort','desc');if(view==='calendar'&&calendarDate)p.set('month',calendarDate);return p;
@@ -98,16 +100,17 @@ function writeURL(mode='push',event=null) {
   const p=urlParams();if(event)p.set('event',event);const u=location.pathname+(p.size?'?'+p:'');
   if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);
 }
-function clearFilters(){clearTimeout(debounce);$('#date-from').value='';$('#date-until').value='';$('#date-error').textContent='';$('#feedback-filter').value='';$('#feedback-tag-filter').value='';$('#viewed-filter').value='all';$('#attendance').value='all';$('#search').value='';$('#district').value='';$$('#type-options input,#topic-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc'}
+function clearFilters(){clearTimeout(debounce);$('#calendar-saved-only').checked=false;$('#date-from').value='';$('#date-until').value='';$('#date-error').textContent='';$('#feedback-filter').value='';$('#feedback-tag-filter').value='';$('#viewed-filter').value='all';$('#attendance').value='all';$('#search').value='';$('#district').value='';$$('#type-options input,#topic-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc'}
 async function enter(user={}) {
   filterStorageKey='radar.filters.v1:'+String(user.username||'owner');RadarPlanner.user(user.username);
   authenticated=true;authEpoch++;$('.hero').hidden=true;$('#manage-sources').hidden=false;$('#login-panel').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;
   await stats();if(!authenticated)return;restoreSavedFilters();readURL();rememberFilters();await load();const id=new URLSearchParams(location.search).get('event');if(id&&authenticated)await openDetail(id,false);
 }
-function query(period) {const p=urlParams();const r=RadarPlanner.range(p.get('from')||'',p.get('until')||'');p.delete('from');p.delete('until');if(r&&!period&&!['calendar','status','favorites','feedback','history','review','past'].includes(view)){period='range';p.set('start',r.start);p.set('end',r.end)}if(p.get('attendance')==='online')p.delete('district');const showLong=p.get('show_long')==='true';p.delete('view');p.delete('month');p.delete('show_long');p.set('hide_long',showLong?'false':'true');p.set('period',period||({feedback:'feedback',history:'history',favorites:'saved',calendar:'calendar',week:'week',weekend:'weekend',review:'review',past:'past'}[view]||'upcoming'));if(view==='discover')p.set('recommended','true');if(view==='favorites')p.set('favorites','true');return p}
+function query(period) {const p=urlParams();const r=RadarPlanner.range(p.get('from')||'',p.get('until')||'');p.delete('from');p.delete('until');if(r&&!period&&!['calendar','status','favorites','feedback','history','review','past'].includes(view)){period='range';p.set('start',r.start);p.set('end',r.end)}if(p.get('attendance')==='online')p.delete('district');const showLong=p.get('show_long')==='true';p.delete('view');p.delete('month');p.delete('show_long');p.set('hide_long',showLong?'false':'true');if(p.get('saved_only')==='true'&&view==='calendar')p.set('favorites','true');p.delete('saved_only');p.set('period',period||({feedback:'feedback',history:'history',favorites:'saved',calendar:'calendar',week:'week',weekend:'weekend',review:'review',past:'past'}[view]||'upcoming'));if(view==='discover')p.set('recommended','true');if(view==='favorites'){p.set('favorites','true');p.set('hide_long','false')}return p}
 let failedAppend=false;
 function showError(error,append=false){failedAppend=append;$('#notice').hidden=false;$('#notice').replaceChildren();const t=document.createElement('span');t.textContent=error.message||'网络连接失败，请重试。';const b=document.createElement('button');b.className='secondary';b.dataset.action='retry';b.textContent='重试';$('#notice').append(t,b)}
 function showView(){
+  $('#hide-long').disabled=view==='favorites';
   $('#personal-actions').hidden=view!=='feedback';$('#saved-views').hidden=view==='status';$('#open-filters').hidden=view==='status';
   $('#district').hidden=$('#attendance').value==='online';$('#district').disabled=$('#attendance').value==='online';
   $('#result-count').hidden=view==='status';$('#active-filters').hidden=view==='status';if(view==='status')$('#result-count').textContent='';
@@ -139,7 +142,7 @@ function renderCalendar(){
     initialDate:calendarDate,initialView:innerWidth<620?'listMonth':'dayGridMonth',locale:'zh-cn',timeZone:'UTC',now:RadarUI.dayKey(new Date()),firstDay:1,height:'auto',
     buttonText:{today:'今天',month:'月',week:'周',list:'列表'},headerToolbar:{left:'prev,next today',center:'title',right:'dayGridMonth,listMonth'},
     showNonCurrentDates:false,fixedWeekCount:false,dayMaxEvents:4,eventOrder:'favoriteRank,start,title',eventOrderStrict:true,nextDayThreshold:'00:00:00',defaultTimedEventDuration:'00:00:01',allDayText:'活动期',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
-    datesSet:info=>{calendarDate=info.view.currentStart.toISOString().slice(0,10);writeURL('replace',detailId);loadCalendar({startStr:calendarDate,endStr:info.view.currentEnd.toISOString().slice(0,10)})},
+    datesSet:info=>{calendarDate=info.view.currentStart.toISOString().slice(0,10);$('#calendar-month-jump').value=calendarDate.slice(0,7);writeURL('replace',detailId);loadCalendar({startStr:calendarDate,endStr:info.view.currentEnd.toISOString().slice(0,10)})},
     eventClick:i=>{i.jsEvent.preventDefault();openDetail(i.event.id)},
     eventContent:i=>{if(i.view.type.startsWith('list'))return true;const label=i.event.extendedProps.rangeLabel;const box=document.createElement('span');box.className='calendar-event-content';const title=document.createElement('span');title.className='calendar-event-title';title.textContent=(i.event.extendedProps.favorite?'★ ':'')+(i.timeText&&!i.view.type.startsWith('list')?i.timeText+' ':'')+i.event.title;box.append(title);if(label){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=label;box.append(range)}return {domNodes:[box]}},
     eventDidMount:i=>{const favorite=!!i.event.extendedProps.favorite;const label=(favorite?'已收藏 · ':'')+i.event.title+' · '+i.event.extendedProps.fullTime;i.el.title=label;i.el.setAttribute('aria-label',label);i.el.dataset.eventId=i.event.id;i.el.classList.toggle('favorite-event',favorite);
@@ -153,13 +156,14 @@ function renderLongCalendar(items){
   const head=document.createElement('div');head.className='calendar-long-head';
   head.innerHTML=`<div><b>这个月仍在开放 / 重复进行</b><span>${items.length} 项 · 不再铺成整月长条</span></div>`;
   const list=document.createElement('div');list.className='calendar-long-list';
-  for(const e of items.slice(0,8)){
+  const visible=[...items].sort((a,b)=>Number(b.favorite)-Number(a.favorite));
+  for(const e of visible.slice(0,Math.max(8,visible.filter(x=>x.favorite).length))){
     const b=document.createElement('button');b.className='calendar-long-item';b.classList.toggle('favorite',!!e.favorite);b.dataset.open=e.id;
     const title=document.createElement('strong');title.textContent=(e.favorite?'★ ':'')+e.title;
     const meta=document.createElement('span');meta.textContent=`${RadarUI.fullTime(e)}${e.location?' · '+e.location:''}`;
     b.append(title,meta);list.append(b);
   }
-  if(items.length>8){const more=document.createElement('span');more.className='calendar-long-more';more.textContent=`另有 ${items.length-8} 项，可用“全部活动”查看`;list.append(more)}
+  if(items.length>Math.max(8,visible.filter(x=>x.favorite).length)){const more=document.createElement('span');more.className='calendar-long-more';more.textContent=`另有 ${items.length-Math.max(8,visible.filter(x=>x.favorite).length)} 项，可用“全部活动”查看`;list.append(more)}
   box.append(head,list);
 }
 async function loadCalendar(info){
@@ -173,7 +177,7 @@ async function loadCalendar(info){
     for(const e of data)records.set(e.id,e);
     const long=data.filter(e=>e.long_running);
     const normal=data.filter(e=>!e.long_running); // API already selects interval overlap, including prior-month starts.
-    renderLongCalendar(long);
+    renderLongCalendar(long);RadarEventWorkflows.unplanned();
     calendar.addEventSource(normal.map(RadarUI.calendarEvent));
     const hiddenText=$('#hide-long').checked?' · 长期/重复已隐藏':long.length?` · ${long.length} 项长期/重复单列`:'';
     $('#result-count').textContent=`本月 ${normal.length} 个活动 · 跨日活动按覆盖日期显示${hiddenText}`;calendar.updateSize();
@@ -214,10 +218,10 @@ function clearFeedback(id){updateFeedback(id,{feedback:'',feedback_tags:[]},'已
 function renderDetail(e){
   const state=RadarUI.lifecycle(e);const ended=state==='已结束'||e.status==='cancelled'||e.status==='not_event';
   $('#detail-body').innerHTML=`<div class="card-tags"><span class="tag type-tag">${esc(e.event_type_label||'其他活动')}</span>${(e.topics||[]).map(t=>`<span class="tag topic-tag">${esc(t)}</span>`).join('')}${e.long_running?'<span class="tag long-tag">长期/重复</span>':''}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p>${costText(e)?`<p><b>费用</b>${esc(costText(e))}</p>`:''}${e.organizer?`<p><b>${esc(organizerLabel(e))}</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}${detailExtras(e)}<div class="detail-actions"><a class="primary" href="${esc(RadarUI.safeUrl(e.url))}" target="_blank" rel="noopener noreferrer">${ended?'查看历史原文':'查看原文 / 报名'} ↗</a>${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：<a href="${esc(RadarUI.safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
-  mountFeedback(e);
+  mountFeedback(e);RadarEventWorkflows.mountDetail(e);
 }
 async function openDetail(id,push=true){
-  if(!authenticated)return;const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
+  if(!authenticated)return;if(push||!detailId)RadarEventWorkflows.beginDetail(id);const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
   try{const e=records.get(id)||await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
     records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
     if(!$('#detail').open)$('#detail').showModal();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
@@ -226,7 +230,7 @@ async function openDetail(id,push=true){
 function closeDetail(updateHistory=true){
   detailTicket++;const had=detailId;detailId=null;if($('#detail').open)$('#detail').close();document.body.classList.remove('modal-open');
   if(updateHistory&&had){if(history.state?.radarModal)history.back();else writeURL('replace')}
-  if(authenticated&&opener?.isConnected)opener.focus();opener=null;
+  if(authenticated&&opener?.isConnected)opener.focus({preventScroll:true});if(authenticated)RadarEventWorkflows.restoreFocus();opener=null;
 }
 function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id)||feedbackSaving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}
   if(view==='calendar'&&calendar){const ce=calendar.getEventById(id);if(ce){const payload=RadarUI.calendarEvent(e);ce.setExtendedProp('favorite',!!e.favorite);ce.setExtendedProp('favoriteRank',e.favorite?0:1);ce.setProp('classNames',payload.classNames)}if(e.long_running)renderLongCalendar([...records.values()].filter(x=>x.long_running))}
@@ -249,6 +253,7 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('button,[data-open]');if(!b||b.disabled)return;
   if(b.dataset.facetAction){const kind=b.dataset.facetKind;$$(`#${kind}-options input`).forEach(x=>x.checked=b.dataset.facetAction==='all'?true:b.dataset.facetAction==='none'?false:!x.checked);updateFacetSummary(kind);applyFilters();return}
   if(b.dataset.facetRemove){const kind=b.dataset.facetRemove,value=b.dataset.facetValue;$$(`#${kind}-options input[type="checkbox"]`).forEach(x=>{if(x.value===value)x.checked=b.dataset.facetExcluded==='true'});updateFacetSummary(kind);applyFilters();return}
+  if(b.dataset.compare){RadarEventWorkflows.toggle(b.dataset.compare);return}
   if(b.dataset.retrySource){retrySource(b.dataset.retrySource,b);return}
   if(b.dataset.feedbackSignal){setFeedbackSignal(b.dataset.feedbackEvent,b.dataset.feedbackSignal);return}
   if(b.dataset.feedbackTag){toggleFeedbackTag(b.dataset.feedbackEvent,b.dataset.feedbackTag);return}
@@ -290,3 +295,5 @@ function finishFilterDraft(apply){if(!filterDraft)return;if(apply){try{RadarPlan
   filterDraft=null;$('#filter-dialog').close();$('#filter-home').after($('#filter-panel'));updateFacetSummary('type');updateFacetSummary('topic');$('#open-filters').focus();if(apply)applyFilters();else renderActiveFilters();}
 $('#open-filters').onclick=beginFilterDraft;$('#cancel-filter-draft').onclick=()=>finishFilterDraft(false);$('#apply-filter-draft').onclick=()=>finishFilterDraft(true);$('#reset-filter-draft').onclick=()=>clearFilters();$('#filter-dialog').addEventListener('cancel',e=>{e.preventDefault();finishFilterDraft(false)});
 $('#apply-dates').onclick=()=>applyFilters();$('#clear-dates').onclick=()=>{$('#date-from').value='';$('#date-until').value='';applyFilters()};RadarPlanner.init();
+
+RadarEventWorkflows.init();

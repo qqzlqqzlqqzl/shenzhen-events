@@ -1,0 +1,60 @@
+/* Decision and review helpers: no automatic RSVP, subscription or network writes. */
+'use strict';
+globalThis.RadarEventWorkflows=(()=>{
+ const selected=new Map();let detailOrder=[],returnElement=null;
+ function overlap(a,b){
+  if(a.all_day||b.all_day||!a.start_at||!b.start_at||!a.end_at||!b.end_at)return null;
+  const [as,ae,bs,be]=[a.start_at,a.end_at,b.start_at,b.end_at].map(Date.parse);
+  if(![as,ae,bs,be].every(Number.isFinite)||ae<=as||be<=bs)return null;
+  return Math.max(as,bs)<Math.min(ae,be);
+ }
+ function shareText(e){return e.title+'\n'+RadarUI.fullTime(e)+(e.location?'\n'+e.location:'')+'\n'+safeOriginal(e.url)}
+ function safeOriginal(value){try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password?u.href:''}catch{return ''}}
+ function node(tag,text,cls){const n=document.createElement(tag);n.textContent=text;if(cls)n.className=cls;return n}
+ function paint(){
+  const bar=document.querySelector('#compare-bar'),chips=document.querySelector('#compare-chips');bar.hidden=selected.size===0;chips.replaceChildren();
+  document.querySelector('#compare-open').textContent='比较 '+selected.size+' / 3 项';document.querySelector('#compare-open').disabled=selected.size<2;
+  for(const [id,e] of selected){const b=node('button',e.title+' ×','compare-chip');b.type='button';b.setAttribute('aria-label','移除对比 '+e.title);b.onclick=()=>{selected.delete(id);paint()};chips.append(b)}
+  for(const b of document.querySelectorAll('[data-compare]')){const yes=selected.has(b.dataset.compare);b.setAttribute('aria-pressed',String(yes));b.textContent=yes?'已加入对比':'加入对比'}
+ }
+ function toggle(id){const e=records.get(id);if(!e)return;if(selected.has(id))selected.delete(id);else if(selected.size>=3){toast('最多比较3项，先移除不需要的候选。');return}else selected.set(id,{...e});paint()}
+ function compare(){
+  const box=document.querySelector('#compare-body');box.replaceChildren();const list=[...selected.values()];
+  for(const e of list){const article=node('article','','compare-item');article.append(node('h3',e.title));for(const [label,value] of [['时间',RadarUI.fullTime(e)],['参加方式',e.attendance_label||'待确认'],['地点',e.location||'未注明'],['费用',costText(e)||'费用未注明'],['主办',e.organizer||'未注明']]){const p=node('p','');p.append(node('b',label+'：'),node('span',value));article.append(p)}
+   const url=safeOriginal(e.url);if(url){const a=node('a','查看原文 ↗');a.href=url;a.target='_blank';a.rel='noopener noreferrer';article.append(a)}const open=node('button','查看完整详情');open.type='button';open.onclick=()=>{document.querySelector('#compare-dialog').close();records.set(e.id,e);openDetail(e.id)};article.append(open);box.append(article)}
+  for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const result=overlap(list[i],list[j]);box.append(node('p',`第 ${i+1} 与 ${j+1} 项：`+(result===null?'时间信息不足，无法判定冲突':result?'活动时段重叠，请自行取舍':'明确时段不重叠；未计入通勤时间'),'compare-conflict'))}
+  document.querySelector('#compare-dialog').showModal();document.querySelector('#close-compare').focus();
+ }
+ function beginDetail(id){
+  detailOrder=[...new Set([...document.querySelectorAll('.event-card[data-event]')].map(x=>x.dataset.event))];if(!detailOrder.includes(id))detailOrder=[...new Set([...records.keys()])].filter(key=>records.get(key)?.id===key);
+  returnElement=document.activeElement;
+ }
+ function mountDetail(e){
+  const actions=document.querySelector('#detail-body .detail-actions'),title=document.querySelector('#detail-title');if(!actions||!title)return;
+  // Act without scrolling past a long full-text excerpt.
+  title.after(actions);actions.classList.add('detail-primary-actions');
+  const extras=node('div','','detail-utilities');
+  const copy=node('button','复制活动摘要');copy.type='button';copy.onclick=()=>copyText(shareText(e),'活动摘要');extras.append(copy);
+  const share=node('button','复制原文链接');share.type='button';share.onclick=()=>copyText(safeOriginal(e.url),'原文链接');extras.append(share);
+  if(e.location&&['offline','hybrid'].includes(e.attendance)){const a=node('a','在地图中搜索地点 ↗');a.href='https://uri.amap.com/search?keyword='+encodeURIComponent(e.location)+'&city='+encodeURIComponent('深圳');a.target='_blank';a.rel='noopener noreferrer';a.title='按地点文字搜索，不代表已核验的精确坐标';extras.append(a)}
+  actions.after(extras);
+  const index=detailOrder.indexOf(e.id),nav=node('nav','','detail-sequence');nav.setAttribute('aria-label','连续查看活动');
+  for(const [delta,label] of [[-1,'上一条'],[1,'下一条']]){const b=node('button',label);b.type='button';b.dataset.detailStep=String(delta);b.disabled=index<0||index+delta<0||index+delta>=detailOrder.length;b.onclick=()=>step(delta);nav.append(b);if(delta===-1)nav.append(node('span',index>=0?`${index+1} / ${detailOrder.length} · 当前已加载结果`:'单条活动'))}
+  title.before(nav);
+ }
+ async function step(delta){const index=detailOrder.indexOf(detailId),id=detailOrder[index+delta];if(!id)return;const had=history.state?.radarModal;await openDetail(id,false);if(detailId!==id)return;writeURL('replace',id);history.replaceState({...history.state,radarModal:!!had},'',location.href);opener=returnElement;document.querySelector('#detail').scrollTop=0;}
+ function restoreFocus(){if(returnElement?.isConnected){returnElement.focus({preventScroll:true});returnElement=null}}
+ async function copyText(value,label){if(!value){toast('没有可复制的公开链接。');return}try{await navigator.clipboard.writeText(value);toast(label+'已复制；未包含私人日历订阅链接。')}catch{const box=document.querySelector('#copy-text');box.value=value;document.querySelector('#copy-dialog').showModal();box.focus();box.select()}}
+ async function unplanned(){const epoch=authEpoch;try{const result=await api('calendar-summary');if(!authenticated||epoch!==authEpoch||view!=='calendar')return;const unknown=Number(result.unscheduled)||0,long=Number(result.long_running)||0;const box=document.querySelector('#calendar-unscheduled');box.replaceChildren();box.hidden=!(unknown||long);if(unknown){const b=node('button',`${unknown} 项收藏尚不能排入日历 · 查看收藏`);b.onclick=()=>navigate('favorites',true);box.append(b)}if(long){const b=node('button',`${long} 项长期收藏 · 显示长期活动`);b.onclick=()=>{document.querySelector('#hide-long').checked=false;applyFilters()};box.append(b)}}catch{if(view==='calendar'){const box=document.querySelector('#calendar-unscheduled');box.hidden=false;box.textContent='收藏日程提示暂不可用；仍可打开“我的收藏”。'}}}
+ function init(){
+  document.querySelector('#compare-open').onclick=compare;document.querySelector('#compare-clear').onclick=()=>{selected.clear();paint()};document.querySelector('#close-compare').onclick=()=>document.querySelector('#compare-dialog').close();document.querySelector('#close-copy').onclick=()=>document.querySelector('#copy-dialog').close();
+  document.querySelector('#calendar-month-jump').onchange=e=>{if(/^\d{4}-\d{2}$/.test(e.target.value)){calendarDate=e.target.value+'-01';writeURL();if(calendar)calendar.gotoDate(calendarDate)}};
+  document.querySelector('#calendar-saved-only').onchange=()=>applyFilters();
+  document.querySelector('#shortcut-help').onclick=()=>document.querySelector('#shortcut-dialog').showModal();document.querySelector('#close-shortcuts').onclick=()=>document.querySelector('#shortcut-dialog').close();
+  document.addEventListener('keydown',e=>{if(!authenticated||e.isComposing||e.ctrlKey||e.metaKey||e.altKey||e.target.closest('input,textarea,select,[contenteditable="true"]')||String(getSelection()))return;
+   if(document.querySelector('#detail').open&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();step(e.key==='ArrowLeft'?-1:1);return}
+   if(document.querySelector('dialog[open]'))return;if(e.key==='/'){e.preventDefault();if(innerWidth<620)beginFilterDraft();document.querySelector('#search').focus()}if(e.key==='?'){e.preventDefault();document.querySelector('#shortcut-dialog').showModal()}
+  });
+ }
+ return {has:id=>selected.has(id),overlap,safeOriginal,shareText,toggle,paint,beginDetail,mountDetail,restoreFocus,unplanned,init,clear:()=>{selected.clear();paint();detailOrder=[];returnElement=null}};
+})();

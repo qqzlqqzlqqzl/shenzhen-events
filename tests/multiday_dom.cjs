@@ -29,7 +29,7 @@ async function ready(width=1440){
    if(p.pathname.endsWith('/events')){const items=fixtures.filter(e=>p.searchParams.get('hide_long')!=='true'||!e.long_running);data={items,total:items.length,has_more:false};}
    return {ok:true,status:200,json:async()=>data};
  };
- const scripts=['vendor/fullcalendar.js','ui-state.js','render.js','planner.js','status.js','app.js'].map(f=>fs.readFileSync(path.join(root,'static',f),'utf8')).join('\n;\n');
+ const scripts=['vendor/fullcalendar.js','ui-state.js','render.js','planner.js','event-workflows.js','status.js','app.js'].map(f=>fs.readFileSync(path.join(root,'static',f),'utf8')).join('\n;\n');
  w.eval(scripts+'\n;window.__test={getCalendar:()=>calendar,loadCalendar,renderLongCalendar,card};');
  for(let i=0;i<100;i++){if(w.__test.getCalendar()&&w.document.querySelector('#calendar').getAttribute('aria-busy')==='false')break;await new Promise(r=>setTimeout(r,5));}
  assert.ok(w.__test.getCalendar(),'calendar initialized');assert.equal(w.document.querySelector('#calendar').getAttribute('aria-busy'),'false');
