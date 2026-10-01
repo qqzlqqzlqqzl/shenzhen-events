@@ -117,6 +117,12 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
     if period=='history':viewed='seen'
     rows=[] if type_none or topic_none else events(query=q,period=period,district=district,tag=tag,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=hide_long,sort=sort,event_types=event_types,topics_filter=topics,attendance=attendance,feedback=feedback,feedback_tag=feedback_tag,viewed=viewed)
     return {'items':rows[offset:offset+limit],'total':len(rows),'offset':offset,'has_more':len(rows)>offset+limit}
+@app.get('/events/api/calendar-summary')
+def calendar_summary(request:Request):
+    require(request)
+    rows=events(period='saved',favorites=True)
+    return {'total':len(rows),'unscheduled':sum(not e['start_at'] or e['status']!='scheduled' for e in rows),'long_running':sum(e['long_running'] for e in rows)}
+
 @app.get('/events/api/stats')
 def stats(request:Request):
     require(request);up=events();rec=[e for e in up if e['priority'] in ('high','medium') and e['commercial']!='high'];clean_up=events(hide_long=True)
