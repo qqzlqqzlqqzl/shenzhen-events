@@ -6,7 +6,7 @@ from datetime import timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 import feedparser
 from bs4 import BeautifulSoup
-from . import core, collectors as c, details, official_sources, aggregates, source_fields
+from . import core, collectors as c, details, official_sources, aggregates, source_fields, recurring_sources
 
 
 def set_query(url, **values):
@@ -88,6 +88,12 @@ def tech_all(soup,url):
 
 def next_page(soup,url,kind):
     """Follow observed paging metadata only; never guess endless page numbers."""
+    if kind=='shenzhenware_events':
+        # Verified source pagination contract; only regular rows advance the cursor.
+        if not recurring_sources.regular_urls(soup,url):return None,None
+        try:page=int(dict(parse_qsl(urlsplit(url).query)).get('page',1))
+        except ValueError:raise c.SourceError('深圳湾分页游标无效')
+        return (set_query(url,page=page+1) if 0<page<100 else None),None
     if kind=='devevents':
         button=soup.select_one('button.moreButton[hx-vals]');total_match=re.search(r'showing\s+\d+\s+out of\s+(\d+)',c.text(soup),re.I)
         total=int(total_match[1]) if total_match else None
@@ -115,6 +121,7 @@ def next_page(soup,url,kind):
 
 def parse_page(source,html,soup,url):
     kind=source['kind']
+    if kind in recurring_sources.KINDS:return recurring_sources.parse(kind,html,soup,url)
     if kind=='wordpress_events':return aggregates.wordpress_posts(html,url,source)
     if kind=='szhzfw':
         items=aggregates.monthly_events(soup,url);return items,len(items),{}
@@ -139,6 +146,8 @@ def _detail_fingerprint(e):
 def enrich_details(source, items, metrics):
     """A persistent rotating queue, not the first eight entries on every run."""
     if not items:return items
+    if source.get('kind') in recurring_sources.KINDS:
+        return recurring_sources.enrich_details(source,items,metrics,c.fetch)
     limit=max(0,min(100,int(source.get('detail_budget',12))))
     pending=[];out=[]
     with core.db() as db:
@@ -207,6 +216,8 @@ def collect_report(source, previous=None):
     rows={};rejects=Counter();seen_pages=set();signatures=set()
     max_pages=max(1,min(300,int(source.get('max_pages',1))));max_entries=max(1,min(5000,int(source.get('max_entries',5000))))
     max_seconds=max(5,min(360,float(source.get('max_seconds',180))))
+    if kind in recurring_sources.KINDS:max_pages=min(max_pages,5)
+    deadline=started+max_seconds
     url=source['url'];cursor=previous.get('next_cursor');monthly_queue=[]
     if kind=='wordpress_events':url=set_query(url,after=(core.now()-timedelta(days=120)).strftime('%Y-%m-%dT00:00:00'))
     if cursor:
@@ -225,11 +236,21 @@ def collect_report(source, previous=None):
             else:
                 if kind=='wordpress_events':
                     html,soup,final,pagination=c.fetch(url,proxy=source.get('proxy'),include_pagination=True)
+                elif kind in recurring_sources.KINDS:
+                    html,soup,final=recurring_sources.bounded_fetch(c.fetch,url,source,deadline,metrics)
                 else:html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
                 if kind=='szhzfw' and urlsplit(url).path==urlsplit(source['url']).path:
                     monthly_queue=aggregates.monthly_links(soup,final);items=[];visible=0;excluded={}
+                elif kind=='xuanwu_activity':
+                    module_url=recurring_sources.discover_module(soup,final)
+                    recurring_sources.pause(source,deadline)
+                    module,module_soup,module_final=recurring_sources.bounded_fetch(c.fetch,module_url,source,deadline,metrics,max_bytes=1000000)
+                    if module_final!=module_url:raise c.SourceError('旋武活动模块跳转不匹配')
+                    metrics['inventory_module_url']=module_url
+                    items,visible,excluded=parse_page(source,module,module_soup,module_final)
+                    metrics['source_total']=visible
                 else:items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
-                nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx','devevents') else (None,None)
+                nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx','devevents','elecfans_webinar','shenzhenware_events') else (None,None)
                 if kind=='szhzfw':nxt=monthly_queue.pop(0) if monthly_queue else None
                 if kind=='wordpress_events':
                     try:
@@ -241,12 +262,17 @@ def collect_report(source, previous=None):
                 if not items and kind=='hdx' and ('login' in final.lower() or ('登录' in c.text(soup) and not soup.select_one('.search-tab-content-list'))):
                     metrics['access_boundary']=url
                     raise c.Blocked('后续分页要求登录；已保留公开可读页，未绕过访问限制')
-                if not items and kind not in ('rss','wordpress_events') and not (kind=='szhzfw' and nxt):raise c.SourceError('页面可访问但解析为空')
+                if not items and kind in recurring_sources.KINDS:
+                    # The source-specific parser has already validated the inventory shape.
+                    metrics['recognized_empty']=True
+                elif not items and kind not in ('rss','wordpress_events') and not (kind=='szhzfw' and nxt):
+                    raise c.SourceError('页面可访问但解析为空')
             metrics['pages_visited']+=1;metrics['page_urls'].append(url);metrics['visible']+=visible;metrics['extracted']+=len(items)
             if total is not None:metrics['source_total']=total
             rejects.update(excluded)
             metrics['parser_unaccounted']+=max(0,visible-len(items)-sum(excluded.values()))
-            signature=tuple(sorted(canonical(e['url']) for e in items))
+            signature=(tuple(sorted(recurring_sources.regular_urls(soup,final))) if kind=='shenzhenware_events'
+                       else tuple(sorted(canonical(e['url']) for e in items)))
             if signature and signature in signatures:
                 metrics['truncated']=True;metrics['reasons'].append('分页返回重复内容');break
             signatures.add(signature)
@@ -261,7 +287,8 @@ def collect_report(source, previous=None):
             if not nxt:break
             metrics['next_cursor']=nxt;url=nxt
             if page+1==max_pages:metrics['truncated']=True;metrics['reasons'].append('到达本轮分页上限');break
-            time.sleep(float(source.get('request_delay',.5)))
+            if kind in recurring_sources.KINDS:recurring_sources.pause(source,deadline)
+            else:time.sleep(float(source.get('request_delay',.5)))
         except c.SourceError as exc:
             error=str(exc);blocked=isinstance(exc,c.Blocked)
             metrics['reasons'].append(error);metrics['truncated']=True;metrics['next_cursor']=url if metrics['pages_visited'] else None;break
@@ -271,11 +298,16 @@ def collect_report(source, previous=None):
         metrics['reasons'].append('下轮更新公开页；登录后内容不计为已覆盖')
     if not metrics['truncated']:metrics['next_cursor']=None
     items=list(rows.values())[:max_entries];metrics['unique']=len(items)
-    if kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':started+max_seconds},items,metrics)
+    if kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':deadline},items,metrics)
+    if kind in recurring_sources.KINDS and metrics.get('detail_blocked'):
+        error='来源详情限制访问，已退避并保留已读取的列表'
+        blocked=True
     admitted=[]
     for e in items:
         mode=core.event_attendance(e);online=mode in ('online','hybrid') and source.get('allow_online',False)
         city='深圳' if online else city_evidence(e,source)
+        if kind in recurring_sources.KINDS and not online and city!='深圳':
+            rejects['城市尚未确认' if city=='待确认' else '其他城市']+=1;continue
         if city not in ('深圳','待确认'):rejects['其他城市']+=1;continue
         if city=='待确认' and source.get('scope')=='national':
             if '深圳' not in (e.get('title','')+e.get('summary','')) and 'shenzhen' not in (e.get('title','')+e.get('summary','')).casefold():rejects['城市尚未确认']+=1;continue

@@ -276,6 +276,25 @@ def resolve_event_id(event_id):
 def is_duplicate(a,b):
     if not a.get('start_at') or not b.get('start_at') or a['start_at'][:10]!=b['start_at'][:10]:return False
     year=a['start_at'][:4];an,bn=norm(a['title']).replace(year,''),norm(b['title']).replace(year,'');la,lb=norm(a.get('location','')),norm(b.get('location',''))
+    def attendance(event):
+        details=event.get('details')
+        if isinstance(details,str):
+            try:details=json.loads(details)
+            except (ValueError,TypeError):details={}
+        return event_attendance({**event,'details':details})
+    am,bm=attendance(a),attendance(b)
+    same_url=bool(canon_url(a.get('url','')) and canon_url(a.get('url',''))==canon_url(b.get('url','')))
+    if not same_url and am!=bm:
+        # A name/date match is not evidence that a broadcast and a venue event
+        # are the same activity. Explicit reviewed aliases are resolved before
+        # this heuristic, and existing same-source URL links bypass it.
+        if 'online' in (am,bm):return False
+        if {am,bm}=={'hybrid','offline'}:
+            same_venue=(la==lb and len(la)>5 and la not in ('广东省深圳市',)
+                        and not re.search(r'待确认|待定|通知|未知',clean(a.get('location'))))
+            same_organizer=bool(norm(a.get('organizer','')) and norm(a.get('organizer',''))==norm(b.get('organizer','')))
+            same_clock=(not a.get('all_day') and not b.get('all_day') and a['start_at']==b['start_at'])
+            if not same_venue or not (same_organizer or same_clock):return False
     da=next((d for d in DISTRICTS if d in la),None);db_=next((d for d in DISTRICTS if d in lb),None)
     if da and db_ and da!=db_:return False
     if min(len(la),len(lb))>5 and la not in lb and lb not in la and ratio(la,lb)<80:return False
