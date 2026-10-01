@@ -259,7 +259,7 @@ async function save(id){
     Object.assign(e,result);syncPersonal(id,result);
     toast(result.favorite?'已收藏，其他设备登录后也能看到。':'已取消收藏。');
     if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=`${total} 个活动`;if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
-  }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}finally{saving.delete(id);if(authenticated&&epoch===authEpoch)paintFavorite(id)}
+  }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}finally{saving.delete(id);if(authenticated&&epoch===authEpoch){paintFavorite(id);paintFeedback(id)}}
 }
 function navigate(next,reset=false){if(filterDraft)finishFilterDraft(false);clearTimeout(debounce);closeDetail(false);view=Object.hasOwn(views,next)?next:'discover';if(reset)clearFilters();writeURL();load()}
 function applyFilters(mode='push'){clearTimeout(debounce);if(filterDraft)return;try{RadarPlanner.range($('#date-from').value,$('#date-until').value);$('#date-error').textContent=''}catch(e){$('#date-error').textContent=e.message;return}closeDetail(false);writeURL(mode);load()}
