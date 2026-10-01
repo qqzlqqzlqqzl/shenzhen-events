@@ -23,9 +23,9 @@ put('长期博物馆展','https://example.com/long',(now-timedelta(days=100)).da
 put('周末工作坊','https://example.com/weekend',sat.isoformat(),(sat+timedelta(days=2)).isoformat(),True)
 put('排序较早','https://example.com/early',early.replace(hour=9).isoformat(),early.replace(hour=11).isoformat())
 put('排序较晚','https://example.com/late',late.replace(hour=9).isoformat(),late.replace(hour=11).isoformat())
-# Force dayMaxEvents overflow on the favorite's date: saved events must remain visible, not disappear behind +N.
-for i in range(5):
-    put(f'同日普通活动{i+1}',f'https://example.com/same-day-{i+1}',early.replace(hour=12+i).isoformat(),early.replace(hour=13+i).isoformat())
+# A dense date must show every event directly, not hide any behind +N.
+for i in range(12):
+    put(f'同日普通活动{i+1}',f'https://example.com/same-day-{i+1}',early.replace(hour=8+i).isoformat(),early.replace(hour=9+i).isoformat())
 with core.db() as c:
     favorite_id=c.execute("SELECT id FROM events WHERE url='https://example.com/early'").fetchone()[0]
     c.execute('INSERT INTO preferences(event_id,favorite) VALUES(?,1)',(favorite_id,))
@@ -99,6 +99,17 @@ def calendar_clean():
     fav=page.locator('.fc-event.favorite-event',has_text='排序较早').first
     fav.wait_for();ok('★' in fav.inner_text(),fav.inner_text());ok('已收藏' in (fav.get_attribute('aria-label') or ''))
     ok(page.locator('.calendar-legend span',has_text='我的收藏').is_visible())
+    ok(page.locator('.fc-daygrid-more-link').count()==0, 'Dense dates must not hide events behind +N')
+    boxes=[]
+    for i in range(12):
+        item=page.locator('.fc-daygrid-event').filter(has_text=f'同日普通活动{i+1}').filter(has=page.locator('.calendar-event-title')).all()
+        exact=[node for node in item if node.locator('.calendar-event-title').inner_text().endswith(f'同日普通活动{i+1}')]
+        ok(len(exact)==1, f'Dense event {i+1} must appear once')
+        ok(exact[0].is_visible(), f'Dense event {i+1} hidden')
+        box=exact[0].bounding_box();ok(box and box['height']>=18, 'Readable event row required');boxes.append(box)
+    boxes.sort(key=lambda b:b['y'])
+    ok(all(a['y']+a['height']<=b['y']+1 for a,b in zip(boxes,boxes[1:])), 'Dense rows overlap')
+    ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'), 'Desktop overflow')
     page.screenshot(path=str(ART/'desktop-month-clean.png'),full_page=True)
 check('month_calendar_preserves_short_intervals',calendar_clean)
 
@@ -129,6 +140,9 @@ def mobile_calendar():
     ok(page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
     fav=page.locator('.fc-list-event.favorite-event',has_text='排序较早').first
     fav.wait_for();ok('★' in fav.inner_text(),fav.inner_text());ok('已收藏' in (fav.get_attribute('aria-label') or ''))
+    for i in range(12):
+        expect(page.locator('.fc-list-event',has_text=f'同日普通活动{i+1}').first).to_be_visible()
+    ok(page.locator('.fc-daygrid-more-link').count()==0)
     page.screenshot(path=str(ART/'mobile-month-list.png'),full_page=True)
 check('calendar_mobile_no_overflow',mobile_calendar)
 
