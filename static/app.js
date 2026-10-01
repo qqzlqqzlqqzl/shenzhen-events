@@ -132,9 +132,9 @@ function renderCalendar(){
     showNonCurrentDates:false,fixedWeekCount:false,dayMaxEvents:4,nextDayThreshold:'00:00:00',defaultTimedEventDuration:'00:00:01',allDayText:'活动期',moreLinkText:n=>`+${n} 个`,noEventsContent:'这个月暂无已确认活动。',
     datesSet:info=>{calendarDate=info.view.currentStart.toISOString().slice(0,10);writeURL('replace',detailId);loadCalendar({startStr:calendarDate,endStr:info.view.currentEnd.toISOString().slice(0,10)})},
     eventClick:i=>{i.jsEvent.preventDefault();openDetail(i.event.id)},
-    eventContent:i=>{if(i.view.type.startsWith('list'))return true;const label=i.event.extendedProps.rangeLabel;const box=document.createElement('span');box.className='calendar-event-content';const title=document.createElement('span');title.className='calendar-event-title';title.textContent=(i.timeText&&!i.view.type.startsWith('list')?i.timeText+' ':'')+i.event.title;box.append(title);if(label){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=label;box.append(range)}return {domNodes:[box]}},
-    eventDidMount:i=>{const label=i.event.title+' · '+i.event.extendedProps.fullTime;i.el.title=label;i.el.setAttribute('aria-label',label);i.el.dataset.eventId=i.event.id;
-      const link=i.el.querySelector('.fc-list-event-title a');if(link){link.setAttribute('aria-label',label);link.classList.add('calendar-event-content');const rangeLabel=i.event.extendedProps.rangeLabel;if(rangeLabel&&!link.querySelector('.calendar-event-range')){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=rangeLabel;link.append(range)}}}
+    eventContent:i=>{if(i.view.type.startsWith('list'))return true;const label=i.event.extendedProps.rangeLabel;const box=document.createElement('span');box.className='calendar-event-content';const title=document.createElement('span');title.className='calendar-event-title';title.textContent=(i.event.extendedProps.favorite?'★ ':'')+(i.timeText&&!i.view.type.startsWith('list')?i.timeText+' ':'')+i.event.title;box.append(title);if(label){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=label;box.append(range)}return {domNodes:[box]}},
+    eventDidMount:i=>{const favorite=!!i.event.extendedProps.favorite;const label=(favorite?'已收藏 · ':'')+i.event.title+' · '+i.event.extendedProps.fullTime;i.el.title=label;i.el.setAttribute('aria-label',label);i.el.dataset.eventId=i.event.id;i.el.classList.toggle('favorite-event',favorite);
+      const link=i.el.querySelector('.fc-list-event-title a');if(link){link.setAttribute('aria-label',label);link.classList.add('calendar-event-content');if(favorite&&!link.querySelector('.calendar-favorite-star')){const star=document.createElement('span');star.className='calendar-favorite-star';star.setAttribute('aria-hidden','true');star.textContent='★ ';link.prepend(star)}const rangeLabel=i.event.extendedProps.rangeLabel;if(rangeLabel&&!link.querySelector('.calendar-event-range')){const range=document.createElement('small');range.className='calendar-event-range';range.textContent=rangeLabel;link.append(range)}}}
   });calendar.render();
 }
 function renderLongCalendar(items){
@@ -145,8 +145,8 @@ function renderLongCalendar(items){
   head.innerHTML=`<div><b>这个月仍在开放 / 重复进行</b><span>${items.length} 项 · 不再铺成整月长条</span></div>`;
   const list=document.createElement('div');list.className='calendar-long-list';
   for(const e of items.slice(0,8)){
-    const b=document.createElement('button');b.className='calendar-long-item';b.dataset.open=e.id;
-    const title=document.createElement('strong');title.textContent=e.title;
+    const b=document.createElement('button');b.className='calendar-long-item';b.classList.toggle('favorite',!!e.favorite);b.dataset.open=e.id;
+    const title=document.createElement('strong');title.textContent=(e.favorite?'★ ':'')+e.title;
     const meta=document.createElement('span');meta.textContent=`${RadarUI.fullTime(e)}${e.location?' · '+e.location:''}`;
     b.append(title,meta);list.append(b);
   }
@@ -187,7 +187,9 @@ function closeDetail(updateHistory=true){
   if(updateHistory&&had){if(history.state?.radarModal)history.back();else writeURL('replace')}
   if(authenticated&&opener?.isConnected)opener.focus();opener=null;
 }
-function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}}
+function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}
+  if(view==='calendar'&&calendar){const ce=calendar.getEventById(id);if(ce){const payload=RadarUI.calendarEvent(e);ce.setExtendedProp('favorite',!!e.favorite);ce.setProp('classNames',payload.classNames)}if(e.long_running)renderLongCalendar([...records.values()].filter(x=>x.long_running))}
+}
 async function save(id){
   const e=records.get(id);if(!e||saving.has(id)||!authenticated)return;const epoch=authEpoch,target=!e.favorite;saving.add(id);paintFavorite(id);
   try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({favorite:target})});if(!authenticated||epoch!==authEpoch)return;

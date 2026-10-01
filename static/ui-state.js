@@ -35,10 +35,13 @@ globalThis.RadarUI = (() => {
     const span=dateSpan(e);
     // FullCalendar uses UTC as a wall-clock display zone; normalize source offsets first.
     const wall=value=>new Date(new Date(value).getTime()+8*3600000).toISOString().slice(0,19);
+    const classNames=[];
+    if(span.days>1)classNames.push('multi-day-event');
+    if(e.favorite)classNames.push('favorite-event');
     return {id:e.id,title:e.title,start:e.all_day?span.start:wall(e.start_at),
       end:hasEnd(e)?(e.all_day?dayKey(e.end_at):wall(e.end_at)):null,allDay:!!e.all_day,
-      display:span.days>1?'block':'list-item',classNames:span.days>1?['multi-day-event']:[],
-      extendedProps:{rangeLabel:span.label,fullTime:fullTime(e)}};
+      display:span.days>1?'block':'list-item',classNames,
+      extendedProps:{rangeLabel:span.label,fullTime:fullTime(e),favorite:!!e.favorite}};
   }
   function lifecycle(e, current=Date.now()) {
     if(e.status==='cancelled')return '已取消';

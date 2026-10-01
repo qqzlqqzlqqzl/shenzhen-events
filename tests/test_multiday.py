@@ -51,3 +51,12 @@ def test_nonpositive_all_day_date_range_is_unknown_not_inverted(end):
     assert result['calendar']['end'] is None
     assert result['full']=='2026/10/14 · 具体时段未注明'
     assert result['calendar']['extendedProps']['fullTime']==result['full']
+
+
+def test_calendar_favorite_is_semantic_not_color_only():
+    result=display(dict(id='fav',title='收藏活动',start_at='2026-10-14T19:00:00+08:00',end_at='2026-10-14T21:00:00+08:00',all_day=False,favorite=1))
+    assert 'favorite-event' in result['calendar']['classNames']
+    assert result['calendar']['extendedProps']['favorite'] is True
+    plain=display(dict(id='plain',title='普通活动',start_at='2026-10-14T19:00:00+08:00',end_at='2026-10-14T21:00:00+08:00',all_day=False,favorite=0))
+    assert 'favorite-event' not in plain['calendar']['classNames']
+    assert plain['calendar']['extendedProps']['favorite'] is False
