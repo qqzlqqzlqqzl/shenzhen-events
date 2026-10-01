@@ -23,6 +23,9 @@ put('长期博物馆展','https://example.com/long',(now-timedelta(days=100)).da
 put('周末工作坊','https://example.com/weekend',sat.isoformat(),(sat+timedelta(days=2)).isoformat(),True)
 put('排序较早','https://example.com/early',early.replace(hour=9).isoformat(),early.replace(hour=11).isoformat())
 put('排序较晚','https://example.com/late',late.replace(hour=9).isoformat(),late.replace(hour=11).isoformat())
+# Force dayMaxEvents overflow on the favorite's date: saved events must remain visible, not disappear behind +N.
+for i in range(5):
+    put(f'同日普通活动{i+1}',f'https://example.com/same-day-{i+1}',early.replace(hour=12+i).isoformat(),early.replace(hour=13+i).isoformat())
 with core.db() as c:
     favorite_id=c.execute("SELECT id FROM events WHERE url='https://example.com/early'").fetchone()[0]
     c.execute('INSERT INTO preferences(event_id,favorite) VALUES(?,1)',(favorite_id,))

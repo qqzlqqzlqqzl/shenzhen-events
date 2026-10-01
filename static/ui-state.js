@@ -41,7 +41,7 @@ globalThis.RadarUI = (() => {
     return {id:e.id,title:e.title,start:e.all_day?span.start:wall(e.start_at),
       end:hasEnd(e)?(e.all_day?dayKey(e.end_at):wall(e.end_at)):null,allDay:!!e.all_day,
       display:span.days>1?'block':'list-item',classNames,
-      extendedProps:{rangeLabel:span.label,fullTime:fullTime(e),favorite:!!e.favorite}};
+      extendedProps:{rangeLabel:span.label,fullTime:fullTime(e),favorite:!!e.favorite,favoriteRank:e.favorite?0:1}};
   }
   function lifecycle(e, current=Date.now()) {
     if(e.status==='cancelled')return '已取消';
