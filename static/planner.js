@@ -1,7 +1,7 @@
 /* Query-only saved views. No session, token, article detail or credentials persist. */
 'use strict';
 globalThis.RadarPlanner=(()=>{
- const allowed=new Set(['view','month','q','district','type','topic','type_none','topic_none','free','show_long','sort','attendance','feedback','feedback_tag','viewed','from','until','saved_only']);
+ const allowed=new Set(['view','month','q','district','districts','district_none','type','topic','type_none','topic_none','free','show_long','sort','attendance','feedback','feedback_tag','viewed','from','until','saved_only']);
  const cleanQuery=value=>{const q=new URLSearchParams(String(value||'').slice(0,4096));for(const [k,v] of [...q])if(!allowed.has(k)||v.length>180)q.delete(k);return q.toString()};
  function validDay(value){return /^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value}
  function range(from,until){
