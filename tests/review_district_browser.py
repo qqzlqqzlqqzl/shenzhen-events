@@ -27,6 +27,7 @@ try:
     p.reload();expect(p.locator('#event-list')).to_have_attribute('aria-busy','false')
     expect(p.locator('.event-card')).to_have_count(2);h.check('district_url_reload')
     p.locator('#district-filter summary').click()
+    p.screenshot(path=str(h.out/'desktop-district.png'),full_page=True)
     p.locator('[data-facet-kind="district"][data-facet-action="none"]').click()
     expect(p.locator('.event-card')).to_have_count(0)
     expect(p.locator('#district-summary')).to_have_text('未选择')
@@ -62,6 +63,8 @@ try:
     expect(p.locator('.event-card')).to_have_count(1)
     h.check('district_mobile_apply_once',len(calls)==1)
     h.check('district_mobile_no_overflow',p.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+    p.locator('#open-filters').click()
+    if not p.locator('#district-filter').evaluate('(el)=>el.open'):p.locator('#district-filter summary').click()
     p.screenshot(path=str(h.out/'mobile-district.png'),full_page=True)
 except Exception as exc:h.report['errors'].append(str(exc));raise
 finally:h.close()
