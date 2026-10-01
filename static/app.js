@@ -128,14 +128,14 @@ async function load(append=false){
   if(view==='calendar'){busy=false;renderCalendar();return}
   const requestKey=query().toString(),keep=!append&&listSnapshot?.key===requestKey;
   $('#event-list').dataset.hasSnapshot=String(keep||append);
-  if(keep){records.clear();for(const e of listSnapshot.items)records.set(e.id,e);$('#event-list').innerHTML=listSnapshot.items.map(card).join('')||emptyState();total=listSnapshot.total;offset=listSnapshot.offset;$('#result-count').textContent=`${total} 个活动 · 刷新中，保留上次结果`}
+  if(keep){records.clear();for(const e of listSnapshot.items)records.set(e.id,e);$('#event-list').innerHTML=listSnapshot.items.map(card).join('')||emptyState();total=listSnapshot.total;offset=listSnapshot.offset;$('#more').hidden=!listSnapshot.hasMore;$('#result-count').textContent=`${total} 个活动 · 刷新中，保留上次结果`}
   $('#event-list').setAttribute('aria-busy','true');$('#more').disabled=true;$('#more').textContent='正在加载…';
   if(!append&&!keep){offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
   try{const p=new URLSearchParams(requestKey);p.set('offset',append?offset:0);p.set('limit',36);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
     total=res.total;if(!append)$('#event-list').replaceChildren();
     const fresh=append?res.items.filter(e=>!records.has(e.id)):res.items;if(!append)records.clear();for(const e of res.items)records.set(e.id,e);
     if(!res.items.length&&!append)$('#event-list').innerHTML=emptyState();else $('#event-list').insertAdjacentHTML('beforeend',fresh.map(card).join(''));
-    offset=append?offset+res.items.length:res.items.length;listSnapshot={key:requestKey,items:$$('.event-card[data-event]').map(n=>records.get(n.dataset.event)).filter(Boolean),total,offset,at:Date.now()};$('#event-list').dataset.hasSnapshot='true';$('#result-count').textContent=`${total} 个活动`;$('#more').hidden=!res.has_more;
+    offset=append?offset+res.items.length:res.items.length;listSnapshot={key:requestKey,items:$$('.event-card[data-event]').map(n=>records.get(n.dataset.event)).filter(Boolean),total,offset,hasMore:!!res.has_more,at:Date.now()};$('#event-list').dataset.hasSnapshot='true';$('#result-count').textContent=`${total} 个活动`;$('#more').hidden=!res.has_more;
   }catch(e){if(e.name==='AbortError'||seq!==sequence||!authenticated)return;if(!append&&!keep){$('#event-list').replaceChildren();$('#result-count').textContent='加载失败'}if(keep){$('#result-count').textContent=`${total} 个活动 · 上次成功结果`;showError(new Error(e.message+' 正在保留此查询的上次结果，请手动重试。'),append)}else showError(e,append);if(append)$('#more').hidden=false}
   finally{if(seq===sequence){busy=false;$('#event-list').setAttribute('aria-busy','false');$('#more').disabled=false;$('#more').textContent='再看看更多 ↓'}}
 }
@@ -208,7 +208,20 @@ function paintFeedback(id){const e=records.get(id);if(!e)return;const summary=fe
     const clear=$$('[data-feedback-clear]').find(b=>b.dataset.feedbackClear===id);if(clear){clear.hidden=!(e.feedback||selected.size);clear.disabled=feedbackSaving.has(id)}
   }
 }
-function syncPersonal(id,result){const current=records.get(id);if(current)Object.assign(current,result);paintFeedback(id);paintFavorite(id)}
+function syncPersonalSnapshots(id,result){
+  for(const snapshot of [listSnapshot,calendarSnapshot]){
+    if(!snapshot)continue;
+    for(const item of snapshot.items)if(item.id===id)Object.assign(item,result);
+    // A confirmed un-save must not reappear from an older saved-only snapshot.
+    if(result.favorite===false&&new URLSearchParams(snapshot.key.split('|')[0]).get('favorites')==='true'){
+      const before=snapshot.items.length;snapshot.items=snapshot.items.filter(item=>item.id!==id);
+      const removed=before-snapshot.items.length;
+      if(Number.isFinite(snapshot.total))snapshot.total=Math.max(0,snapshot.total-removed);
+      if(Number.isFinite(snapshot.offset))snapshot.offset=Math.max(0,snapshot.offset-removed);
+    }
+  }
+}
+function syncPersonal(id,result){const current=records.get(id);if(current)Object.assign(current,result);syncPersonalSnapshots(id,result);paintFeedback(id);paintFavorite(id)}
 async function updateFeedback(id,patch,message,undo=false){const e=records.get(id);if(!e||feedbackSaving.has(id)||saving.has(id)||!authenticated)return;
   const before={feedback:e.feedback||'',feedback_tags:[...(e.feedback_tags||[])]},epoch=authEpoch;feedbackSaving.add(id);paintFeedback(id);paintFavorite(id);
   try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({...patch,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
@@ -216,7 +229,7 @@ async function updateFeedback(id,patch,message,undo=false){const e=records.get(i
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}
   finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch){paintFeedback(id);paintFavorite(id)}}
 }
-async function recordView(id){const epoch=authEpoch;try{const result=await api('viewed/'+encodeURIComponent(id),{method:'POST'});if(!authenticated||epoch!==authEpoch)return;const current=records.get(id);if(current)current.viewed_at=result.viewed_at;for(const tag of $$('[data-viewed-for]'))if(tag.dataset.viewedFor===id){tag.hidden=false;tag.textContent='已看过'}}catch(e){if(e.name!=='AbortError')toast('浏览记录未同步；活动仍可阅读。')}}
+async function recordView(id){const epoch=authEpoch;try{const result=await api('viewed/'+encodeURIComponent(id),{method:'POST'});if(!authenticated||epoch!==authEpoch)return;const current=records.get(id);if(current)current.viewed_at=result.viewed_at;syncPersonalSnapshots(id,{viewed_at:result.viewed_at});for(const tag of $$('[data-viewed-for]'))if(tag.dataset.viewedFor===id){tag.hidden=false;tag.textContent='已看过'}}catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast('浏览记录未同步；活动仍可阅读。')}}
 function setFeedbackSignal(id,value){const e=records.get(id);if(!e)return;const target=e.feedback===value?'':value;updateFeedback(id,{feedback:target},target?'已记录“'+feedbackSignals[target]+'”。':'已清除主反馈。')}
 function toggleFeedbackTag(id,value){const e=records.get(id);if(!e)return;const tags=new Set(e.feedback_tags||[]);if(tags.has(value))tags.delete(value);else tags.add(value);updateFeedback(id,{feedback_tags:[...tags]},'反馈标签已更新。')}
 function clearFeedback(id){updateFeedback(id,{feedback:'',feedback_tags:[]},'已清除这条活动反馈。')}
