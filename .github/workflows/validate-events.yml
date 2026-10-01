@@ -36,6 +36,7 @@ jobs:
           python -m venv .venv
           .venv/bin/python -m pip install -r requirements.lock.txt playwright==1.63.0
           .venv/bin/python -m playwright install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
           npm install --prefix "$RUNNER_TEMP/radar-dom" --ignore-scripts jsdom@30.1.1
           echo "NODE_PATH=$RUNNER_TEMP/radar-dom/node_modules" >> "$GITHUB_ENV"
           browser=$(.venv/bin/python - <<'PY'
