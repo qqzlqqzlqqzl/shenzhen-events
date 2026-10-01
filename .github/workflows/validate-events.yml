@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           result=0
-          for suite in taxonomy_browser multiday_browser calendar_browser review_district_browser review_filter_context_browser review_personal_browser review_planning_browser review_decisions_browser review_recovery_browser feedback_browser review_browser coverage_browser; do
+          for suite in taxonomy_browser multiday_browser calendar_browser review_district_browser review_filter_context_browser review_personal_browser review_feedback_state_browser review_planning_browser review_decisions_browser review_recovery_browser feedback_browser review_browser coverage_browser; do
             if [ -f "tests/$suite.py" ]; then
               .venv/bin/python "tests/$suite.py" 2>&1 | tee "artifacts/ci/$suite.log" || result=1
             fi

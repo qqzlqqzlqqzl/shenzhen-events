@@ -4,7 +4,7 @@ let authenticated=false,authEpoch=0,statusTicket=0,statsTicket=0,detailTicket=0,
 let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=false,opener=null;
 let listSnapshot=null,calendarSnapshot=null;
 let filterDraft=null;
-let undoFeedback=null;
+let undoFeedback=null,personalQueryDirty=false;
 const records=new Map(),inflight=new Set(),saving=new Set(),feedbackSaving=new Set();
 const facetCatalog={type:new Map(),topic:new Map(),district:new Map()};
 function checkedFacet(kind){return $$(`#${kind}-options input[type="checkbox"]:checked`).map(x=>x.value)}
@@ -54,7 +54,7 @@ async function api(path,options={}) {
   finally {clearTimeout(timer);inflight.delete(c);options.signal?.removeEventListener('abort',abort)}
 }
 function showLogin(message='') {
-  resetStatusRecovery();listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
+  resetStatusRecovery();personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
@@ -134,7 +134,7 @@ function showView(){
 }
 function emptyState(){const filtered=!!($('#feedback-filter').value||$('#feedback-tag-filter').value||$('#viewed-filter').value!=='all'||$('#date-from').value||$('#search').value||$('#attendance').value!=='all'||$('#free').checked||['type','topic','district'].some(k=>checkedFacet(k).length<$$(`#${k}-options input`).length));return `<div class="empty"><b>${filtered?'当前筛选条件下没有活动':view==='favorites'?'还没有收藏活动':'这里暂时没有活动'}</b><p>${filtered?'试试重置筛选；其他收藏或活动不会被删除。':view==='favorites'?'点击活动卡片的星号即可收藏，过期后仍会保留。':'可以查看其他日期，或去全部活动探索。'}</p><button class="secondary" data-action="${filtered?'reset':'browse-all'}">${filtered?'重置筛选':'查看全部活动 →'}</button></div>`}
 async function load(append=false){
-  if(!authenticated||filterDraft||(append&&busy))return;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;showView();
+  if(!authenticated||filterDraft||(append&&busy))return;personalQueryDirty=false;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;showView();
   if(view!=='calendar'&&calendar){calendar.destroy();calendar=null;calendarRange=null}
   if(view==='status'){busy=false;await loadStatus();return}
   if(view==='calendar'){busy=false;renderCalendar();return}
@@ -246,7 +246,7 @@ function positionFeedbackUndo(){
 async function updateFeedback(id,patch,message,undo=false){const e=records.get(id);if(!e||feedbackSaving.has(id)||saving.has(id)||!authenticated)return;
   const before={feedback:e.feedback||'',feedback_tags:[...(e.feedback_tags||[])]},epoch=authEpoch;feedbackSaving.add(id);paintFeedback(id);paintFavorite(id);
   try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({...patch,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
-    syncPersonal(id,result);toast(message);undoFeedback=undo?null:{id,before,revision:result.revision,expires:Date.now()+30000};$('#undo-bar').hidden=!undoFeedback;positionFeedbackUndo();
+    syncPersonal(id,result);toast(message);undoFeedback=undo?null:{id,before,record:{...e,feedback_tags:[...(e.feedback_tags||[])]},revision:result.revision,expires:Date.now()+30000};$('#undo-bar').hidden=!undoFeedback;positionFeedbackUndo();personalQueryDirty=true;if(!detailId)load();
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}
   finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch){paintFeedback(id);paintFavorite(id)}}
 }
@@ -269,7 +269,7 @@ async function openDetail(id,push=true){
 function closeDetail(updateHistory=true){
   detailTicket++;const had=detailId;detailId=null;if($('#detail').open)$('#detail').close();positionFeedbackUndo();document.body.classList.remove('modal-open');
   if(updateHistory&&had){if(history.state?.radarModal)history.back();else writeURL('replace')}
-  if(authenticated&&opener?.isConnected)opener.focus({preventScroll:true});if(authenticated)RadarEventWorkflows.restoreFocus();opener=null;
+  if(authenticated&&opener?.isConnected)opener.focus({preventScroll:true});if(authenticated)RadarEventWorkflows.restoreFocus();opener=null;if(updateHistory&&authenticated&&personalQueryDirty)load();
 }
 function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id)||feedbackSaving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}
   if(view==='calendar'&&calendar){const ce=calendar.getEventById(id);if(ce){const payload=RadarUI.calendarEvent(e);ce.setExtendedProp('favorite',!!e.favorite);ce.setExtendedProp('favoriteRank',e.favorite?0:1);ce.setProp('classNames',payload.classNames)}if(e.long_running)renderLongCalendar([...records.values()].filter(x=>x.long_running))}
@@ -279,12 +279,12 @@ async function save(id){
   try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({favorite:target,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
     Object.assign(e,result);syncPersonal(id,result);
     toast(result.favorite?'已收藏，其他设备登录后也能看到。':'已取消收藏。');
-    if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=resultCountText(total,res.excluded_long);if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
+    if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=resultCountText(total,listSnapshot?.excluded);if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}finally{saving.delete(id);if(authenticated&&epoch===authEpoch){paintFavorite(id);paintFeedback(id)}}
 }
 function navigate(next,reset=false){if(filterDraft)finishFilterDraft(false);clearTimeout(debounce);closeDetail(false);view=Object.hasOwn(views,next)?next:'discover';if(reset)clearFilters();writeURL();load()}
 function applyFilters(mode='push'){clearTimeout(debounce);if(filterDraft)return;try{RadarPlanner.range($('#date-from').value,$('#date-until').value);$('#date-error').textContent=''}catch(e){$('#date-error').textContent=e.message;return}closeDetail(false);writeURL(mode);load()}
-function restoreNavigation(){if(!authenticated)return;if(filterDraft)finishFilterDraft(false);const before=urlParams().toString();closeDetail(false);readURL();rememberFilters();const after=urlParams().toString();const id=new URLSearchParams(location.search).get('event');if(before!==after)load().then(()=>{if(id)openDetail(id,false)});else if(id)openDetail(id,false)}
+function restoreNavigation(){if(!authenticated)return;if(filterDraft)finishFilterDraft(false);const before=urlParams().toString();closeDetail(false);readURL();rememberFilters();const after=urlParams().toString();const id=new URLSearchParams(location.search).get('event');if(before!==after||personalQueryDirty)load().then(()=>{if(id)openDetail(id,false)});else if(id)openDetail(id,false)}
 addEventListener('popstate',restoreNavigation);
 $('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit');if(b.disabled)return;b.disabled=true;b.textContent='正在验证…';$('#login-error').textContent='';try{const user=await api('login',{method:'POST',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});$('#password').value='';await enter(user)}catch(err){if(err.name!=='AbortError')$('#login-error').textContent=err.message}finally{b.disabled=false;b.textContent='打开我的雷达 →'}};
 $('#logout').onclick=async()=>{const b=$('#logout');b.disabled=true;try{await api('logout',{method:'POST'});showLogin()}catch(e){if(e.name!=='AbortError')toast(e.message)}finally{b.disabled=false}};
@@ -328,7 +328,7 @@ addEventListener('pagehide',e=>{if(e.persisted)showLogin()});
 
 
 $('#dismiss-undo').onclick=()=>{undoFeedback=null;$('#undo-bar').hidden=true};
-$('#undo-feedback').onclick=()=>{const u=undoFeedback;if(!u||Date.now()>u.expires){toast('撤销已过期，请在详情修改。');$('#dismiss-undo').click();return}const e=records.get(u.id);if(!e||e.revision!==u.revision){toast('活动已更新，请重新核对。');$('#dismiss-undo').click();return}updateFeedback(u.id,u.before,'已撤销上次反馈。',true)};
+$('#undo-feedback').onclick=()=>{const u=undoFeedback;if(!u||Date.now()>u.expires){toast('撤销已过期，请在详情修改。');$('#dismiss-undo').click();return}const e=records.get(u.id)||u.record;if(!e||e.revision!==u.revision){toast('活动已更新，请重新核对。');$('#dismiss-undo').click();return}if(!records.has(u.id))records.set(u.id,e);updateFeedback(u.id,u.before,'已撤销上次反馈。',true)};
 
 function beginFilterDraft(){if(!authenticated||filterDraft)return;clearTimeout(debounce);filterDraft=$$('#filter-panel input,#filter-panel select').map(el=>({el,value:el.value,checked:el.checked}));$('#filter-draft-body').append($('#filter-panel'));$('#filter-dialog').showModal();$('#cancel-filter-draft').focus()}
 function finishFilterDraft(apply){if(!filterDraft)return;if(apply){try{RadarPlanner.range($('#date-from').value,$('#date-until').value);$('#date-error').textContent=''}catch(e){$('#date-error').textContent=e.message;return}}else for(const s of filterDraft){s.el.value=s.value;if(s.checked!==undefined)s.el.checked=s.checked}
