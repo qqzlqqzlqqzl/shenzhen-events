@@ -2,6 +2,7 @@
 let view='discover',offset=0,total=0,sequence=0,calendar=null,controller=null;
 let authenticated=false,authEpoch=0,statusTicket=0,statsTicket=0,detailTicket=0,busy=false;
 let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=false,opener=null;
+let listSnapshot=null,calendarSnapshot=null;
 let filterDraft=null;
 let undoFeedback=null;
 const records=new Map(),inflight=new Set(),saving=new Set(),feedbackSaving=new Set();
@@ -43,7 +44,7 @@ async function api(path,options={}) {
   finally {clearTimeout(timer);inflight.delete(c);options.signal?.removeEventListener('abort',abort)}
 }
 function showLogin(message='') {
-  if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
+  resetStatusRecovery();listSnapshot=null;calendarSnapshot=null;$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
@@ -125,14 +126,17 @@ async function load(append=false){
   if(view!=='calendar'&&calendar){calendar.destroy();calendar=null;calendarRange=null}
   if(view==='status'){busy=false;await loadStatus();return}
   if(view==='calendar'){busy=false;renderCalendar();return}
+  const requestKey=query().toString(),keep=!append&&listSnapshot?.key===requestKey;
+  $('#event-list').dataset.hasSnapshot=String(keep||append);
+  if(keep){records.clear();for(const e of listSnapshot.items)records.set(e.id,e);$('#event-list').innerHTML=listSnapshot.items.map(card).join('')||emptyState();total=listSnapshot.total;offset=listSnapshot.offset;$('#result-count').textContent=`${total} 个活动 · 刷新中，保留上次结果`}
   $('#event-list').setAttribute('aria-busy','true');$('#more').disabled=true;$('#more').textContent='正在加载…';
-  if(!append){offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
-  try{const p=query();p.set('offset',offset);p.set('limit',36);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
+  if(!append&&!keep){offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
+  try{const p=new URLSearchParams(requestKey);p.set('offset',append?offset:0);p.set('limit',36);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
     total=res.total;if(!append)$('#event-list').replaceChildren();
-    const fresh=res.items.filter(e=>!records.has(e.id));for(const e of res.items)records.set(e.id,e);
+    const fresh=append?res.items.filter(e=>!records.has(e.id)):res.items;if(!append)records.clear();for(const e of res.items)records.set(e.id,e);
     if(!res.items.length&&!append)$('#event-list').innerHTML=emptyState();else $('#event-list').insertAdjacentHTML('beforeend',fresh.map(card).join(''));
-    offset+=res.items.length;$('#result-count').textContent=`${total} 个活动`;$('#more').hidden=!res.has_more;
-  }catch(e){if(e.name==='AbortError'||seq!==sequence||!authenticated)return;if(!append){$('#event-list').replaceChildren();$('#result-count').textContent='加载失败'}showError(e,append);if(append)$('#more').hidden=false}
+    offset=append?offset+res.items.length:res.items.length;listSnapshot={key:requestKey,items:$$('.event-card[data-event]').map(n=>records.get(n.dataset.event)).filter(Boolean),total,offset,at:Date.now()};$('#event-list').dataset.hasSnapshot='true';$('#result-count').textContent=`${total} 个活动`;$('#more').hidden=!res.has_more;
+  }catch(e){if(e.name==='AbortError'||seq!==sequence||!authenticated)return;if(!append&&!keep){$('#event-list').replaceChildren();$('#result-count').textContent='加载失败'}if(keep){$('#result-count').textContent=`${total} 个活动 · 上次成功结果`;showError(new Error(e.message+' 正在保留此查询的上次结果，请手动重试。'),append)}else showError(e,append);if(append)$('#more').hidden=false}
   finally{if(seq===sequence){busy=false;$('#event-list').setAttribute('aria-busy','false');$('#more').disabled=false;$('#more').textContent='再看看更多 ↓'}}
 }
 function renderCalendar(){
@@ -168,20 +172,21 @@ function renderLongCalendar(items){
 }
 async function loadCalendar(info){
   if(!authenticated||view!=='calendar')return;calendarRange=info;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;
-  $('#notice').hidden=true;$('#calendar').setAttribute('aria-busy','true');$('#result-count').textContent='正在加载当前月份';calendar.removeAllEvents();records.clear();$('#calendar-long').replaceChildren();$('#calendar-long').hidden=true;
+  const requestKey=query('calendar').toString()+'|'+info.startStr+'|'+info.endStr,keep=calendarSnapshot?.key===requestKey;
+  $('#notice').hidden=true;$('#calendar').dataset.hasSnapshot=String(keep);$('#calendar').setAttribute('aria-busy','true');$('#result-count').textContent=keep?'正在刷新 · 保留该月份上次结果':'正在加载当前月份';if(!keep){calendar.removeAllEvents();records.clear();$('#calendar-long').replaceChildren();$('#calendar-long').hidden=true}else{calendar.removeAllEvents();records.clear();for(const e of calendarSnapshot.items)records.set(e.id,e);renderLongCalendar(calendarSnapshot.items.filter(e=>e.long_running));calendar.addEventSource(calendarSnapshot.items.filter(e=>!e.long_running).map(RadarUI.calendarEvent))}
   try{let cursor=0;const data=[];
     while(true){const p=query('calendar');p.set('start',info.startStr.slice(0,10));p.set('end',info.endStr.slice(0,10));p.set('offset',cursor);p.set('limit',500);
       const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated||view!=='calendar')return;
       data.push(...res.items);cursor+=res.items.length;if(!res.has_more)break;if(!res.items.length||cursor>=10000)throw new Error('该范围活动过多，请用地区或兴趣缩小筛选。');
     }
-    for(const e of data)records.set(e.id,e);
+    calendar.removeAllEvents();records.clear();for(const e of data)records.set(e.id,e);calendarSnapshot={key:requestKey,items:data,at:Date.now()};$('#calendar').dataset.hasSnapshot='true';
     const long=data.filter(e=>e.long_running);
     const normal=data.filter(e=>!e.long_running); // API already selects interval overlap, including prior-month starts.
     renderLongCalendar(long);RadarEventWorkflows.unplanned();
     calendar.addEventSource(normal.map(RadarUI.calendarEvent));
     const hiddenText=$('#hide-long').checked?' · 长期/重复已隐藏':long.length?` · ${long.length} 项长期/重复单列`:'';
     $('#result-count').textContent=`本月 ${normal.length} 个活动 · 跨日活动按覆盖日期显示${hiddenText}`;calendar.updateSize();
-  }catch(e){if(seq!==sequence||!authenticated||view!=='calendar'||!calendar)return;calendar.removeAllEvents();records.clear();renderLongCalendar([]);if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent='日历加载失败';showError(e)}}
+  }catch(e){if(seq!==sequence||!authenticated||view!=='calendar'||!calendar)return;if(!keep){calendar.removeAllEvents();records.clear();renderLongCalendar([])}if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent=keep?'上次成功结果 · 当前月份刷新失败':'日历加载失败';showError(keep?new Error(e.message+' 保留该月份上次结果，其他月份不会混入。'):e)}}
   finally{if(seq===sequence){busy=false;$('#calendar').setAttribute('aria-busy','false')}}
 }
 function mountFeedback(e){
@@ -297,3 +302,8 @@ $('#open-filters').onclick=beginFilterDraft;$('#cancel-filter-draft').onclick=()
 $('#apply-dates').onclick=()=>applyFilters();$('#clear-dates').onclick=()=>{$('#date-from').value='';$('#date-until').value='';applyFilters()};RadarPlanner.init();
 
 RadarEventWorkflows.init();
+
+function updateConnectivity(){if(!authenticated)return;const offline=!navigator.onLine;$('#network-banner').hidden=false;$('#network-message').textContent=offline?'网络已断开，已加载内容仍可阅读；保存操作不会自动重试。':'网络已恢复，可手动刷新当前页面。';$('#network-retry').disabled=offline;}
+addEventListener('offline',updateConnectivity);addEventListener('online',updateConnectivity);$('#network-retry').onclick=()=>{if(navigator.onLine){$('#network-banner').hidden=true;load()}};
+
+initStatusRecovery();
