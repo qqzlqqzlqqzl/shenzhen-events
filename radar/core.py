@@ -183,6 +183,8 @@ def init():
         if 'feedback' not in pref_cols:c.execute("ALTER TABLE preferences ADD COLUMN feedback TEXT NOT NULL DEFAULT ''")
         if 'feedback_tags' not in pref_cols:c.execute("ALTER TABLE preferences ADD COLUMN feedback_tags TEXT NOT NULL DEFAULT '[]'")
         if 'feedback_updated_at' not in pref_cols:c.execute("ALTER TABLE preferences ADD COLUMN feedback_updated_at TEXT")
+        if 'revision' not in pref_cols:c.execute("ALTER TABLE preferences ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+        if 'viewed_at' not in pref_cols:c.execute("ALTER TABLE preferences ADD COLUMN viewed_at TEXT")
         event_cols={r[1] for r in c.execute('PRAGMA table_info(events)')}
         if 'details' not in event_cols:c.execute("ALTER TABLE events ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")
         if 'event_type' not in event_cols:c.execute("ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'Event'")
@@ -235,9 +237,12 @@ def merge_preferences(c,winner,loser):
     winner_has=bool(winner_feedback or winner_tags)
     loser_time=loser_pref.get('feedback_updated_at') or ''
     winner_time=winner_pref.get('feedback_updated_at') or ''
-    if loser_has and (not winner_has or (loser_time and loser_time>winner_time)):
+    # A timestamp with empty values is an explicit clear, not missing feedback.
+    if (loser_time and loser_time>winner_time) or (not winner_time and not loser_time and loser_has and not winner_has):
         c.execute('UPDATE preferences SET feedback=?,feedback_tags=?,feedback_updated_at=? WHERE event_id=?',
                   (loser_feedback,json.dumps(loser_tags,ensure_ascii=False),loser_pref.get('feedback_updated_at'),winner))
+    c.execute('UPDATE preferences SET revision=MAX(revision,?)+1,viewed_at=? WHERE event_id=?',
+              (int(loser_pref.get('revision') or 0),max(winner_pref.get('viewed_at') or '',loser_pref.get('viewed_at') or '') or None,winner))
 
 def reconcile_aliases():
     merged=[]
@@ -342,7 +347,7 @@ def span_days(e):
     try:return max(0.0,(datetime.fromisoformat(e['end_at'])-datetime.fromisoformat(e['start_at'])).total_seconds()/86400)
     except ValueError:return 0.0
 
-def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None,attendance='all'):
+def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None,attendance='all',feedback='',feedback_tag='',viewed='all'):
     if event_id:event_id=resolve_event_id(event_id)
     aliases=dedupe_aliases()
     topics_filter=[canonical_topic(x) for x in topics_filter or []]
@@ -354,7 +359,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         saturday=day+timedelta(days=(5-day.weekday())%7) if day.weekday()<5 else day-timedelta(days=day.weekday()-5)
         from_dt=max(current,datetime.combine(saturday,datetime.min.time(),TZ));to_dt=datetime.combine(saturday+timedelta(days=2),datetime.min.time(),TZ)
     with db() as c:
-        rows=[dict(r) for r in c.execute("SELECT e.*,COALESCE(p.favorite,0) favorite,COALESCE(p.hidden,0) hidden,COALESCE(p.feedback,'') feedback,COALESCE(p.feedback_tags,'[]') feedback_tags,p.feedback_updated_at feedback_updated_at FROM events e LEFT JOIN preferences p ON e.id=p.event_id ORDER BY e.start_at,e.id LIMIT 10000")];links={}
+        rows=[dict(r) for r in c.execute("SELECT e.*,COALESCE(p.favorite,0) favorite,COALESCE(p.hidden,0) hidden,COALESCE(p.feedback,'') feedback,COALESCE(p.feedback_tags,'[]') feedback_tags,p.feedback_updated_at feedback_updated_at,COALESCE(p.revision,0) revision,p.viewed_at viewed_at FROM events e LEFT JOIN preferences p ON e.id=p.event_id ORDER BY e.start_at,e.id LIMIT 10000")];links={}
         for r in c.execute('SELECT es.event_id,es.url,sh.name,es.source_id FROM event_sources es JOIN source_health sh ON sh.id=es.source_id'):links.setdefault(r['event_id'],[]).append(dict(r))
     out=[]
     for e in rows:
@@ -362,11 +367,17 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         if not include_hidden and e['hidden']:continue
         e['feedback']=e.get('feedback') if e.get('feedback') in FEEDBACK_SIGNALS else ''
         e['feedback_tags']=decode_feedback_tags(e.get('feedback_tags'))
+        if feedback=='any' and not (e['feedback'] or e['feedback_tags']):continue
+        if feedback=='none' and (e['feedback'] or e['feedback_tags']):continue
+        if feedback in FEEDBACK_SIGNALS and e['feedback']!=feedback:continue
+        if feedback_tag and feedback_tag not in e['feedback_tags']:continue
+        if viewed=='seen' and not e['viewed_at']:continue
+        if viewed=='unseen' and e['viewed_at']:continue
         days=span_days(e);e['span_days']=round(days,1);e['long_running']=days>=LONG_RUNNING_DAYS;e['display_at']=e.get('start_at');e['period_label']=''
-        if hide_long and e['long_running'] and period!='record':continue
+        if hide_long and e['long_running'] and period not in ('record','saved','feedback','history'):continue
         if period=='review':
             if e['status']!='needs_review':continue
-        elif period in ('saved','record'):
+        elif period in ('saved','record','feedback','history'):
             pass
         elif period=='calendar':
             if not e['start_at'] or e['status']!='scheduled':continue
@@ -411,5 +422,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
         return (value is None,value or '',e['id'])
     if sort=='asc':out.sort(key=key)
     else:out.sort(key=lambda e:((e.get('display_at') or e.get('start_at')) is not None,e.get('display_at') or e.get('start_at') or '',e['id']),reverse=True)
+    if period=='history':out.sort(key=lambda e:e.get('viewed_at') or '',reverse=True)
+    if period=='feedback':out.sort(key=lambda e:e.get('feedback_updated_at') or '',reverse=True)
     return out
 

@@ -2,6 +2,7 @@
 let view='discover',offset=0,total=0,sequence=0,calendar=null,controller=null;
 let authenticated=false,authEpoch=0,statusTicket=0,statsTicket=0,detailTicket=0,busy=false;
 let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=false,opener=null;
+let undoFeedback=null;
 const records=new Map(),inflight=new Set(),saving=new Set(),feedbackSaving=new Set();
 const facetCatalog={type:new Map(),topic:new Map()};
 function checkedFacet(kind){return $$(`#${kind}-options input[type="checkbox"]:checked`).map(x=>x.value)}
@@ -20,6 +21,7 @@ function renderActiveFilters(){
   const addChip=(kind,value,exclude)=>{const b=document.createElement('button');b.type='button';b.className='filter-chip';b.dataset.facetRemove=kind;b.dataset.facetValue=value;b.dataset.facetExcluded=String(exclude);b.textContent=(exclude?'排除：':'')+(facetCatalog[kind].get(value)||value)+' ×';box.append(b)};
   for(const kind of ['type','topic']){const all=$$(`#${kind}-options input`),selected=checkedFacet(kind);if(selected.length===all.length)continue;if(!selected.length){const note=document.createElement('span');note.textContent=(kind==='type'?'活动类型':'主题')+'：未选择';box.append(note)}else{const exclude=selected.length>all.length/2;for(const x of all.filter(x=>exclude?!x.checked:x.checked))addChip(kind,x.value,exclude)}}
   const rest=[$('#search').value?'关键词：'+$('#search').value:'',$('#attendance').value==='online'?'':$('#district').value,$('#free').checked?'只看免费':'',$('#hide-long').checked?'长期/重复已隐藏':'包含长期/重复',$('#sort').value==='desc'?'举办日期：从新到旧':'',$('#attendance').value!=='all'?$('#attendance').selectedOptions[0].textContent:''].filter(Boolean);
+  for(const id of ['feedback-filter','feedback-tag-filter','viewed-filter']){const input=$('#'+id);if(input.value&&input.value!=='all')rest.push(input.selectedOptions[0]?.textContent||'')}
   if(rest.length){const span=document.createElement('span');span.className='filter-text';span.textContent=rest.join(' · ');box.append(span)}
 }
 async function api(path,options={}) {
@@ -33,13 +35,13 @@ async function api(path,options={}) {
     if(r.status===401&&path!=='login'){showLogin('登录已过期，请重新登录。');throw new DOMException('Expired session','AbortError')}
     let data;try{data=await r.json()}catch{throw new Error('服务器返回异常，请重试。')}
     if(epoch!==authEpoch)throw new DOMException('Stale session','AbortError');
-    if(!r.ok)throw new Error(typeof data.detail==='string'?data.detail:'请求失败，请重试。');
+    if(!r.ok){const err=new Error(typeof data.detail==='string'?data.detail:'请求失败，请重试。');err.status=r.status;err.current=data.current;throw err}
     return data;
   } catch(e) {if(timedOut)throw new Error('请求超时，已有数据未更改，请重试。');throw e}
   finally {clearTimeout(timer);inflight.delete(c);options.signal?.removeEventListener('abort',abort)}
 }
 function showLogin(message='') {
-  authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
+  undoFeedback=null;$('#undo-bar').hidden=true;authenticated=false;authEpoch++;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
@@ -56,7 +58,7 @@ async function stats() {
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)$('#update-note').textContent=e.message}
 }
 let filterStorageKey='radar.filters.v1:owner';
-const filterKeys=new Set(['q','district','type','topic','type_none','topic_none','tag','free','show_long','sort','attendance']);
+const filterKeys=new Set(['q','district','type','topic','type_none','topic_none','tag','free','show_long','sort','attendance','feedback','feedback_tag','viewed']);
 function rememberFilters(){
   try{const p=urlParams();for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);localStorage.setItem(filterStorageKey,JSON.stringify({version:1,query:p.toString()}))}catch{}
 }
@@ -73,6 +75,7 @@ function readURL() {
   const p=new URLSearchParams(location.search);view=Object.hasOwn(views,p.get('view'))?p.get('view'):'discover';
   $('#attendance').value=['online','offline','hybrid','unknown'].includes(p.get('attendance'))?p.get('attendance'):'all';
   $('#search').value=(p.get('q')||'').slice(0,160);$('#district').value=p.get('district')||'';$('#free').checked=p.get('free')==='true';$('#hide-long').checked=p.get('show_long')!=='true';$('#sort').value=p.get('sort')==='desc'?'desc':'asc';
+  $('#feedback-filter').value=p.get('feedback')||'';$('#feedback-tag-filter').value=p.get('feedback_tag')||'';$('#viewed-filter').value=p.get('viewed')||'all';
   const topicAlias=x=>x==='展览文化'?'文化艺术':x;
   const selectedTypes=new Set(p.getAll('type')),selectedTopics=new Set(p.getAll('topic').map(topicAlias));const legacy=p.get('tag');if(legacy)selectedTopics.add(topicAlias(legacy));
   $$('#type-options input[type="checkbox"]').forEach(x=>x.checked=p.get('type_none')!=='true'&&(!selectedTypes.size||selectedTypes.has(x.value)));$$('#topic-options input[type="checkbox"]').forEach(x=>x.checked=p.get('topic_none')!=='true'&&(!selectedTopics.size||selectedTopics.has(x.value)));updateFacetSummary('type');updateFacetSummary('topic');
@@ -82,6 +85,7 @@ function urlParams() {
   const p=new URLSearchParams();if(view!=='discover')p.set('view',view);
   for(const [k,id] of [['q','search'],['district','district']]){const v=$('#'+id).value.trim();if(v)p.set(k,v)}
   for(const kind of ['type','topic']){const selected=checkedFacet(kind),total=$$(`#${kind}-options input`).length;if(total&&!selected.length)p.set(kind+'_none','true');else if(selected.length<total)for(const v of selected)p.append(kind,v)}
+  for(const [key,id] of [['feedback','feedback-filter'],['feedback_tag','feedback-tag-filter'],['viewed','viewed-filter']]){const v=$('#'+id).value;if(v&&v!=='all')p.set(key,v)}
   if($('#attendance').value!=='all')p.set('attendance',$('#attendance').value);
   if($('#free').checked)p.set('free','true');if(!$('#hide-long').checked)p.set('show_long','true');if($('#sort').value==='desc')p.set('sort','desc');if(view==='calendar'&&calendarDate)p.set('month',calendarDate);return p;
 }
@@ -90,16 +94,17 @@ function writeURL(mode='push',event=null) {
   const p=urlParams();if(event)p.set('event',event);const u=location.pathname+(p.size?'?'+p:'');
   if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);
 }
-function clearFilters(){clearTimeout(debounce);$('#attendance').value='all';$('#search').value='';$('#district').value='';$$('#type-options input,#topic-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc'}
+function clearFilters(){clearTimeout(debounce);$('#feedback-filter').value='';$('#feedback-tag-filter').value='';$('#viewed-filter').value='all';$('#attendance').value='all';$('#search').value='';$('#district').value='';$$('#type-options input,#topic-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc'}
 async function enter(user={}) {
   filterStorageKey='radar.filters.v1:'+String(user.username||'owner');
   authenticated=true;authEpoch++;$('.hero').hidden=true;$('#manage-sources').hidden=false;$('#login-panel').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;
   await stats();if(!authenticated)return;restoreSavedFilters();readURL();rememberFilters();await load();const id=new URLSearchParams(location.search).get('event');if(id&&authenticated)await openDetail(id,false);
 }
-function query(period) {const p=urlParams();if(p.get('attendance')==='online')p.delete('district');const showLong=p.get('show_long')==='true';p.delete('view');p.delete('month');p.delete('show_long');p.set('hide_long',showLong?'false':'true');p.set('period',period||({favorites:'saved',calendar:'calendar',week:'week',weekend:'weekend',review:'review',past:'past'}[view]||'upcoming'));if(view==='discover')p.set('recommended','true');if(view==='favorites')p.set('favorites','true');return p}
+function query(period) {const p=urlParams();if(p.get('attendance')==='online')p.delete('district');const showLong=p.get('show_long')==='true';p.delete('view');p.delete('month');p.delete('show_long');p.set('hide_long',showLong?'false':'true');p.set('period',period||({feedback:'feedback',history:'history',favorites:'saved',calendar:'calendar',week:'week',weekend:'weekend',review:'review',past:'past'}[view]||'upcoming'));if(view==='discover')p.set('recommended','true');if(view==='favorites')p.set('favorites','true');return p}
 let failedAppend=false;
 function showError(error,append=false){failedAppend=append;$('#notice').hidden=false;$('#notice').replaceChildren();const t=document.createElement('span');t.textContent=error.message||'网络连接失败，请重试。';const b=document.createElement('button');b.className='secondary';b.dataset.action='retry';b.textContent='重试';$('#notice').append(t,b)}
 function showView(){
+  $('#personal-actions').hidden=view!=='feedback';
   $('#district').hidden=$('#attendance').value==='online';$('#district').disabled=$('#attendance').value==='online';
   $('#result-count').hidden=view==='status';$('#active-filters').hidden=view==='status';if(view==='status')$('#result-count').textContent='';
   $('#notice').hidden=true;$('#more').hidden=true;$('#status-panel').hidden=view!=='status';$('#calendar-panel').hidden=view!=='calendar';$('#event-list').hidden=['status','calendar'].includes(view);$('#filter-panel').hidden=view==='status';
@@ -185,15 +190,20 @@ function mountFeedback(e){
 }
 function paintFeedback(id){const e=records.get(id);if(!e)return;const summary=feedbackSummary(e);
   for(const tag of $$('[data-feedback-for]'))if(tag.dataset.feedbackFor===id){tag.hidden=!summary;tag.textContent=summary?'我的反馈 · '+summary:'';tag.dataset.feedbackValue=e.feedback||''}
-  if(detailId===id){for(const b of $$('[data-feedback-signal]'))if(b.dataset.feedbackEvent===id){const on=b.dataset.feedbackSignal===e.feedback;b.setAttribute('aria-pressed',String(on));b.classList.toggle('selected',on);b.disabled=feedbackSaving.has(id)}
-    const selected=new Set(e.feedback_tags||[]);for(const b of $$('[data-feedback-tag]'))if(b.dataset.feedbackEvent===id){const on=selected.has(b.dataset.feedbackTag);b.setAttribute('aria-pressed',String(on));b.classList.toggle('selected',on);b.disabled=feedbackSaving.has(id)}
+  if(detailId===id){for(const b of $$('[data-feedback-signal]'))if(b.dataset.feedbackEvent===id){const on=b.dataset.feedbackSignal===e.feedback;b.setAttribute('aria-pressed',String(on));b.classList.toggle('selected',on);b.disabled=feedbackSaving.has(id)||saving.has(id)}
+    const selected=new Set(e.feedback_tags||[]);for(const b of $$('[data-feedback-tag]'))if(b.dataset.feedbackEvent===id){const on=selected.has(b.dataset.feedbackTag);b.setAttribute('aria-pressed',String(on));b.classList.toggle('selected',on);b.disabled=feedbackSaving.has(id)||saving.has(id)}
     const clear=$$('[data-feedback-clear]').find(b=>b.dataset.feedbackClear===id);if(clear){clear.hidden=!(e.feedback||selected.size);clear.disabled=feedbackSaving.has(id)}
   }
 }
-async function updateFeedback(id,patch,message){const e=records.get(id);if(!e||feedbackSaving.has(id)||!authenticated)return;const epoch=authEpoch;feedbackSaving.add(id);paintFeedback(id);
-  try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify(patch)});if(!authenticated||epoch!==authEpoch)return;e.feedback=result.feedback;e.feedback_tags=result.feedback_tags||[];e.feedback_updated_at=result.feedback_updated_at;paintFeedback(id);toast(message)}
-  catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast(err.message)}finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch)paintFeedback(id)}
+function syncPersonal(id,result){const current=records.get(id);if(current)Object.assign(current,result);paintFeedback(id);paintFavorite(id)}
+async function updateFeedback(id,patch,message,undo=false){const e=records.get(id);if(!e||feedbackSaving.has(id)||saving.has(id)||!authenticated)return;
+  const before={feedback:e.feedback||'',feedback_tags:[...(e.feedback_tags||[])]},epoch=authEpoch;feedbackSaving.add(id);paintFeedback(id);paintFavorite(id);
+  try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({...patch,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
+    syncPersonal(id,result);toast(message);undoFeedback=undo?null:{id,before,revision:result.revision,expires:Date.now()+30000};$('#undo-bar').hidden=!undoFeedback;
+  }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}
+  finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch){paintFeedback(id);paintFavorite(id)}}
 }
+async function recordView(id){const epoch=authEpoch;try{const result=await api('viewed/'+encodeURIComponent(id),{method:'POST'});if(!authenticated||epoch!==authEpoch)return;const current=records.get(id);if(current)current.viewed_at=result.viewed_at;for(const tag of $$('[data-viewed-for]'))if(tag.dataset.viewedFor===id){tag.hidden=false;tag.textContent='已看过'}}catch(e){if(e.name!=='AbortError')toast('浏览记录未同步；活动仍可阅读。')}}
 function setFeedbackSignal(id,value){const e=records.get(id);if(!e)return;const target=e.feedback===value?'':value;updateFeedback(id,{feedback:target},target?'已记录“'+feedbackSignals[target]+'”。':'已清除主反馈。')}
 function toggleFeedbackTag(id,value){const e=records.get(id);if(!e)return;const tags=new Set(e.feedback_tags||[]);if(tags.has(value))tags.delete(value);else tags.add(value);updateFeedback(id,{feedback_tags:[...tags]},'反馈标签已更新。')}
 function clearFeedback(id){updateFeedback(id,{feedback:'',feedback_tags:[]},'已清除这条活动反馈。')}
@@ -206,7 +216,7 @@ async function openDetail(id,push=true){
   if(!authenticated)return;const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
   try{const e=records.get(id)||await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
     records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
-    if(!$('#detail').open)$('#detail').showModal();document.body.classList.add('modal-open');$('#close-detail').focus();
+    if(!$('#detail').open)$('#detail').showModal();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch){toast(e.message);writeURL('replace');detailId=null}}
 }
 function closeDetail(updateHistory=true){
@@ -214,16 +224,16 @@ function closeDetail(updateHistory=true){
   if(updateHistory&&had){if(history.state?.radarModal)history.back();else writeURL('replace')}
   if(authenticated&&opener?.isConnected)opener.focus();opener=null;
 }
-function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}
+function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id)||feedbackSaving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}
   if(view==='calendar'&&calendar){const ce=calendar.getEventById(id);if(ce){const payload=RadarUI.calendarEvent(e);ce.setExtendedProp('favorite',!!e.favorite);ce.setExtendedProp('favoriteRank',e.favorite?0:1);ce.setProp('classNames',payload.classNames)}if(e.long_running)renderLongCalendar([...records.values()].filter(x=>x.long_running))}
 }
 async function save(id){
-  const e=records.get(id);if(!e||saving.has(id)||!authenticated)return;const epoch=authEpoch,target=!e.favorite;saving.add(id);paintFavorite(id);
-  try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({favorite:target})});if(!authenticated||epoch!==authEpoch)return;
-    e.favorite=result.favorite;const current=records.get(id);if(current)current.favorite=result.favorite;
+  const e=records.get(id);if(!e||saving.has(id)||feedbackSaving.has(id)||!authenticated)return;const epoch=authEpoch,target=!e.favorite;saving.add(id);paintFavorite(id);
+  try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({favorite:target,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
+    Object.assign(e,result);syncPersonal(id,result);
     toast(result.favorite?'已收藏，其他设备登录后也能看到。':'已取消收藏。');
     if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=`${total} 个活动`;if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
-  }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast(err.message)}finally{saving.delete(id);if(authenticated&&epoch===authEpoch)paintFavorite(id)}
+  }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}finally{saving.delete(id);if(authenticated&&epoch===authEpoch)paintFavorite(id)}
 }
 function navigate(next,reset=false){clearTimeout(debounce);closeDetail(false);view=Object.hasOwn(views,next)?next:'discover';if(reset)clearFilters();writeURL();load()}
 function applyFilters(mode='push'){clearTimeout(debounce);closeDetail(false);writeURL(mode);load()}
@@ -253,7 +263,7 @@ $('#search').addEventListener('compositionstart',()=>{composing=true;clearTimeou
 $('#search').addEventListener('compositionend',()=>{composing=false;clearTimeout(debounce);debounce=setTimeout(()=>applyFilters(),250)});
 $('#search').oninput=e=>{clearTimeout(debounce);if(!composing&&!e.isComposing)debounce=setTimeout(()=>applyFilters(),250)};
 $('#search').onkeydown=e=>{if(e.key==='Enter'&&!composing&&!e.isComposing){e.preventDefault();applyFilters()}};
-for(const s of ['#district','#free','#hide-long','#sort','#attendance'])$(s).onchange=()=>applyFilters();
+for(const s of ['#district','#free','#hide-long','#sort','#attendance','#feedback-filter','#feedback-tag-filter','#viewed-filter'])$(s).onchange=()=>applyFilters();
 for(const kind of ['type','topic']){
   $(`#${kind}-options`).addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]')){updateFacetSummary(kind);applyFilters()}});
   $(`#${kind}-filter`).addEventListener('toggle',e=>{if(e.target.open){for(const other of ['type','topic'])if(other!==kind)$(`#${other}-filter`).open=false}});
@@ -267,3 +277,6 @@ addEventListener('pageshow',e=>{if(e.persisted)(async()=>{try{const user=await a
 addEventListener('pagehide',e=>{if(e.persisted)showLogin()});
 (async()=>{try{const user=await api('session');await enter(user)}catch(e){if(!authenticated)showLogin()}})();
 
+
+$('#dismiss-undo').onclick=()=>{undoFeedback=null;$('#undo-bar').hidden=true};
+$('#undo-feedback').onclick=()=>{const u=undoFeedback;if(!u||Date.now()>u.expires){toast('撤销已过期，请在详情修改。');$('#dismiss-undo').click();return}const e=records.get(u.id);if(!e||e.revision!==u.revision){toast('活动已更新，请重新核对。');$('#dismiss-undo').click();return}updateFeedback(u.id,u.before,'已撤销上次反馈。',true)};
