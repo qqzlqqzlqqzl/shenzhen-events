@@ -5,8 +5,9 @@ Baseline: `33108a0a366ed9bf1eece262f59dfdbf509a9534`.
 
 ## Change
 
-Only queries with `favorites=True` add an event-ID semijoin over nonzero
-preferences. The existing preference predicate, LEFT JOIN, read transaction,
+Favorite listings without an exact event ID add an event-ID semijoin over
+nonzero preferences. Exact and redirected point lookups retain their existing
+primary-key seek and favorite predicate without enumerating the favorite set. The existing preference predicate, LEFT JOIN, read transaction,
 source hydration, aliases, Python filtering, ordering, totals and facets remain
 in place. There is no candidate limit or cache. A partial index on
 `preferences(event_id) WHERE favorite<>0` is created idempotently by `init()`.
@@ -54,23 +55,32 @@ The initial independent audit on SQLite 3.46.1 measured 49.17→4.17 ms and
 237.35→4.26 ms for the two 100k cases. Exact timings vary with load; these are
 synthetic results, not production measurements or a promised speedup. A reduced
 SQLite-only control with 0, 100, 1k, 10k and 100k favorites returned identical
-ordered rows and showed no regression in that control. A high-favorite workload
-still needs realistic measurement rather than assuming the sparse gain applies.
+ordered rows and showed no regression in that reduced control. Independent
+review of the full core with all 100k activities favorited measured 7.00→7.70 s
+(three warm samples on the busy shared runner). The sparse improvement does not
+apply universally; high favorite cardinality can cost extra sorting and ID-set
+work. No adaptive heuristic is introduced on the basis of these noisy samples.
 
 At 100k preference rows / 100 favorites, the index occupied one 4 KiB page and
 built in about 4.1–4.2 ms on SQLite 3.53.1 / 3.46.1. Nine measured transactions
 of 100 favorite toggles changed median write time from 0.324→0.340 ms and
 0.348→0.388 ms respectively. Nonfavorite insert and viewed-update changes were
 small and noisy. The index is not free, and its size grows with favorite count.
-Full initial measurements and a stdlib-only plan reproducer are in Issue 83.
+At 100k favorites, independent review measured index size 1,683,456 bytes and
+build time 23.98 ms. Full initial measurements and a stdlib-only plan reproducer
+are in Issue 83.
 
 ## Verification boundaries
 
 - Strict baseline red: three planning/migration assertions failed; semantic
-  assertions already passed. After the implementation, all 26 focused tests
+  assertions already passed. After the implementation, all 28 focused tests
   pass on both SQLite 3.53.1 and 3.46.1
-- Full local Python/API suite: 408 passed; pinned jsdom 30.1.1 DOM suite: 76
+- Full local Python/API suite: 410 passed; pinned jsdom 30.1.1 DOM suite: 76
   passed; static JavaScript syntax, Python compilation and diff check passed
+- Independent review caught an avoidable point-lookup regression (100k events /
+  10k marks: 0.86→2.91 ms; 100k marks: 0.94→17.93 ms). The point-ID guard
+  removes that extra subquery; two
+  new plan/semantic regressions failed before the guard and pass afterward
 - Tests cover aliases/redirects, empty marks, legacy orphan preferences,
   multiple source links, NULL/zero/negative flags, hidden privacy, filtered
   counts/exclusions, source order, mixed offsets, full all-day boundaries and

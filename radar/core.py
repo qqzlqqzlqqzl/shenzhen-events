@@ -451,7 +451,10 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     if not include_hidden:add('COALESCE(p.hidden,0)=0')
     # Seek the marked IDs instead of scanning every event to probe preferences.
     # A subquery adds no per-favorite parameters and stays in this read snapshot.
-    if favorites:add('COALESCE(p.favorite,0)<>0 AND e.id IN (SELECT event_id FROM preferences WHERE favorite<>0)')
+    if favorites:
+        add('COALESCE(p.favorite,0)<>0')
+        # A resolved point lookup already seeks one event; do not scan all marks.
+        if not event_id:add('e.id IN (SELECT event_id FROM preferences WHERE favorite<>0)')
     if free:add('COALESCE(e.cost_free,0)<>0')
     if recommended:add("e.priority IN ('high','medium') AND COALESCE(e.commercial,'')<>'high'")
     if viewed=='seen':add("COALESCE(p.viewed_at,'')<>''")

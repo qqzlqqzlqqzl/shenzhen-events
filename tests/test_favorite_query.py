@@ -188,3 +188,19 @@ def test_favorite_and_source_links_share_snapshot_and_next_read_is_fresh(monkeyp
     assert core.events(period='saved', favorites=True) == []
     current = core.events(period='record', event_id='row-000001', include_hidden=True)
     assert current[0]['hidden'] == 1 and len(current[0]['sources']) == 2
+
+
+@pytest.mark.parametrize('event_id', ['row-000001', 'old-id'])
+def test_exact_and_redirected_favorite_lookup_do_not_scan_favorite_set(monkeypatch, event_id):
+    seed(2500, all_favorite=True)
+    with core.db() as c:c.execute("INSERT INTO event_redirects VALUES('old-id','row-000001')")
+    evidence = observed(monkeypatch)
+    options = {'period': 'record', 'event_id': event_id, 'favorites': True}
+    assert [e['id'] for e in core.events(**options)] == ['row-000001']
+    assert any('SEARCH e ' in plan and 'id=?' in plan for plan in evidence['plans'])
+    assert not any(INDEX in plan or 'LIST SUBQUERY' in plan for plan in evidence['plans'])
+    with core.db() as c:c.execute("UPDATE preferences SET favorite=0 WHERE event_id='row-000001'")
+    assert core.events(**options) == []
+    with core.db() as c:c.execute("UPDATE preferences SET favorite=-1,hidden=1 WHERE event_id='row-000001'")
+    assert core.events(**options) == []
+    assert [e['id'] for e in core.events(**options, include_hidden=True)] == ['row-000001']
