@@ -10,4 +10,6 @@ Measured text contrast: metadata/source/date/summary 5.33:1; topic tags 5.45:1; 
 
 `tests/mobile_overlays_browser.py` uses the same isolated real Chromium/API harness. It keeps comparison selected during detail feedback and button/Escape/Back close, checks rendered intersection/hit targets and real Tab focus, opens comparison, adds/removes long-title candidates, performs undo and clears/dismisses independently at 320x640, 390x844 and desktop. The exact-head CI browser list includes both regressions. The prior head's real mobile captures show 109px overlap and blocked comparison controls.
 
+Normal-motion screenshots wait for scroll, visual viewport and overlay bounds to remain stable for 300ms, then verify the same state before and after capture. Successive frame samples stay in the result artifact. Earlier `89cbd68` CI's 390px two-candidate capture was taken during scrolling: its raw image shows Undo at rows 788–843 although DOM geometry reports 762–826. The raw artifact is preserved. An isolated exact-head replay reproduced this transient mismatch; its settled capture shows rows 762–825, agreeing with unchanged DOM bounds. This establishes the capture timing discrepancy without disabling normal motion or claiming a complete browser compositor diagnosis.
+
 Refs #88. Additional interaction repair requires independent review before release.

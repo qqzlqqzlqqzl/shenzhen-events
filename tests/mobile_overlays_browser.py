@@ -4,6 +4,22 @@ from playwright.sync_api import expect
 
 h=Harness('mobile-overlays-review');p=h.page
 geometries={}
+captures={}
+
+def visual_state():
+    return p.evaluate('''()=>({scrollY,innerWidth,innerHeight,dpr:devicePixelRatio,visualViewport:{width:visualViewport.width,height:visualViewport.height,offsetTop:visualViewport.offsetTop,pageTop:visualViewport.pageTop},bars:Object.fromEntries(['compare-bar','undo-bar'].map(id=>{const r=document.getElementById(id).getBoundingClientRect();return [id,{x:r.x,y:r.y,width:r.width,height:r.height}]}))})''')
+
+def capture(label,filename):
+    # Normal smooth motion remains enabled. Wait for layout AND scroll to settle
+    # before pairing screenshot pixels with fixed-overlay geometry.
+    frames=p.evaluate('''async()=>{await document.fonts.ready;return await new Promise((resolve,reject)=>{let last='',since=performance.now(),start=since,frames=[];function frame(){const state={time:performance.now()-start,scrollY,innerHeight,visualViewport:{pageTop:visualViewport.pageTop,offsetTop:visualViewport.offsetTop,height:visualViewport.height},bars:Object.fromEntries(['compare-bar','undo-bar'].map(id=>{const r=document.getElementById(id).getBoundingClientRect();return [id,{x:r.x,y:r.y,width:r.width,height:r.height}]}))};frames.push(state);const key=JSON.stringify([state.scrollY,state.visualViewport,state.bars]);if(key!==last){last=key;since=performance.now()}if(performance.now()-since>=300)return resolve(frames);if(performance.now()-start>3000)return reject(Error('Viewport did not settle'));requestAnimationFrame(frame)}requestAnimationFrame(frame)})}''')
+    before=visual_state()
+    valid=geometry(label)
+    p.screenshot(path=str(h.out/filename))
+    after=visual_state()
+    captures[filename]={'successive_normal_motion_frames':frames,'before':before,'after':after}
+    h.check('stable_capture_'+label,before==after)
+    return valid
 def geometry(label):
     bars={name:p.locator('#'+name).bounding_box() for name in ('compare-bar','undo-bar')}
     compare,undo=bars['compare-bar'],bars['undo-bar']
@@ -46,8 +62,7 @@ try:
         expect(p.locator('#compare-chips button')).to_have_count(2)
         target=candidates[0];before=event(target)
         feedback_and_close(target)
-        valid=geometry('two_candidates_'+str(width))
-        p.screenshot(path=str(h.out/f'combined-{width}.png'))
+        valid=capture('two_candidates_'+str(width),f'combined-{width}.png')
         # Record every requested viewport before reporting any geometry failure.
         # A failure still fails the suite; blocked controls are never force-clicked.
         if not valid:continue
@@ -59,8 +74,7 @@ try:
         third=p.locator('.event-card').evaluate_all('(cards)=>cards.find(c=>c.querySelector("[data-compare]")?.getAttribute("aria-pressed")==="false")?.dataset.event')
         assert third
         p.locator('[data-compare="'+third+'"]').first.click();expect(p.locator('#compare-chips button')).to_have_count(3)
-        h.check('three_candidate_geometry_'+str(width),geometry('three_candidates_'+str(width)))
-        p.screenshot(path=str(h.out/f'combined-three-{width}.png'))
+        h.check('three_candidate_geometry_'+str(width),capture('three_candidates_'+str(width),f'combined-three-{width}.png'))
         p.locator('#compare-chips button').last.click();expect(p.locator('#compare-chips button')).to_have_count(2)
         h.check('removed_candidate_geometry_'+str(width),geometry('candidate_removed_'+str(width)))
         p.locator('#undo-feedback').click();expect(p.locator('#undo-bar')).not_to_be_visible()
@@ -89,4 +103,6 @@ try:
         h.check('actions_reachable_'+label,all(result['reachable'].values()))
 except Exception as exc:
     h.report['geometries']=geometries;h.report['errors'].append(str(exc));raise
-finally:h.close()
+finally:
+    h.report['captures']=captures
+    h.close()
