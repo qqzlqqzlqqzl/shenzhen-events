@@ -1,4 +1,4 @@
-"""Admission-gated EEFocus adapter. Selectors are synthetic, pending live review.
+"""Admission-gated EEFocus adapter with bounded captured-publisher roles.
 
 No live source is registered. Durable cancellation eligibility guards are a
 separate release prerequisite. Pending candidates never reach normal ingestion.
@@ -56,13 +56,22 @@ def cancelled(text):
     return bool(re.fullmatch(r'(?:本(?:次|场)活动)?(?:已|现已)?取消(?:举办)?[。！!]?|活动已取消', core.clean(text)))
 
 
+def date_text(text):
+    """Normalize full slash dates for parsing; retain the original evidence."""
+    return re.sub(r'(?<!\d)(20\d{2})/(\d{1,2})/(\d{1,2})(?!\d)',
+                  lambda m: f'{m[1]}年{m[2]}月{m[3]}日', text)
+
+
 def date_parts(text):
-    return [(int(m), int(d)) for m, d in re.findall(r'(\d{1,2})月(\d{1,2})日', text)]
+    normalized = date_text(text)
+    values = re.findall(r'(\d{1,2})月(\d{1,2})日', normalized)
+    values += re.findall(r'(?<![\d/])(\d{1,2})/(\d{1,2})(?![\d/])', normalized)
+    return [(int(m), int(d)) for m, d in values]
 
 
 def calendar_dates(text):
     dates = set()
-    for values in re.findall(r'(20\d{2})年(\d{1,2})月(\d{1,2})日', text):
+    for values in re.findall(r'(20\d{2})年(\d{1,2})月(\d{1,2})日', date_text(text)):
         try:
             dates.add(datetime(*(int(v) for v in values)).date().isoformat())
         except ValueError:
@@ -71,6 +80,7 @@ def calendar_dates(text):
 
 
 def schedule(text, attendance, location, exact=True):
+    text = date_text(text)
     m = re.search(r'(20\d{2})年(\d{1,2})月(\d{1,2})日', text)
     if not m or re.search(r'推广期|报名(?:时间|截止)|征集', text):
         return None, None, False, 'unconfirmed'
@@ -94,11 +104,13 @@ def schedule(text, attendance, location, exact=True):
 def parse(soup, url):
     if not safe_url(url, inventory=True):
         raise c.SourceError('inventory_origin_rejected')
-    root = soup.select_one('main.special-list > ul.section-list-item-ul')
-    if root is None:
+    roots = soup.select('div.special-list > ul.section-list-item-ul,main.special-list > ul.section-list-item-ul')
+    if len(roots) != 1:
         raise c.SourceError('inventory_structure_drift')
+    root = roots[0]
+    publisher = root.parent.name == 'div'
     nodes = root.select(':scope > li.section-special-item')
-    if not nodes and not soup.select_one('[data-fixture-empty-state="true"]'):
+    if not nodes and (publisher or not soup.select_one('[data-fixture-empty-state="true"]')):
         raise c.SourceError('inventory_empty_unrecognized')
     out, rejected, seen = [], Counter(), set()
     for node in nodes:
@@ -120,20 +132,29 @@ def parse(soup, url):
             continue
         seen.add(link)
         summary = c.text(node.select_one('.item-intro'))
-        location = c.text(node.select_one('.event-location'))
+        raw_location = c.text(node.select_one('.event-location'))
+        company = bool(re.match(r'^公司[：:]', raw_location))
+        location = '' if company else re.sub(r'^地点[：:]\s*', '', raw_location)
         raw = c.text(node.select_one('.event-time'))
         organizer = re.sub(r'^主办(?:方|单位)?[：:]\s*', '', c.text(node.select_one('.event-organizer')))
-        online, offline = '线上' in tags, '线下' in tags
+        online = '线上' in tags or '直播' in tags or location in ('线上', '线上活动')
+        offline = '线下' in tags or location == '线下活动'
         hybrid = bool(re.search(r'同步(?:直播|线上)|线上\+线下|线上线下同步', tags + summary))
         conflict = online and offline and not hybrid
         mode = 'unknown' if conflict else 'hybrid' if hybrid else 'online' if online else 'offline' if offline else 'unknown'
-        start, end, all_day, zone = schedule(raw, mode, location, exact=False)
+        # Observed list date ranges are discovery windows, not meeting spans.
+        promotion = '推广期' in raw or (publisher and len(date_parts(raw)) > 1)
+        start, end, all_day, zone = ((None, None, False, 'unconfirmed') if promotion
+                                     else schedule(raw, mode, location, exact=False))
         status = 'cancelled' if cancelled(label) else 'needs_review' if not start or conflict or mode == 'unknown' else 'scheduled'
-        promotion = '推广期' in raw
+        if location in ('线上活动', '线下活动'):
+            location = '线上' if location == '线上活动' else ''
         meta = {'publisher': '与非网', 'identity_adapter': KIND, 'source_event_id': re.search(r'/(\d+)\.html$', link)[1],
                 'evidence_url': link, 'attendance': mode, 'source_status': label,
                 'date_evidence': raw, 'checked_at': core.stamp(), 'timezone_status': zone,
                 'time_evidence': [{'field': 'list_promotion_window' if promotion else 'list_meeting_time', 'text': raw, 'url': url}]}
+        if publisher:
+            meta['location_evidence'] = {'text': raw_location, 'role': 'company' if company else 'venue_or_mode', 'url': url}
         if promotion:
             meta['review_notes'] = '推广期不是实际举办日期；等待明确的活动时间证据。'
         if conflict:
@@ -171,16 +192,35 @@ def trace_identity(requested, final, trace):
 def detail(base, soup, final, trace):
     trace_identity(base['url'], final, trace)
     bodies = soup.select('main article.main-event,body > article')
-    if len(bodies) != 1:
+    observed = soup.select('div.section-body > div.section-medium') if urlsplit(final).path.startswith('/live/') else []
+    publisher = not bodies and len(observed) == 1
+    if publisher:
+        heads = observed[0].select(':scope > div.details-section-title > h1.title')
+        contents = observed[0].select(':scope > div.article-content')
+        if len(heads) != 1 or len(contents) != 1:
+            raise c.SourceError('main_event_identity_missing')
+        # The article content excludes publication/author lines, recommendations
+        # and the related-live sidebar; only the direct title is identity text.
+        body = BeautifulSoup(str(contents[0]), 'html.parser').find('div')
+    elif len(bodies) == 1 and not observed:
+        body = BeautifulSoup(str(bodies[0]), 'html.parser').find('article')
+        heads = body.select('h1')
+    else:
         raise c.SourceError('main_event_identity_missing')
-    body = BeautifulSoup(str(bodies[0]), 'html.parser').find('article')
     for node in body.select('aside,nav,footer,script,style,.related,.recommendations'):
         node.decompose()
-    heads = body.select('h1')
+    if not publisher:
+        heads = body.select('h1')
     if len(heads) != 1:
         raise c.SourceError('main_event_identity_missing')
     if heading(c.text(heads[0])) != heading(base['title']):
         raise c.SourceError('main_event_title_mismatch')
+    if publisher:
+        actions = soup.select('div.video-part.live > div.section-left > div.section-action > div.action-right > a.sign-btn.appt-button-trigger')
+        if len(actions) > 1:
+            raise c.SourceError('main_event_identity_missing')
+        if actions and re.fullmatch(r'看回放|观看回放', c.text(actions[0])):
+            raise c.SourceError('main_event_replay')
     lines = [c.text(n) for n in body.select('p,.meeting-time')]
     times = list(dict.fromkeys(v for v in lines if re.match(r'^(?:活动|直播|举办)时间[：:]', v)))
     if not times and not re.search(r'技术交流活动|研讨会|线上活动', c.text(body)):
@@ -188,6 +228,8 @@ def detail(base, soup, final, trace):
     if re.search(r'回放|资料下载|开发板试用', c.text(body)):
         raise c.SourceError('main_event_semantics_missing')
     raw = base['details'].get('date_evidence', '')
+    promotion = '推广期' in raw or any(v.get('field') == 'list_promotion_window'
+                                      for v in base['details'].get('time_evidence', []))
     list_dates, body_dates = set(date_parts(raw)), {d for t in times for d in date_parts(t)}
     orgs = rs._labeled(lines, ('主办方', '主办单位', '主办'))
     list_org = base.get('organizer', '')
@@ -195,11 +237,11 @@ def detail(base, soup, final, trace):
         raise c.SourceError('event_anchor_conflict')
     # Promotion endpoint can corroborate the actual occurrence, never its duration.
     if list_dates and body_dates and (not list_dates.intersection(body_dates)
-                                     or ('推广期' not in raw and list_dates != body_dates)):
+                                     or (not promotion and list_dates != body_dates)):
         raise c.SourceError('event_anchor_conflict')
-    list_years = set(re.findall(r'20\d{2}年', raw))
-    body_years = {y for t in times for y in re.findall(r'20\d{2}年', t)}
-    if '推广期' not in raw and list_years and body_years and list_years != body_years:
+    list_years = set(re.findall(r'20\d{2}年', date_text(raw)))
+    body_years = {y for t in times for y in re.findall(r'20\d{2}年', date_text(t))}
+    if not promotion and list_years and body_years and list_years != body_years:
         raise c.SourceError('event_anchor_conflict')
     shared = sorted(list_dates.intersection(body_dates))
     agenda = re.findall(r'(?:议题|专题|场次)[：:]\s*([^。；]+)', base.get('summary', ''))

@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from radar import api, collectors, core, coverage, eefocus as ee, personal, recurring_sources as rs, worker
 
 PACK = Path(__file__).parent / 'fixtures/eefocus'
+LIVE_PACK = Path(__file__).parent / 'fixtures/eefocus-live'
 DESIGN = json.loads((PACK / 'source-design.json').read_text())
 CASES = [c for c in json.loads((PACK / 'cases.json').read_text())['cases']
          if int(c['id'][:2]) <= 46 or c['id'].startswith('59')]
@@ -623,6 +624,151 @@ def test_reviewed_pack_bytes_remain_exact():
     for line in load('SHA256SUMS.txt').splitlines():
         digest, name = line.split(maxsplit=1)
         assert hashlib.sha256((PACK / name.lstrip('*')).read_bytes()).hexdigest() == digest, name
+
+
+def live_load(name):
+    return (LIVE_PACK / name).read_text()
+
+
+def live_pages():
+    # Real observed status/Location metadata drives the production transport.
+    captures = json.loads(live_load('response-metadata.json'))['captures']
+    return {capture['requested_url']: {'status': capture['status'],
+                                       'location': capture.get('location') or '',
+                                       'body': live_load('fixtures/' + capture['label'] + '.html')}
+            for capture in captures}
+
+
+def live_inventory(*ids):
+    """Select captured cards without adding event text, roles or state markers."""
+    soup = BeautifulSoup(live_load('fixtures/inventory.html'), 'html.parser')
+    for node in soup.select('div.special-list > ul.section-list-item-ul > li.section-special-item'):
+        if node.select_one('a.item-title')['href'] not in {ee.ORIGIN + f'/event/{i}.html' for i in ids}:
+            node.decompose()
+    return str(soup)
+
+
+def test_captured_publisher_bundle_checksums():
+    import hashlib
+    sums = live_load('SHA256SUMS.txt').splitlines()
+    assert len(sums) == 12
+    for line in sums:
+        digest, name = line.split(maxsplit=1)
+        assert hashlib.sha256((LIVE_PACK / name.lstrip('*')).read_bytes()).hexdigest() == digest, name
+    signatures = json.loads(live_load('sanitization-validation.json'))
+    assert len(signatures) == 6 and all(x['critical_signature_preserved'] for x in signatures)
+
+
+def test_captured_inventory_dates_modes_and_unverified_admission(monkeypatch):
+    listing = live_load('fixtures/inventory.html')
+    items, visible, excluded = ee.parse(BeautifulSoup(listing, 'html.parser'), ee.LIST_URL)
+    assert visible == 20 and len(items) + sum(excluded.values()) == visible
+    by_id = {item['details']['source_event_id']: item for item in items}
+    live = by_id['2093134']
+    assert live['details']['attendance'] == 'online'
+    assert live['start_at'] is live['end_at'] is None and live['status'] == 'needs_review'
+    assert live['details']['date_evidence'] == '时间：2026/09/01~09/24'
+    assert live['details']['time_evidence'][0]['field'] == 'list_promotion_window'
+    dated = by_id['2091127']
+    assert dated['start_at'] is dated['end_at'] is None and dated['location'] == ''
+    clocked = by_id['2082468']
+    assert clocked['start_at'] == '2026-09-23T00:00:00+08:00' and clocked['all_day']
+    assert clocked['details']['attendance'] == 'unknown' and clocked['details']['attendance_conflict']
+    assert clocked['status'] == 'needs_review' and clocked['details']['timezone_status'] == 'unconfirmed'
+    assert '2070311' in by_id and by_id['2070311']['status'] == 'needs_review'
+    assert not any(item['status'] == 'cancelled' or item['details'].get('reinstated') for item in items)
+    # Company fields are not venues or organizer identity anchors.
+    soup = BeautifulSoup(listing, 'html.parser')
+    company_cards = [node for node in soup.select('li.section-special-item')
+                     if collectors.text(node.select_one('.event-location')).startswith('公司：')]
+    assert company_cards
+    # These particular captured cards are trials or unsupported subsite routes;
+    # none supplies a company-as-venue/organizer to the admitted candidate set.
+    assert all(node.select_one('a.item-title')['href'] not in {item['url'] for item in items}
+               for node in company_cards)
+    result, metrics, calls = run(monkeypatch, {ee.LIST_URL: listing}, detail_budget=0)
+    assert result['count'] == result['changed'] == 0 and calls == [ee.LIST_URL]
+    subset(metrics, {'visible': 20, 'extracted': len(items), 'admitted': 0,
+                     'detail_deferred': len(items), 'parser_unaccounted': 0})
+    assert counts() == {'raw_items': 0, 'events': 0, 'event_sources': 0}
+
+
+def test_company_field_cannot_supply_venue_or_organizer_anchor(monkeypatch):
+    # An explicitly synthetic field-placement mutation exercises the parser
+    # branch without widening the captured company cards' unsupported routes.
+    soup = BeautifulSoup(live_inventory(2091127), 'html.parser')
+    node = soup.select_one('div.special-list li.section-special-item .event-location')
+    node.string = '公司： 贸泽'
+    listing = str(soup)
+    items, _, _ = ee.parse(soup, ee.LIST_URL)
+    assert len(items) == 1 and not items[0]['location'] and not items[0]['organizer']
+    assert items[0]['details']['location_evidence']['role'] == 'company'
+    result, _, _ = run(monkeypatch, {ee.LIST_URL: listing}, detail_budget=0)
+    assert result['count'] == 0 and counts()['events'] == 0
+
+
+@pytest.mark.parametrize('event_id,reason,detail_calls', [
+    (2091127, 'redirect_route_rejected', 1),
+    (2070311, 'redirect_route_rejected', 1),
+    (2093134, 'main_event_replay', 2),
+    (2082468, 'main_event_identity_missing', 1),
+])
+def test_captured_publisher_details_fail_closed_through_persistence(monkeypatch, event_id, reason, detail_calls):
+    pages = live_pages()
+    pages[ee.LIST_URL] = live_inventory(event_id)
+    result, metrics, calls = run(monkeypatch, pages)
+    assert result['count'] == result['changed'] == 0 and reason in metrics['reasons']
+    subset(metrics, {'visible': 1, 'extracted': 1, 'detail_attempted': 1, 'detail_failed': 1,
+                     'detail_resolved': 0, 'detail_cached': 0, 'admitted': 0})
+    assert len(calls) == 1 + detail_calls and all(ee.safe_url(url, url == ee.LIST_URL) for url in calls)
+    assert counts() == {'raw_items': 0, 'events': 0, 'event_sources': 0}
+    assert api_upcoming()['total'] == 0
+    with core.db() as db:
+        assert db.execute('SELECT COUNT(*) FROM eefocus_identity_bindings').fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM detail_cache WHERE status='ok'").fetchone()[0] == 0
+
+
+def test_captured_main_live_scope_excludes_sidebar_and_publication_time(monkeypatch):
+    pages = live_pages()
+    pages[ee.LIST_URL] = live_inventory(2093134)
+    final = ee.ORIGIN + '/live/2072182.html'
+    soup = BeautifulSoup(pages[final]['body'], 'html.parser')
+    # Adversarial mutation: remove only the authoritative replay action. Related
+    # replay labels and publication dates remain, but provide no event anchor.
+    soup.select_one('div.video-part.live > div.section-left > div.section-action > div.action-right > a.sign-btn').decompose()
+    pages[final]['body'] = str(soup)
+    result, metrics, _ = run(monkeypatch, pages)
+    assert result['count'] == 0 and 'event_corroboration_missing' in metrics['reasons']
+    assert 'main_event_replay' not in metrics['reasons']
+    assert counts()['events'] == 0
+
+
+@pytest.mark.parametrize('synthetic_marker', [False, True])
+def test_unverified_publisher_empty_contract_stays_error(monkeypatch, synthetic_marker):
+    # The genuine capture is nonempty. This mutation cannot establish a real
+    # empty-state contract, even with the unrelated synthetic fixture marker.
+    soup = BeautifulSoup(live_load('fixtures/inventory.html'), 'html.parser')
+    root = soup.select_one('div.special-list > ul.section-list-item-ul')
+    root.clear()
+    if synthetic_marker:
+        root['data-fixture-empty-state'] = 'true'
+    result, metrics, _ = run(monkeypatch, {ee.LIST_URL: str(soup)})
+    assert result['status'] == 'error' and result['count'] == 0
+    assert not metrics.get('recognized_empty')
+    assert 'inventory_empty_unrecognized' in report()[0]['message']
+    assert counts()['events'] == 0
+
+
+def test_slash_date_year_conflict_cannot_become_identity(monkeypatch):
+    base = {'title': '合成完整年份核验研讨会', 'url': ee.ORIGIN + '/event/990044.html',
+            'location': '深圳', 'start_at': '2026-11-12T14:00:00+08:00',
+            'end_at': '2026-11-12T15:00:00+08:00'}
+    # Clearly synthetic labeled detail, not an invented publisher app rendering.
+    listing = card(base).replace('2026年11月12日', '2026/11/12')
+    body = detail_html(base).replace('2026年11月12日', '2027/11/12')
+    result, metrics, _ = run(monkeypatch, {ee.LIST_URL: listing, base['url']: body})
+    assert result['count'] == 0 and 'event_anchor_conflict' in metrics['reasons']
+    assert counts()['events'] == 0
 
 
 @pytest.mark.parametrize('reverse', [False, True])

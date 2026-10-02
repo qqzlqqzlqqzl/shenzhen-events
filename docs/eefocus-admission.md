@@ -24,6 +24,12 @@ favorites and held notes/address metadata. A generic open notice cannot revive
 a cancelled stored record; explicit same-event reinstatement is required. Every
 scoped status label must unambiguously state whole-event reinstatement; negated,
 quoted, tentative, session-specific or conflicting labels cannot authorize it.
+The captured `div.special-list` inventory is supported alongside the reviewed
+synthetic `main.special-list` contract. Full slash dates are parsed without
+changing their retained text. Captured inventory ranges remain discovery
+windows with no scheduled span. `直播` and explicit online location text provide
+attendance evidence; conflicting offline tags stay unknown/review. Company
+labels are retained as evidence and do not become venues or organizer anchors.
 
 The existing detail cache stores only adapter-derived evidence and canonical
 payloads as successful entries. Timestamp-only changes do not invalidate the
@@ -82,10 +88,36 @@ year/organizer reuse against canonical and persisted history, valid alias and
 reschedule controls, and previous-schema/stale-alias cache rejection. These are
 admission fixes; the deferred durable cancellation channel remains separate.
 
-This is functional synthetic acceptance, **not live publisher DOM validation**.
-Semantic detail and empty selectors are reviewed fixture roles, not observed
-publisher selectors. No EEFocus publisher request or production source
-registration occurs in this PR. `sources.json` stays unchanged.
+The second evidence bundle is Library
+`libfile_adf2ca70a220819196f33d6af41d17af`, version 0,
+`eefocus-live-selector-evidence-20261002-sanitized.zip`, 63557 bytes, SHA-256
+`acb7c4b94fd3a2ad00024f9a0b7a8adde798ea1a726d2efba9477b8e500d6308`.
+It was independently materialized with the current Library helper and verified.
+`tests/fixtures/eefocus-live` preserves all twelve checksummed payload files and
+six captured-response structural signatures. Original response hashes and
+sanitized fixture hashes are separately recorded; sanitized bytes are not
+claimed identical to original publisher responses.
+
+Offline tests now replay observed inventory, response status/Location metadata
+and sanitized detail captures through the real adapter/report/worker/SQLite/API.
+The observed live scope is `div.section-body > div.section-medium`, with direct
+`div.details-section-title > h1.title` and `div.article-content`; publication
+metadata and related/sidebar content supply no meeting or identity authority.
+The main action is scoped separately under `div.video-part.live >
+div.section-left > div.section-action > div.action-right >
+a.sign-btn.appt-button-trigger`. Explicit `看回放` rejects the captured replay;
+the sidebar's replay labels cannot establish that state. The actual app shell
+remains unverified, and both observed foreign form redirects are rejected
+before fetching the foreign hop. Removing the captured main replay action in an
+adversarial test still cannot admit the page without a non-title event anchor.
+
+This verifies bounded captured inventory and negative detail structures,
+**not a passing live upcoming-event integration**. Active same-origin dated
+detail, actual app rendering, cancellation, registration closure, reinstatement
+and recognized-empty contracts remain unverified. An empty observed inventory
+is an error even with a synthetic empty marker. Synthetic semantic/empty
+roles cannot fill those evidence gaps. Tests use offline replay only; the
+executor made no publisher request. `sources.json` stays unchanged.
 
 ## Required separate follow-up before registration
 
@@ -98,5 +130,6 @@ and ambiguous targets, persistence failure, evidence-scoped resolution, replay
 and concurrency, while retaining favorites, holds and alias history.
 
 Keep this PR in draft and leave the source unregistered until that follow-up and
-publisher selector validation are complete. No deployment, production DB/auth
-access, paid model call, merge or issue closure is part of this implementation.
+the remaining publisher state/positive-detail validation are complete. No
+deployment, production DB/auth access, paid model call, merge or issue closure
+is part of this implementation.
