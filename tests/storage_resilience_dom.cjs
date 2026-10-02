@@ -151,3 +151,30 @@ test('same-owner re-entry visibly expires Undo when the stored list has changed'
   r.$('#saved-view-choice').value='0';r.$('#delete-saved-view').click();r.data.set(sk('alice'),JSON.stringify([named('Changed','q=changed')]));await r.w.probe.enter({username:'alice'});assert.equal(r.$('#undo-saved-view').hidden,true);assert.equal(r.$('#saved-view-choice option[value="0"]').textContent,'Changed');
  }finally{r.close()}
 });
+
+test('Back to an earlier app-generated query cannot overwrite a verified new owner preference',async()=>{
+ const alice=pref('q=alice-earlier&attendance=online'),bob=pref('q=bob-choice&attendance=offline');
+ const r=await ready({initial:{[fk('alice')]:alice,[fk('bob')]:bob}});try{
+  r.search('alice-later');await tick();r.w.history.back();await tick();await tick();assert.equal(r.$('#search').value,'alice-earlier');
+  await r.logout();await r.login('bob');live(r);assert.equal(r.$('#search').value,'bob-choice');assert.equal(r.$('#attendance').value,'offline');assert.equal(r.data.get(fk('bob')),bob);
+ }finally{r.close()}
+});
+
+test('Back while signed out also retains app-generated query provenance for a verified owner change',async()=>{
+ const bob=pref('q=bob-choice'),r=await ready({initial:{[fk('alice')]:pref('q=alice-earlier'),[fk('bob')]:bob}});try{
+  r.search('alice-later');await tick();await r.logout();r.w.history.back();await tick();await r.login('bob');assert.equal(r.$('#search').value,'bob-choice');assert.equal(r.data.get(fk('bob')),bob);
+ }finally{r.close()}
+});
+
+test('Back to an external deep link keeps that supplied query through a verified owner change',async()=>{
+ const r=await ready({query:'?q=external-link&attendance=online',initial:{[fk('bob')]:pref('q=bob-choice&attendance=offline')}});try{
+  r.search('alice-owned');await tick();r.w.history.back();await tick();await tick();assert.equal(r.$('#search').value,'external-link');
+  await r.logout();await r.login('bob');live(r);assert.equal(r.$('#search').value,'external-link');assert.equal(r.$('#attendance').value,'online');assert.equal(new URL(r.w.location.href).searchParams.get('q'),'external-link');
+ }finally{r.close()}
+});
+
+test('same-owner Back navigation preserves the earlier app-generated query',async()=>{
+ const r=await ready({initial:{[fk('alice')]:pref('q=alice-earlier')}});try{
+  r.search('alice-later');await tick();r.w.history.back();await tick();await tick();await r.logout();await r.login('alice');live(r);assert.equal(r.$('#search').value,'alice-earlier');
+ }finally{r.close()}
+});
