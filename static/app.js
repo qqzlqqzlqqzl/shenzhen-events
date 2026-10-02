@@ -3,6 +3,7 @@ let view='discover',offset=0,total=0,sequence=0,calendar=null,controller=null;
 let authenticated=false,authEpoch=0,statusTicket=0,statsTicket=0,detailTicket=0,busy=false;
 let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=false,opener=null;
 let listSnapshot=null,calendarSnapshot=null;
+let personalReadRevision=0;
 let filterDraft=null;
 // Date inputs are a draft until explicitly applied; detail/refresh URLs use this pair.
 let appliedDates={from:'',until:''},appliedFilterQuery=null,dateLoadError='',dateLoadValues=null;
@@ -58,7 +59,7 @@ async function api(path,options={}) {
 function showLogin(message='') {
   // Invalidate session callbacks before closing dialogs or restoring any focus.
   authenticated=false;authEpoch++;
-  resetStatusRecovery();personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;sequence++;detailTicket++;statusTicket++;busy=false;
+  resetStatusRecovery();personalReadRevision++;personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
@@ -72,7 +73,7 @@ async function stats() {
     $('#update-note').textContent=s.last_updated?'全站统计 · 最近更新：'+timeText(s.last_updated):'活动正在整理中';
     if(!$('#district-options input'))renderFacetOptions('district',[...(s.districts||[]).map(v=>({value:v,label:v})),{value:'待确认',label:'地区待确认'}]);
     if(!$('#type-options input'))renderFacetOptions('type',s.event_types||[],s.type_pending||0);if(!$('#topic-options input'))renderFacetOptions('topic',s.topics||[]);
-  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)$('#update-note').textContent=e.message}
+  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===statsTicket)$('#update-note').textContent=e.message}
 }
 let filterStorageKey='radar.filters.v1:owner';
 const filterKeys=new Set(['q','district','districts','district_none','type','topic','type_none','topic_none','tag','free','show_long','sort','attendance','feedback','feedback_tag','viewed','from','until','saved_only']);
@@ -161,7 +162,7 @@ function showView(){
 }
 function emptyState(){const p=urlParams(),filtered=['feedback','feedback_tag','viewed','from','q','attendance','free','type','topic','districts','type_none','topic_none','district_none'].some(key=>p.has(key));return `<div class="empty"><b>${filtered?'当前筛选条件下没有活动':view==='favorites'?'还没有收藏活动':'这里暂时没有活动'}</b><p>${filtered?'试试重置筛选；其他收藏或活动不会被删除。':view==='favorites'?'点击活动卡片的星号即可收藏，过期后仍会保留。':'可以查看其他日期，或去全部活动探索。'}</p><button class="secondary" data-action="${filtered?'reset':'browse-all'}">${filtered?'重置筛选':'查看全部活动 →'}</button></div>`}
 async function load(append=false){
-  if(!authenticated||filterDraft||(append&&busy))return;personalQueryDirty=false;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;showView();
+  if(!authenticated||filterDraft||(append&&busy))return;personalQueryDirty=false;const seq=++sequence,personalRevision=personalReadRevision;controller?.abort();controller=new AbortController();busy=true;showView();
   let requestKey,keep=false;
   try{
   // Validate raw restored values before input[type=date] can normalize them away.
@@ -175,6 +176,9 @@ async function load(append=false){
   $('#event-list').setAttribute('aria-busy','true');$('#more').disabled=true;$('#more').textContent='正在加载…';
   if(!append&&!keep){updateFacetCounts(null);renderExcluded(null);offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
   const p=new URLSearchParams(requestKey);p.set('offset',append?offset:0);p.set('limit',36);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
+    // A read begun before a confirmed personal write has stale membership/facets.
+    // Reissue the applied query, keeping its now-correct snapshot until completion.
+    if(personalRevision!==personalReadRevision)return load();
     updateFacetCounts(res.facets);renderExcluded(res.excluded_long);total=res.total;if(!append)$('#event-list').replaceChildren();
     const fresh=append?res.items.filter(e=>!records.has(e.id)):res.items;if(!append)records.clear();for(const e of res.items)records.set(e.id,e);
     if(!res.items.length&&!append)$('#event-list').innerHTML=emptyState();else $('#event-list').insertAdjacentHTML('beforeend',fresh.map(card).join(''));
@@ -214,13 +218,14 @@ function renderLongCalendar(items){
   box.append(head,list);
 }
 async function loadCalendar(info){
-  if(!authenticated||view!=='calendar')return;calendarRange=info;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;
+  if(!authenticated||view!=='calendar')return;calendarRange=info;const seq=++sequence,personalRevision=personalReadRevision;controller?.abort();controller=new AbortController();busy=true;
   let keep=false;
   try{const requestKey=query('calendar').toString()+'|'+info.startStr+'|'+info.endStr;keep=calendarSnapshot?.key===requestKey;
   $('#notice').hidden=true;$('#calendar').dataset.hasSnapshot=String(keep);$('#calendar').setAttribute('aria-busy','true');$('#result-count').textContent=keep?'正在刷新 · 保留该月份上次结果':'正在加载当前月份';if(!keep){updateFacetCounts(null);renderExcluded(null);calendar.removeAllEvents();records.clear();$('#calendar-long').replaceChildren();$('#calendar-long').hidden=true}else{updateFacetCounts(calendarSnapshot.facets);renderExcluded(calendarSnapshot.excluded);calendar.removeAllEvents();records.clear();for(const e of calendarSnapshot.items)records.set(e.id,e);renderLongCalendar(calendarSnapshot.items.filter(e=>e.long_running));calendar.addEventSource(calendarSnapshot.items.filter(e=>!e.long_running).map(RadarUI.calendarEvent))}
   let cursor=0,metadata=null;const data=[];
     while(true){const p=query('calendar');p.set('start',info.startStr.slice(0,10));p.set('end',info.endStr.slice(0,10));p.set('offset',cursor);p.set('limit',500);
       const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated||view!=='calendar')return;
+      if(personalRevision!==personalReadRevision)return loadCalendar(info);
       if(!metadata)metadata=res;data.push(...res.items);cursor+=res.items.length;if(!res.has_more)break;if(!res.items.length)throw new Error('该范围活动过多，请用地区或兴趣缩小筛选。');
     }
     calendar.removeAllEvents();records.clear();for(const e of data)records.set(e.id,e);calendarSnapshot={key:requestKey,items:data,facets:metadata?.facets||null,excluded:metadata?.excluded_long||null,at:Date.now()};updateFacetCounts(metadata?.facets);renderExcluded(metadata?.excluded_long);$('#calendar').dataset.hasSnapshot='true';
@@ -268,7 +273,7 @@ function syncPersonalSnapshots(id,result){
     }
   }
 }
-function syncPersonal(id,result){const current=records.get(id);if(current)Object.assign(current,result);syncPersonalSnapshots(id,result);paintFeedback(id);paintFavorite(id)}
+function syncPersonal(id,result){personalReadRevision++;const current=records.get(id);if(current)Object.assign(current,result);syncPersonalSnapshots(id,result);paintFeedback(id);paintFavorite(id)}
 function positionFeedbackUndo(){
   const bar=$('#undo-bar'),dialog=$('#detail'),inside=dialog.open;
   const host=inside?dialog:document.body;
@@ -282,13 +287,13 @@ async function updateFeedback(id,patch,message,undo=false){const e=records.get(i
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}
   finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch){paintFeedback(id);paintFavorite(id)}}
 }
-async function recordView(id){const epoch=authEpoch;try{const result=await api('viewed/'+encodeURIComponent(id),{method:'POST'});if(!authenticated||epoch!==authEpoch)return;const current=records.get(id);if(current)current.viewed_at=result.viewed_at;syncPersonalSnapshots(id,{viewed_at:result.viewed_at});for(const tag of $$('[data-viewed-for]'))if(tag.dataset.viewedFor===id){tag.hidden=false;tag.textContent='已看过'}}catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast('浏览记录未同步；活动仍可阅读。')}}
+async function recordView(id){const epoch=authEpoch;try{const result=await api('viewed/'+encodeURIComponent(id),{method:'POST'});if(!authenticated||epoch!==authEpoch)return;personalReadRevision++;const current=records.get(id);if(current)current.viewed_at=result.viewed_at;syncPersonalSnapshots(id,{viewed_at:result.viewed_at});for(const tag of $$('[data-viewed-for]'))if(tag.dataset.viewedFor===id){tag.hidden=false;tag.textContent='已看过'}}catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast('浏览记录未同步；活动仍可阅读。')}}
 function setFeedbackSignal(id,value){const e=records.get(id);if(!e)return;const target=e.feedback===value?'':value;updateFeedback(id,{feedback:target},target?'已记录“'+feedbackSignals[target]+'”。':'已清除主反馈。')}
 function toggleFeedbackTag(id,value){const e=records.get(id);if(!e)return;const tags=new Set(e.feedback_tags||[]);if(tags.has(value))tags.delete(value);else tags.add(value);updateFeedback(id,{feedback_tags:[...tags]},'反馈标签已更新。')}
 function clearFeedback(id){updateFeedback(id,{feedback:'',feedback_tags:[]},'已清除这条活动反馈。')}
 function renderDetail(e){
   const state=RadarUI.lifecycle(e);const ended=state==='已结束'||e.status==='cancelled'||e.status==='not_event';
-  $('#detail-body').innerHTML=`<div class="card-tags"><span class="tag type-tag">${esc(e.event_type_label||'其他活动')}</span>${(e.topics||[]).map(t=>`<span class="tag topic-tag">${esc(t)}</span>`).join('')}${e.long_running?'<span class="tag long-tag">长期/重复</span>':''}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p>${costText(e)?`<p><b>费用</b>${esc(costText(e))}</p>`:''}${e.organizer?`<p><b>${esc(organizerLabel(e))}</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}${detailExtras(e)}<div class="detail-actions">${originalLink(e.url,(ended?'查看历史原文':'查看原文 / 报名')+' ↗','primary','原文链接不可用')}${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：${originalLink(s.url,s.name+' ↗')}</div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
+  $('#detail-body').innerHTML=`<div class="card-tags"><span class="tag type-tag">${esc(e.event_type_label||'其他活动')}</span>${(e.topics||[]).map(t=>`<span class="tag topic-tag">${esc(t)}</span>`).join('')}${e.long_running?'<span class="tag long-tag">长期/重复</span>':''}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p>${costText(e)?`<p><b>费用</b>${esc(costText(e))}</p>`:''}${e.organizer?`<p><b>${esc(organizerLabel(e))}</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}${detailExtras(e)}<div class="detail-actions">${originalLink(e.url,(ended?'查看历史原文':'查看原文 / 报名')+' ↗','primary','原文链接不可用')}${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" ${personalPending(e.id)?'disabled':''} aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：${originalLink(s.url,s.name+' ↗')}</div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
   mountFeedback(e);RadarEventWorkflows.mountDetail(e);
 }
 async function openDetail(id,push=true){
@@ -382,4 +387,3 @@ function updateConnectivity(){if(!authenticated)return;const offline=!navigator.
 addEventListener('offline',updateConnectivity);addEventListener('online',updateConnectivity);$('#network-retry').onclick=()=>{if(navigator.onLine){$('#network-banner').hidden=true;load()}};
 
 initStatusRecovery();
-

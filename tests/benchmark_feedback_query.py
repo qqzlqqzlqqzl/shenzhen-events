@@ -2,13 +2,15 @@
 import hashlib,json,sqlite3,statistics,sys,tempfile,time
 from pathlib import Path
 import pytest
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from radar import core
 from test_feedback_query import NOW, seed, observed
 
 report={'sqlite':sqlite3.sqlite_version,'python':sys.version,'source_head':None,
         'method':'Warm connection-per-call full core.events; five samples; disposable 10k synthetic rows. Legacy reference removes only the candidate predicate. No index, LIMIT or facet changes; no production latency guarantee.', 'scenarios':[]}
 import subprocess
-report['source_head']=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+report['source_head']=sys.argv[2] if len(sys.argv)>2 else subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+assert len(report['source_head'])==40 and all(c in '0123456789abcdef' for c in report['source_head'])
 for density,all_feedback in [('sparse',False),('dense',False),('dense',True)]:
     with tempfile.TemporaryDirectory(prefix='events-feedback-measure-') as temporary,pytest.MonkeyPatch.context() as m:
         folder=Path(temporary);m.setattr(core,'ROOT',folder);m.setattr(core,'now',lambda:NOW)

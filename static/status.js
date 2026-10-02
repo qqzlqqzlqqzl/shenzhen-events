@@ -1,12 +1,13 @@
 /* Readable source coverage and persistent one-source retry controls. */
 'use strict';
 let statusPoll=null,sourceSearch='',sourceState='all',statusData=null,statusSampledAt=null;
+const sourceRetries=new Map();
 const modes={city_pages:'城市分页列表',page_inventory:'指定汇总页',single_page:'指定公开页面',search_index:'搜索索引（非全量）',discovery_only:'发现入口（非全量）',fallback_only:'兜底订阅（非全量）'};
 const number=v=>Number.isFinite(Number(v))&&v!==null?Number(v).toLocaleString():'—';
 function coverageCard(s){
- const v=s.coverage||{},job=s.retry,active=job&&['queued','running'].includes(job.state);
+ const v=s.coverage||{},job=s.retry,pending=sourceRetries.has(s.id),active=pending||(job&&['queued','running'].includes(job.state));
  const count=(label,value)=>`<div><dt>${esc(label)}</dt><dd>${number(value)}</dd></div>`;
- const label=job?.state==='queued'?'检查已排队':job?.state==='running'?'正在检查…':v.next_cursor?'继续采集后续页':'重新检查此来源';
+ const label=pending?'正在排队…':job?.state==='queued'?'检查已排队':job?.state==='running'?'正在检查…':v.next_cursor?'继续采集后续页':'重新检查此来源';
  return `<article class="source-card" data-source="${esc(s.id)}"><header><h3>${originalLink(s.url,s.name+' ↗')}</h3><span class="status-label ${esc(s.status)}">${esc(states[s.status]||s.status)}</span></header>
  <p class="coverage-scope">${esc(modes[v.mode]||'等待新一轮覆盖检查')}${v.pages_visited!==undefined?' · 本次检查 '+number(v.pages_visited)+' 页':''}</p>
  ${v.version?`<dl class="coverage-flow">${count('本次可见条目',v.visible)}${count('成功解析',v.extracted)}${count('去重后',v.unique)}${count('深圳候选',v.shenzhen_candidates)}${v.online_candidates?count('线上/混合候选',v.online_candidates):''}${count('本轮纳入',v.admitted)}${count('已收录含线索',v.stored_events??s.event_count)}</dl>`:`<p>${esc(s.message||'等待首次采集')}</p>`}
@@ -19,9 +20,18 @@ function coverageCard(s){
  <div class="source-retry"><button class="secondary" data-retry-source="${esc(s.id)}" ${active?'disabled':''}>${label}</button><span aria-live="polite">${esc(active?job.message:job?.state==='failed'?'上次手动检查未完成，可重试':job?.state==='done'?'上次手动检查已完成':'只检查此来源，不重抓其他来源')}</span></div></article>`;
 }
 async function retrySource(id,button){
- if(!authenticated||button.disabled)return;const epoch=authEpoch;button.disabled=true;button.textContent='正在排队…';
+ if(!authenticated||button.disabled||sourceRetries.has(id))return;const epoch=authEpoch,token={epoch};sourceRetries.set(id,token);button.disabled=true;button.textContent='正在排队…';
+ if(document.activeElement===button)button.closest('[data-source]')?.querySelector('.source-inspection summary')?.focus({preventScroll:true});
  try{const j=await api('sources/'+encodeURIComponent(id)+'/retry',{method:'POST'});if(epoch!==authEpoch||!authenticated)return;toast(j.message);await loadStatus(true)}
- catch(e){if(e.name!=='AbortError'&&epoch===authEpoch&&authenticated){toast(e.message);button.disabled=false;button.textContent='重新检查此来源'}}
+ catch(e){if(e.name!=='AbortError'&&epoch===authEpoch&&authenticated)toast(e.message)}
+ finally{if(sourceRetries.get(id)===token){sourceRetries.delete(id);if(epoch===authEpoch&&authenticated)paintSourceRetry(id)}}
+}
+function paintSourceRetry(id){
+ const source=statusData?.sources.find(s=>s.id===id),job=source?.retry;
+ for(const button of $$('[data-retry-source]'))if(button.dataset.retrySource===id){
+  button.disabled=sourceRetries.has(id)||!!(job&&['queued','running'].includes(job.state));
+  button.textContent=sourceRetries.has(id)?'正在排队…':job?.state==='queued'?'检查已排队':job?.state==='running'?'正在检查…':source?.coverage?.next_cursor?'继续采集后续页':'重新检查此来源';
+ }
 }
 async function loadStatus(background=false){
  clearTimeout(statusPoll);if(background&&document.hidden)return;const epoch=authEpoch,ticket=++statusTicket;$('#status-panel').setAttribute('aria-busy','true');
@@ -53,7 +63,8 @@ async function loadStatus(background=false){
     if(focusedId==='source-search'&&selection)focusedControl.setSelectionRange(...selection);
   }else if(focusedSource&&focusedKind){
     const sourceCard=$$('#status-panel [data-source]').find(x=>x.dataset.source===focusedSource);
-    sourceCard?.querySelector({summary:'.source-inspection summary',retry:'[data-retry-source]',link:'a'}[focusedKind])?.focus({preventScroll:true});
+    const target=sourceCard?.querySelector({summary:'.source-inspection summary',retry:'[data-retry-source]',link:'a'}[focusedKind]);
+    (target?.disabled?sourceCard?.querySelector('.source-inspection summary'):target)?.focus({preventScroll:true});
   }
   if(active.length)statusPoll=setTimeout(()=>{if(authenticated&&view==='status'&&!document.hidden)loadStatus(true)},3000);
  }catch(e){
@@ -70,4 +81,4 @@ function filterSources(){if(!statusData||!$('#source-match-count'))return;const 
  $('#source-match-count').textContent=`匹配 ${matches} / ${statusData.sources.length} 个来源`;$('#source-empty').hidden=matches>0;
 }
 function initStatusRecovery(){document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(statusPoll);else if(authenticated&&view==='status')loadStatus(true)})}
-function resetStatusRecovery(){clearTimeout(statusPoll);sourceSearch='';sourceState='all';statusData=null;statusSampledAt=null}
+function resetStatusRecovery(){clearTimeout(statusPoll);sourceRetries.clear();sourceSearch='';sourceState='all';statusData=null;statusSampledAt=null}

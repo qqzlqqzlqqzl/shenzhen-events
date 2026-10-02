@@ -41,7 +41,19 @@ suites, all Python/JavaScript/DOM tests and supported browser suites. The opt-in
 synthetic feedback on the local SQLite version, including all-feedback overhead,
 with output equality and no fixed timing assertions.
 
-The two newly reported favorite/status refresh races are queued separately.
-Their exact reproduction artifact is required before implementation; this patch
-does not speculate about duplicate provider work or change existing session and
-query guards.
+The separate refresh-race commit ports the verified deferred-response audit:
+13 passing boundaries stay intact and seven defect assertions now require the
+repaired behavior. A confirmed personal write advances a read generation.
+List/calendar responses begun before that write are reissued before rendering,
+preserving the applied query and the corrected snapshot. This also refreshes
+membership, totals and facets instead of patching individual stale result rows.
+Pending favorite controls remain disabled when replaced; obsolete stats failures
+use the same latest-ticket guard as success.
+
+Same-source retry locks live outside replaceable DOM nodes. Keyboard focus moves
+to that source's inspection summary while retry is unavailable. A token equality
+check prevents an old-session finally handler clearing a new lock. Existing
+query/session guards and the PR90 overlay hunk stay untouched. Real Chromium
+checks favorite/unsave reads on a disposable API fixture; source retry POST/status
+are intercepted, so no collector/provider runs or backend deduplication proof is
+claimed. The handoff's backend deduplication finding was inspection only.
