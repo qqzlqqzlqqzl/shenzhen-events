@@ -47,6 +47,16 @@ def skeleton(title,url,summary='',location='',**kw):return {'title':title,'url':
 
 def jsonld(soup,url):
     out=[]
+    def description(value):
+        # Unlabelled descriptions are text: tag lessons and C++/Rust code use <>.
+        # Extract HTML only when the structured value declares its representation.
+        if isinstance(value,dict):
+            content=value.get('text',value.get('value',''))
+            if not isinstance(content,str):return ''
+            if clean(value.get('encodingFormat')).split(';',1)[0].lower()=='text/html':
+                return text(BeautifulSoup(content,'html.parser'))
+            return clean(content)
+        return clean(value) if isinstance(value,str) else ''
     def names(value):
         if isinstance(value,list):return ' / '.join(dict.fromkeys(n for v in value if (n:=names(v))))
         if isinstance(value,dict):return clean(value.get('name'))
@@ -87,7 +97,7 @@ def jsonld(soup,url):
                 detail={'attendance':attendance} if attendance else {}
                 if org:detail['organizer_role']='organizer'
                 event_type=next((t for t in normalized_types if t in EVENT_TYPES and t!='Event'),'Event')
-                out.append(skeleton(x['name'],x.get('url') or url,text(BeautifulSoup(x.get('description',''),'html.parser')),str(loc),start_at=iso(x.get('startDate')),end_at=iso(x.get('endDate')),organizer=org,city=locality,cost_text=cost,all_day=len(str(x.get('startDate','')))==10,status='cancelled' if 'Cancelled' in str(x.get('eventStatus','')) else 'scheduled',event_type=event_type,details=detail))
+                out.append(skeleton(x['name'],x.get('url') or url,description(x.get('description','')),str(loc),start_at=iso(x.get('startDate')),end_at=iso(x.get('endDate')),organizer=org,city=locality,cost_text=cost,all_day=len(str(x.get('startDate','')))==10,status='cancelled' if 'Cancelled' in str(x.get('eventStatus','')) else 'scheduled',event_type=event_type,details=detail))
             for v in x.values():
                 if isinstance(v,(dict,list)):walk(v)
     for script in soup.select('script[type="application/ld+json"]'):

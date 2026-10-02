@@ -52,7 +52,7 @@ globalThis.RadarUI = (() => {
     return '';
   }
   function safeUrl(value) {
-    try {const u=new URL(value,location.origin);return ['https:','http:'].includes(u.protocol)?u.href:'#';} catch{return '#';}
+    try {const u=new URL(value);return ['https:','http:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'#';} catch{return '#';}
   }
   return {dayKey,format,fullTime,dateSpan,calendarEvent,lifecycle,safeUrl};
 })();

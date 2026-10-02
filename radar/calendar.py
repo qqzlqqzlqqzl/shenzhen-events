@@ -7,7 +7,7 @@ is exclusive; no zero-duration invented ending; merged source attribution.
 """
 from datetime import datetime, timedelta
 from icalendar import Calendar, Event
-from .core import TZ, now
+from .core import TZ, now, canon_url, clean
 
 def make_calendar(rows):
     cal=Calendar();cal.add('prodid','-//Shenzhen Events Radar//ZH-CN//');cal.add('version','2.0');cal.add('x-wr-calname','深圳活动雷达');cal.add('x-wr-timezone','Asia/Shanghai')
@@ -20,7 +20,11 @@ def make_calendar(rows):
         else:
             event.add('dtstart',start.astimezone(TZ))
             if end:event.add('dtend',end.astimezone(TZ))
-        event.add('url',row['url']);event.add('location',row.get('location',''))
+        # Legacy records can predate URL validation. Keep the event/attribution,
+        # but never advertise a malformed destination as a calendar URI.
+        url=clean(row.get('url',''))
+        if canon_url(url):event.add('url',url)
+        event.add('location',row.get('location',''))
         sources='\n'.join(s['name']+': '+s['url'] for s in row.get('sources',[]))
         event.add('description',(row.get('summary','')+'\n\n费用：'+row.get('cost_text','费用未注明')+'\n以主办方最新说明为准。\n'+sources).strip());event.add('x-source','深圳活动雷达');event.add('status','CANCELLED' if row.get('status')=='cancelled' else 'CONFIRMED');cal.add_component(event)
     return cal.to_ical()

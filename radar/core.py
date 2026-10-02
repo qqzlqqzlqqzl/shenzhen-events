@@ -66,6 +66,8 @@ def norm(s): return re.sub(r'[^\w\u3400-\u9fff]', '', unicodedata.normalize('NFK
 def canon_url(u):
     try:
         p=urlsplit(clean(u));host=(p.hostname or '').lower()
+        # urlsplit defers malformed/out-of-range port validation until access.
+        p.port
         if p.scheme not in ('https','http') or not host or p.username or p.password:return ''
         qs=[(k,v) for k,v in parse_qsl(p.query,keep_blank_values=True) if not k.startswith('utm_') and k not in ('from','spm','chksm','scene','clicktime','enterid')]
         return urlunsplit(('https' if p.scheme=='https' or host.endswith('bendibao.com') else 'http',p.netloc,p.path,urlencode(qs),''))
@@ -460,6 +462,9 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     if viewed=='seen':add("COALESCE(p.viewed_at,'')<>''")
     elif viewed=='unseen':add("COALESCE(p.viewed_at,'')=''")
     if feedback in FEEDBACK_SIGNALS:add('p.feedback=?',feedback)
+    if feedback=='any' or feedback_tag:
+        # A conservative superset; Python still validates signals and JSON tags.
+        add("(COALESCE(p.feedback,'')<>'' OR COALESCE(p.feedback_tags,'[]') NOT IN ('','[]'))")
     if districts is not None:
         if districts:add('e.district IN ('+','.join('?' for _ in districts)+')',*districts)
         else:add('0')
