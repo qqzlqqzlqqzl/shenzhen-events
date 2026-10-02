@@ -65,7 +65,7 @@ try:
       };
       window.pendingSafetyDetail=openDetail(id);
     }''',remaining)
-    p.wait_for_function('typeof releaseSafetyResponse==="function"')
+    p.wait_for_function('()=>typeof window.releaseSafetyResponse==="function"')
     h.ctx.set_offline(True);expect(p.locator('#network-banner')).to_be_visible()
     p.evaluate('releaseSafetyResponse()');p.evaluate('async()=>await pendingSafetyDetail')
     h.check('late_preoffline_point_response_cannot_restore_export',p.evaluate('(id)=>records.get(id)._safety_pending && records.get(id).planning_eligible===false',remaining) and p.locator('#detail a[href$=".ics"]').count()==0)
