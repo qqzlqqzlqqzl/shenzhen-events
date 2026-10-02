@@ -17,7 +17,7 @@ function coverageCard(s){
  ${v.detail_attempted||v.detail_deferred||v.detail_cached?`<p>详情补全 ${number(v.detail_attempted)} 次 · 缓存复用 ${number(v.detail_cached)} 条 · 待后续补全 ${number(v.detail_deferred)} 条</p>`:''}
  ${(v.reasons||[]).length?`<p class="coverage-warning">${esc([...new Set(v.reasons)].join('；'))}</p>`:''}
  <details class="source-inspection"><summary>检查时间与自动更新计划</summary><small>上次检查 ${esc(timeText(s.last_attempt))}<br>最近取得数据 ${esc(timeText(s.last_success))}<br>自动检查不早于 ${esc(timeText(s.next_attempt))}</small></details>
- <div class="source-retry"><button class="secondary" data-retry-source="${esc(s.id)}" ${active?'disabled':''}>${label}</button><span aria-live="polite">${esc(active?job.message:job?.state==='failed'?'上次手动检查未完成，可重试':job?.state==='done'?'上次手动检查已完成':'只检查此来源，不重抓其他来源')}</span></div></article>`;
+ <div class="source-retry"><button class="secondary" data-retry-source="${esc(s.id)}" ${active?'disabled':''}>${label}</button><span aria-live="polite">${esc(active?(job?.message||label):job?.state==='failed'?'上次手动检查未完成，可重试':job?.state==='done'?'上次手动检查已完成':'只检查此来源，不重抓其他来源')}</span></div></article>`;
 }
 async function retrySource(id,button){
  if(!authenticated||button.disabled||sourceRetries.has(id))return;const epoch=authEpoch,token={epoch};sourceRetries.set(id,token);button.disabled=true;button.textContent='正在排队…';

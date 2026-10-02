@@ -78,12 +78,16 @@ test('PASS: reverse status responses preserve latest data and current search/fil
  }finally{r.close()}
 });
 
-test('status refresh preserves the pending same-source retry lock and source focus',async()=>{
+test('successful status refresh with retry:null renders fresh contents while retaining the pending retry lock and focus',async()=>{
  const r=await ready('?view=status');try{
   const pending=r.defer(c=>c.path==='sources/source-a/retry');r.$('[data-retry-source]').focus();r.$('[data-retry-source]').click();assert.equal(r.$('[data-retry-source]').disabled,true);
-  await r.w.probe.loadStatus();assert.equal(r.$('[data-retry-source]').disabled,true);assert.equal(r.w.document.activeElement,r.$('.source-inspection summary'));
+  r.model.status=status('source refreshed with no retry job');r.model.status.sources[0].message='Fresh successful inventory details';
+  await r.w.probe.loadStatus();
+  assert.match(r.$('.source-card h3').textContent,/source refreshed with no retry job/);assert.match(r.$('.source-card').textContent,/Fresh successful inventory details/);
+  assert.doesNotMatch(r.$('#source-snapshot').textContent,/刷新失败/);assert.doesNotMatch(r.$('#toast').textContent,/Cannot read|reading 'message'/);
+  assert.equal(r.$('[data-retry-source]').disabled,true);assert.equal(r.$('.source-retry span').textContent,r.$('[data-retry-source]').textContent);assert.equal(r.w.document.activeElement,r.$('.source-inspection summary'));
   const duplicate=r.defer(c=>c.path==='sources/source-a/retry');r.$('[data-retry-source]').click();assert.equal(r.calls.filter(c=>c.path==='sources/source-a/retry').length,1);
-  pending.ok({message:'queued first'});duplicate.ok({message:'queued second'});await tick();
+  pending.ok({message:'queued first'});duplicate.ok({message:'queued second'});await tick();await tick();assert.equal(r.$('[data-retry-source]').disabled,false);
  }finally{r.close()}
 });
 

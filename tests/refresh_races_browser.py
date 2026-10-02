@@ -52,9 +52,18 @@ try:
     button.focus();p.keyboard.press('Enter')
     expect(button).to_be_disabled()
     p.wait_for_function('()=>document.activeElement.matches(".source-inspection summary")')
+    source['name']='Fresh successful source response'
+    source['message']='Fresh successful inventory details'
+    source['retry']=None
     p.evaluate('void loadStatus()')
     expect(p.locator('#status-panel')).to_have_attribute('aria-busy','false')
+    expect(p.locator('.source-card h3')).to_contain_text('Fresh successful source response')
+    expect(p.locator('.source-card')).to_contain_text('Fresh successful inventory details')
+    expect(p.locator('#source-snapshot')).not_to_contain_text('刷新失败')
+    expect(p.locator('#toast')).not_to_contain_text('Cannot read')
     expect(button).to_be_disabled()
+    expect(p.locator('.source-retry span')).to_have_text(button.inner_text())
+    h.check('successful_null_retry_response_renders_fresh_contents_with_pending_lock',p.evaluate('sourceRetries.has("synthetic-source")'))
     h.check('pending_retry_survives_status_refresh_with_real_focus',p.evaluate('document.activeElement.matches(".source-inspection summary")'))
     p.evaluate('void retrySource("synthetic-source",document.querySelector("[data-retry-source]"))')
     h.check('same_source_cannot_submit_twice',len(retry)==1)
