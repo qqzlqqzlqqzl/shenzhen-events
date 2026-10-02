@@ -482,6 +482,132 @@ def test_generic_open_does_not_revive_cancelled_event(monkeypatch):
     assert stored()['status'] == 'scheduled' and api_upcoming()['total'] == 1
 
 
+@pytest.mark.parametrize('notice', [
+    '尚未恢复举办，活动仍已取消',
+    '未恢复举行',
+    '并未已恢复举办',
+    '据传已恢复举办，尚待确认',
+    '“已恢复举办”是此前消息，活动仍取消',
+    '分会场已恢复举办',
+    ['已恢复举办', '尚未恢复举办，活动仍已取消'],
+])
+def test_negated_or_ambiguous_reinstatement_preserves_cancellation(monkeypatch, notice):
+    base = {'title': '合成取消与恢复状态', 'url': ee.ORIGIN + '/event/990033.html',
+            'summary': '本活动用于独立状态回归测试，包含明确活动语义与技术研讨内容，不对应真实活动。',
+            'location': '深圳', 'start_at': '2026-11-11T09:00:00+08:00',
+            'end_at': '2026-11-11T10:00:00+08:00'}
+    pages = {ee.LIST_URL: card(base), base['url']: detail_html(base, status='已取消')}
+    run(monkeypatch, pages)
+    before = stored()
+    personal.update(before['id'], {'favorite': True})
+    with core.db() as db:
+        prefs = [tuple(row) for row in db.execute('SELECT * FROM preferences')]
+    pages[base['url']] = detail_html(base, status=notice if isinstance(notice, str) else notice[0])
+    if isinstance(notice, list):
+        # Two separately scoped status labels, one positive and one negative.
+        pages[base['url']] = detail_html(base, status='已恢复举办').replace(
+            '</article>', '<p>当前状态：尚未恢复举办，活动仍已取消</p></article>')
+    result, metrics, _ = run(monkeypatch, pages, refresh_identity=True)
+    assert result['count'] == 1 and metrics['detail_resolved'] == 1
+    assert stored()['id'] == before['id'] and stored()['status'] == 'cancelled'
+    assert not stored()['details'].get('reinstated') and api_upcoming()['total'] == 0
+    with core.db() as db:
+        assert [tuple(row) for row in db.execute('SELECT * FROM preferences')] == prefs
+
+
+@pytest.mark.parametrize('seed_mode', ['direct', 'alias', 'stored_only'])
+@pytest.mark.parametrize('replacement', [('2026年10月23日', '2027年10月23日'),
+                                         ('合成测试机构', '不同活动机构')])
+def test_new_alias_cannot_bypass_canonical_occurrence_history(monkeypatch, seed_mode, replacement):
+    canonical = ee.ORIGIN + '/live/990102.html'
+    first_alias, new_alias = ee.ORIGIN + '/event/990002.html', ee.ORIGIN + '/event/990003.html'
+    base = {'title': '合成同名年度研讨会', 'url': first_alias if seed_mode == 'alias' else canonical,
+            'summary': '本活动包含明确活动语义与技术研讨内容，不对应真实活动。',
+            'location': '深圳', 'start_at': '2026-10-23T14:00:00+08:00',
+            'end_at': '2026-10-23T15:00:00+08:00'}
+    pages = {ee.LIST_URL: card(base), canonical: detail_html(base)}
+    if seed_mode == 'alias':
+        pages[first_alias] = {'status': 302, 'location': canonical}
+    if seed_mode == 'stored_only':
+        core.ingest(DESIGN['source'], {**base, 'organizer': '合成测试机构'})
+    else:
+        first, _, _ = run(monkeypatch, pages)
+        assert first['count'] == 1
+    eid = hold_favorite()
+    before = stored()
+    with core.db() as db:
+        history = [tuple(row) for row in db.execute('SELECT * FROM eefocus_identity_bindings')]
+        rows = {table: [tuple(row) for row in db.execute('SELECT * FROM ' + table)]
+                for table in ('raw_items', 'events', 'event_sources', 'preferences')}
+    pages = {ee.LIST_URL: card({**base, 'url': new_alias}).replace(*replacement),
+             new_alias: {'status': 302, 'location': canonical},
+             canonical: detail_html(base).replace(*replacement)}
+    result, metrics, calls = run(monkeypatch, pages)
+    reason = 'historical_occurrence_conflict' if replacement[0].startswith('2026') else 'historical_organizer_conflict'
+    assert result['count'] == result['changed'] == 0 and reason in metrics['reasons']
+    subset(metrics, {'detail_attempted': 1, 'detail_failed': 1, 'detail_resolved': 0, 'detail_cached': 0})
+    assert calls == [ee.LIST_URL, new_alias, canonical]
+    assert stored() == before and personal.update(eid, {})['favorite'] is True
+    with core.db() as db:
+        assert [tuple(row) for row in db.execute('SELECT * FROM eefocus_identity_bindings')] == history
+        for table, expected in rows.items():
+            assert [tuple(row) for row in db.execute('SELECT * FROM ' + table)] == expected
+        assert db.execute("SELECT COUNT(*) FROM detail_cache WHERE status='ok'").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize('reschedule', [False, True])
+def test_new_alias_with_matching_or_explicitly_rescheduled_occurrence(monkeypatch, reschedule):
+    alias, new_alias, canonical = (ee.ORIGIN + path for path in
+                                  ('/event/990002.html', '/event/990003.html', '/live/990102.html'))
+    base = {'title': '合成同名年度研讨会', 'url': alias, 'location': '深圳',
+            'start_at': '2026-10-23T14:00:00+08:00', 'end_at': '2026-10-23T15:00:00+08:00'}
+    original_listing = card(base)
+    run(monkeypatch, {ee.LIST_URL: original_listing, alias: {'status': 302, 'location': canonical},
+                      canonical: detail_html(base)})
+    before = stored()
+    personal.update(before['id'], {'favorite': True})
+    listing, body = card({**base, 'url': new_alias}), detail_html(base)
+    if reschedule:
+        listing = listing.replace('2026年10月23日', '2027年10月23日')
+        body = body.replace('2026年10月23日', '2027年10月23日').replace(
+            '</article>', '<p>原定2026年10月23日，改期至2027年10月23日。</p></article>')
+    pages = {ee.LIST_URL: listing, new_alias: {'status': 302, 'location': canonical}, canonical: body}
+    result, metrics, _ = run(monkeypatch, pages)
+    assert result['count'] == 1 and metrics['detail_resolved'] == 1
+    assert stored()['id'] == before['id'] and stored()['start_at'].startswith('2027' if reschedule else '2026')
+    assert personal.update(before['id'], {})['favorite'] is True
+    assert counts() == {'raw_items': 1, 'events': 1, 'event_sources': 1}
+    current = stored()
+    # New evidence remains reusable after the confirmed change.
+    cached, metrics, calls = run(monkeypatch, {ee.LIST_URL: listing}, detail_budget=0)
+    assert cached['count'] == 1 and metrics['detail_cached'] == 1 and calls == [ee.LIST_URL]
+    if reschedule:
+        # The old alias's genuine positive cache cannot roll back that change.
+        rejected, metrics, calls = run(monkeypatch, {ee.LIST_URL: original_listing}, detail_budget=0)
+        assert rejected['count'] == rejected['changed'] == 0 and metrics['detail_cached'] == 0
+        assert calls == [ee.LIST_URL] and stored() == current
+
+
+def test_previous_admission_schema_cannot_reuse_reinstatement_authority(monkeypatch):
+    listing = load('fixtures/identity-46-list.html')
+    url = ee.ORIGIN + '/event/980046.html'
+    pages = {ee.LIST_URL: listing, url: load('fixtures/identity-46-detail.html')}
+    run(monkeypatch, pages)
+    with core.db() as db:
+        row = db.execute('SELECT * FROM detail_cache WHERE url=?', (url,)).fetchone()
+        payload = json.loads(row['payload'])
+        payload['evidence']['schema'] = 'eefocus_identity_v1'
+        payload['item']['details']['reinstated'] = True
+        db.execute('UPDATE detail_cache SET payload=? WHERE url=?', (json.dumps(payload), url))
+        db.execute("UPDATE events SET status='cancelled'")
+    result, metrics, calls = run(monkeypatch, {ee.LIST_URL: listing}, detail_budget=0)
+    assert result['count'] == 0 and metrics['detail_cached'] == 0 and calls == [ee.LIST_URL]
+    assert stored()['status'] == 'cancelled' and api_upcoming()['total'] == 0
+    result, metrics, _ = run(monkeypatch, pages)
+    assert result['count'] == 1 and metrics['detail_resolved'] == 1
+    assert stored()['status'] == 'cancelled' and not stored()['details'].get('reinstated')
+
+
 @pytest.mark.parametrize('guard', [{'review_hold': True, 'review_notes': '人工保留：确认受邀资格前不展示'},
                                   {'attendance': 'unknown', 'review_notes': '参加方式冲突尚未确认'}])
 def test_time_resolution_preserves_unrelated_review_reason(guard):

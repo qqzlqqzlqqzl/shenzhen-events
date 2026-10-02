@@ -21,7 +21,8 @@ from . import collectors as c, core, recurring_sources as rs
 KIND = 'eefocus_events'
 ORIGIN = 'https://www.eefocus.com'
 LIST_URL = ORIGIN + '/event/'
-SCHEMA = 'eefocus_identity_v1'
+# Earlier positive cache entries used permissive status/history checks.
+SCHEMA = 'eefocus_identity_v2'
 
 
 def safe_url(url, inventory=False):
@@ -229,7 +230,10 @@ def detail(base, soup, final, trace):
     if any(cancelled(s) for s in statuses):
         patch['status'] = 'cancelled'
         meta['source_status'] = '已取消'
-    elif any(re.search(r'恢复举办|已恢复|恢复举行', s) for s in statuses):
+    elif statuses and all(re.fullmatch(r'(?:本(?:次|场)活动)?(?:已)?恢复(?:举办|举行)[。！!]?',
+                                      core.clean(s)) for s in statuses):
+        # Only unambiguous whole-event labels confer reinstatement authority.
+        # Substrings also match negation, quotes, rumors and session notices.
         meta['source_status'] = '已恢复举办'
         meta['reinstated'] = True
     evidence = {'schema': SCHEMA, 'title': c.text(heads[0]), 'shared_dates': shared,
@@ -286,6 +290,43 @@ def fetch(url, source, deadline, metrics, inventory=False):
     return rs.bounded_fetch(request, url, source, deadline, metrics, max_bytes=1000000)
 
 
+def check_history(source, requested, final, evidence):
+    """Check both direct endpoints and the stored canonical occurrence.
+
+    A newly discovered alias has no requested-URL history. It must still agree
+    with the directly verified canonical history before cache reuse, bindings
+    or admission. Failed checks never mutate this append-only evidence.
+    """
+    with core.db() as db:
+        histories = []
+        for alias in dict.fromkeys((requested, final)):
+            row = db.execute('SELECT canonical_url,evidence FROM eefocus_identity_bindings WHERE source_id=? AND alias_url=? ORDER BY rowid DESC LIMIT 1',
+                             (source['id'], alias)).fetchone()
+            if row:
+                if row['canonical_url'] != final:
+                    raise c.SourceError('historical_canonical_conflict')
+                try:
+                    prior = json.loads(row['evidence'])
+                    if not isinstance(prior, dict):
+                        raise ValueError()
+                except (ValueError, TypeError):
+                    raise c.SourceError('historical_identity_invalid')
+                histories.append(prior)
+        stored = db.execute('SELECT e.start_at,e.organizer FROM event_sources s JOIN events e ON e.id=s.event_id WHERE s.source_id=? AND s.url=?',
+                            (source['id'], final)).fetchone()
+        if stored:
+            histories.append({'occurrence_dates': [stored['start_at'][:10]] if stored['start_at'] else [],
+                              'organizers': [stored['organizer']] if stored['organizer'] else []})
+    for prior in histories:
+        old_dates, new_dates = set(prior.get('occurrence_dates', [])), set(evidence['occurrence_dates'])
+        if old_dates and old_dates != new_dates:
+            notices = ' '.join(evidence['reschedule_text'])
+            if not new_dates or not notices or not (old_dates | new_dates).issubset(calendar_dates(notices)):
+                raise c.SourceError('historical_occurrence_conflict')
+        if prior.get('organizers') and evidence['organizers'] and prior['organizers'] != evidence['organizers']:
+            raise c.SourceError('historical_organizer_conflict')
+
+
 def enrich(source, items, metrics, deadline):
     limit = max(0, min(12, int(source.get('detail_budget', 8))))
     with core.db() as db:
@@ -309,6 +350,7 @@ def enrich(source, items, metrics, deadline):
                 continue
             if valid and not source.get('refresh_identity'):
                 trace_identity(base['url'], evidence['canonical_url'], evidence['trace'])
+                check_history(source, base['url'], evidence['canonical_url'], evidence)
                 item = merge_detail(base, payload['item'])
                 out.append(item)
                 resolved[base['url']] = item['url']
@@ -328,20 +370,7 @@ def enrich(source, items, metrics, deadline):
             _, soup, final, trace = fetch(base['url'], source, deadline, metrics)
             attempted = metrics['detail_attempted']
             item, evidence = detail(base, soup, final, trace)
-            with core.db() as db:
-                history = db.execute('SELECT canonical_url,evidence FROM eefocus_identity_bindings WHERE source_id=? AND alias_url=? ORDER BY rowid DESC LIMIT 1',
-                                     (source['id'], base['url'])).fetchone()
-            if history:
-                prior = json.loads(history['evidence'])
-                if history['canonical_url'] != final:
-                    raise c.SourceError('historical_canonical_conflict')
-                old_dates, new_dates = set(prior.get('occurrence_dates', [])), set(evidence['occurrence_dates'])
-                if old_dates and new_dates and old_dates != new_dates:
-                    notices = ' '.join(evidence['reschedule_text'])
-                    if not notices or not (old_dates | new_dates).issubset(calendar_dates(notices)):
-                        raise c.SourceError('historical_occurrence_conflict')
-                if prior.get('organizers') and evidence['organizers'] and prior['organizers'] != evidence['organizers']:
-                    raise c.SourceError('historical_organizer_conflict')
+            check_history(source, base['url'], final, evidence)
             out.append(item)
             resolved[base['url']] = item['url']
             metrics['detail_resolved'] += 1

@@ -21,7 +21,9 @@ and cancellation still win. Online clocks need an explicit timezone; an
 unconfirmed clock remains a display-only date. Cancelled undated EEFocus items
 retain cancellation through normalization. Fresh verified cancellation retains
 favorites and held notes/address metadata. A generic open notice cannot revive
-a cancelled stored record; explicit same-event reinstatement is required.
+a cancelled stored record; explicit same-event reinstatement is required. Every
+scoped status label must unambiguously state whole-event reinstatement; negated,
+quoted, tentative, session-specific or conflicting labels cannot authorize it.
 
 The existing detail cache stores only adapter-derived evidence and canonical
 payloads as successful entries. Timestamp-only changes do not invalidate the
@@ -32,6 +34,12 @@ positive cache reuse while append-only `eefocus_identity_bindings` retains
 direct alias/canonical evidence and its stored event ID. Equal titles do not
 merge separate EEFocus routes. Changed historical occurrences, organizers and
 canonical routes require disambiguation rather than silent overwrites.
+Checks cover the requested alias, directly fetched canonical self-binding and
+exact persisted canonical occurrence before admission, binding or cache reuse.
+A new alias cannot overwrite a known occurrence without a reschedule notice
+containing both full old and new dates. Old alias caches cannot roll back an
+explicitly verified reschedule. Positive cache schema is now
+`eefocus_identity_v2`; previous admission-rule evidence requires fresh fetching.
 
 Deduplication occurs after identity resolution and before ingestion. A verified
 event→live redirect also retains the directly fetched canonical self-mapping;
@@ -69,6 +77,10 @@ HTML to exercise real identity parsing rather than trust their proposed flags.
 Stateful cases seed real favorites and holds. Additional regressions cover real
 fresh-cache contradiction, retained immutable history, inventory failures,
 historical anchor changes, title-only dedup prevention and status authority.
+Independent-review regressions cover negated/ambiguous reinstatement, new-alias
+year/organizer reuse against canonical and persisted history, valid alias and
+reschedule controls, and previous-schema/stale-alias cache rejection. These are
+admission fixes; the deferred durable cancellation channel remains separate.
 
 This is functional synthetic acceptance, **not live publisher DOM validation**.
 Semantic detail and empty selectors are reviewed fixture roles, not observed
