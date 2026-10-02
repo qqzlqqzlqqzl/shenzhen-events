@@ -45,9 +45,12 @@ exact persisted canonical occurrence before admission, binding or cache reuse.
 A new alias cannot overwrite a known occurrence without a reschedule notice
 containing both full old and new dates. Every reschedule notice must affirm the
 whole-event move; quoted, negated, session-specific or conflicting notices
-confer no authority. Old alias caches cannot roll back an
-explicitly verified reschedule. Positive cache schema is now
-`eefocus_identity_v2`; previous admission-rule evidence requires fresh fetching.
+confer no authority. Each notice's old date must match the stored occurrence
+and its new date the candidate occurrence; reverse or opposing directions
+are rejected before positive cache, binding or admission. Old alias caches
+cannot roll back an explicitly verified reschedule. Positive cache schema is now
+`eefocus_identity_v3`; previous admission-rule evidence, including direction-blind
+v2 cache entries, requires fresh fetching.
 
 Deduplication occurs after identity resolution and before ingestion. A verified
 event→live redirect also retains the directly fetched canonical self-mapping;

@@ -589,7 +589,8 @@ def test_new_alias_with_matching_or_explicitly_rescheduled_occurrence(monkeypatc
         assert calls == [ee.LIST_URL] and stored() == current
 
 
-def test_previous_admission_schema_cannot_reuse_reinstatement_authority(monkeypatch):
+@pytest.mark.parametrize('schema', ['eefocus_identity_v1', 'eefocus_identity_v2'])
+def test_previous_admission_schema_cannot_reuse_reinstatement_authority(monkeypatch, schema):
     listing = load('fixtures/identity-46-list.html')
     url = ee.ORIGIN + '/event/980046.html'
     pages = {ee.LIST_URL: listing, url: load('fixtures/identity-46-detail.html')}
@@ -597,7 +598,7 @@ def test_previous_admission_schema_cannot_reuse_reinstatement_authority(monkeypa
     with core.db() as db:
         row = db.execute('SELECT * FROM detail_cache WHERE url=?', (url,)).fetchone()
         payload = json.loads(row['payload'])
-        payload['evidence']['schema'] = 'eefocus_identity_v1'
+        payload['evidence']['schema'] = schema
         payload['item']['details']['reinstated'] = True
         db.execute('UPDATE detail_cache SET payload=? WHERE url=?', (json.dumps(payload), url))
         db.execute("UPDATE events SET status='cancelled'")
@@ -615,6 +616,9 @@ def test_previous_admission_schema_cannot_reuse_reinstatement_authority(monkeypa
     ['分会场原定2026年10月23日，改期至2027年10月23日。'],
     ['原定2026年10月23日，改期至2027年10月23日。',
      '原定2026年10月23日，尚未改期至2027年10月23日。'],
+    ['原定2027年10月23日，改期至2026年10月23日。'],
+    ['原定2026年10月23日，改期至2027年10月23日。',
+     '原定2027年10月23日，改期至2026年10月23日。'],
 ])
 def test_ambiguous_reschedule_cannot_change_canonical_occurrence(monkeypatch, notices):
     canonical, alias = ee.ORIGIN + '/live/990102.html', ee.ORIGIN + '/event/990003.html'
@@ -625,6 +629,8 @@ def test_ambiguous_reschedule_cannot_change_canonical_occurrence(monkeypatch, no
     before = stored()
     with core.db() as db:
         history = [tuple(row) for row in db.execute('SELECT * FROM eefocus_identity_bindings')]
+        rows = {table: [tuple(row) for row in db.execute('SELECT * FROM ' + table)]
+                for table in ('raw_items', 'events', 'event_sources', 'preferences')}
     body = detail_html(base).replace('2026年10月23日', '2027年10月23日').replace(
         '</article>', ''.join('<p>' + escape(v) + '</p>' for v in notices) + '</article>')
     pages = {ee.LIST_URL: card({**base, 'url': alias}).replace('2026年10月23日', '2027年10月23日'),
@@ -632,9 +638,12 @@ def test_ambiguous_reschedule_cannot_change_canonical_occurrence(monkeypatch, no
     result, metrics, _ = run(monkeypatch, pages)
     assert result['count'] == result['changed'] == 0
     assert 'historical_occurrence_conflict' in metrics['reasons']
-    assert metrics['detail_failed'] == 1 and stored() == before
+    subset(metrics, {'detail_attempted': 1, 'detail_failed': 1, 'detail_resolved': 0, 'detail_cached': 0})
+    assert stored() == before
     with core.db() as db:
         assert [tuple(row) for row in db.execute('SELECT * FROM eefocus_identity_bindings')] == history
+        for table, expected in rows.items():
+            assert [tuple(row) for row in db.execute('SELECT * FROM ' + table)] == expected
         assert db.execute("SELECT COUNT(*) FROM detail_cache WHERE status='ok'").fetchone()[0] == 0
 
 

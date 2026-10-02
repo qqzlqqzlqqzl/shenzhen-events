@@ -22,7 +22,7 @@ KIND = 'eefocus_events'
 ORIGIN = 'https://www.eefocus.com'
 LIST_URL = ORIGIN + '/event/'
 # Earlier positive cache entries used permissive status/history checks.
-SCHEMA = 'eefocus_identity_v2'
+SCHEMA = 'eefocus_identity_v3'
 
 
 def safe_url(url, inventory=False):
@@ -366,10 +366,14 @@ def check_history(source, requested, final, evidence):
             # A pair of date mentions is insufficient: every scoped notice must
             # affirm a whole-event move, without quotes, negation or session scope.
             full_date = r'20\d{2}年\d{1,2}月\d{1,2}日'
-            explicit_move = (rf'(?:本(?:次|场)活动)?原定(?:于)?{full_date}[，,\s]*'
-                             rf'(?:现已|现|已)?(?:改期|延期|调整)至{full_date}[。！!]?')
-            unambiguous = notices and all(re.fullmatch(explicit_move, date_text(core.clean(v))) for v in notices)
-            if not new_dates or not unambiguous or not (old_dates | new_dates).issubset(calendar_dates(' '.join(notices))):
+            explicit_move = (rf'(?:本(?:次|场)活动)?原定(?:于)?(?P<old>{full_date})[，,\s]*'
+                             rf'(?:现已|现|已)?(?:改期|延期|调整)至(?P<new>{full_date})[。！!]?')
+            moves = [re.fullmatch(explicit_move, date_text(core.clean(v))) for v in notices]
+            # Each notice must independently prove stored old -> candidate new.
+            # An unordered union admits reversed or contradictory directions.
+            unambiguous = moves and all(move and calendar_dates(move['old']) == old_dates
+                                       and calendar_dates(move['new']) == new_dates for move in moves)
+            if not new_dates or not unambiguous:
                 raise c.SourceError('historical_occurrence_conflict')
         if prior.get('organizers') and evidence['organizers'] and prior['organizers'] != evidence['organizers']:
             raise c.SourceError('historical_organizer_conflict')
