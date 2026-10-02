@@ -137,6 +137,8 @@ try:
                         if source == 'public':
                             p.locator('.title-button').first.click()
                         selector = '#copy-ics' if source == 'private' else '.detail-utilities button'
+                        # Point details mount after their fresh API revalidation.
+                        p.locator(selector).first.wait_for(state='visible')
                         p.evaluate("selector=>{window.staleCopy=document.querySelector(selector);window.staleCopyAction=staleCopy.onclick}", selector)
                         p.locator(selector).first.click()
                         assert p.evaluate('copyWrites.length') == 1
