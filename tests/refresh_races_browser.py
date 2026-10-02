@@ -15,8 +15,8 @@ def hold_read():
 
 def release(held,handle):
     assert len(held)==1
-    p.unroute('**/events/api/events?*',handle)
     route,response=held[0];route.fulfill(response=response)
+    p.unroute('**/events/api/events?*',handle)
 
 try:
     h.goto()
@@ -51,7 +51,7 @@ try:
     button=p.locator('[data-retry-source="synthetic-source"]');expect(button).to_be_enabled()
     button.focus();p.keyboard.press('Enter')
     expect(button).to_be_disabled()
-    p.wait_for_function('document.activeElement.matches(".source-inspection summary")')
+    p.wait_for_function('()=>document.activeElement.matches(".source-inspection summary")')
     p.evaluate('void loadStatus()')
     expect(p.locator('#status-panel')).to_have_attribute('aria-busy','false')
     expect(button).to_be_disabled()
@@ -60,7 +60,7 @@ try:
     h.check('same_source_cannot_submit_twice',len(retry)==1)
     source['retry']={'state':'queued','message':'Synthetic waiting'}
     retry[0].fulfill(json={'message':'Synthetic queued'})
-    p.wait_for_function('!sourceRetries.size')
+    p.wait_for_function('()=>!sourceRetries.size')
     expect(button).to_be_disabled()
     h.check('completed_queued_retry_keeps_source_keyboard_position',p.evaluate('document.activeElement.matches(".source-inspection summary")'))
     p.screenshot(path=str(h.out/'source-queued-focus.png'))
