@@ -25,32 +25,44 @@ def geocode_pending(limit=30):
 def collect_source(source):
     started=stamp()
     with db() as c:h=dict(c.execute('SELECT * FROM source_health WHERE id=?',(source['id'],)).fetchone())
-    previous=json.loads(h.get('coverage') or '{}');changes=0
+    previous=json.loads(h.get('coverage') or '{}');changes=0;ingested=0;result=None
+    cov=coverage.fresh_coverage(source,started);prior=coverage.previous_sample(previous,h)
+    persisted_sample=False
     try:
         result=coverage.collect_report(source,previous)
-        cov=result['coverage'];status=result['status']
-        for e in result['items']:changes+=int(ingest(source,e))
-        if cov['parser_unaccounted']:
+        cov=result['coverage'];cov['attempt_started_at']=started;status=result['status']
+        for e in result['items']:
+            changes+=int(ingest(source,e));ingested+=1
+        if cov.get('parser_unaccounted'):
             cov['reasons'].append('可见条目与解析量不符，需检查适配器')
             if status=='ok':status='partial'
-        if previous.get('visible',0)>=10 and cov['visible'] and cov['visible']<previous['visible']*.5 and not previous.get('next_cursor'):
+        previous_visible=(prior or {}).get('visible') or 0
+        if previous_visible>=10 and cov.get('visible') and cov['visible']<previous_visible*.5 and not (prior or {}).get('next_cursor'):
             cov['reasons'].append('本次可见数量较上次下降超过50%')
             if status=='ok':status='partial'
-        count=cov['admitted'];success=stamp() if cov['pages_visited'] else h['last_success']
+        count=cov.get('admitted') or 0
+        persisted_sample=bool(cov.get('counters_available') and cov.get('pages_visited'))
+        success=stamp() if persisted_sample else h['last_success']
         failed=bool(result.get('error'));fails=h['failure_count']+1 if failed else 0
-        msg=f"本轮检查 {cov['pages_visited']} 页 · 可见 {cov['visible']} 条 · 解析 {cov['extracted']} 条 · 去重后 {cov['unique']} 条 · 纳入 {count} 条 · 新增/变更 {changes} 条"
+        msg=(f"本轮检查 {cov['pages_visited']} 页 · 可见 {cov['visible']} 条 · 解析 {cov['extracted']} 条 · 去重后 {cov['unique']} 条 · 纳入 {count} 条 · 新增/变更 {changes} 条"
+             if cov.get('counters_available') else '本轮观测计数不可用')
         if cov['reasons']:msg+='；'+'；'.join(dict.fromkeys(cov['reasons']))
-        if failed and not cov['pages_visited']:
-            cov['last_good']=previous.get('last_good') or {k:previous.get(k) for k in ('visible','extracted','unique','admitted','pages_visited')}
     except Exception as exc:
-        status='error';cov=previous.copy();cov['error']=type(exc).__name__;cov['reasons']=['采集任务异常：'+type(exc).__name__]
-        count=0;success=h['last_success'];fails=h['failure_count']+1;msg=cov['reasons'][0]
+        status='error'
+        if result is not None:
+            cov=result['coverage'];cov['reported_admitted']=cov.get('admitted');cov['admitted']=ingested
+        else:cov=coverage.fresh_coverage(source,started)
+        cov['attempt_started_at']=started;cov['error']=type(exc).__name__;cov['truncated']=True
+        msg='采集任务异常：'+type(exc).__name__;cov['reasons'].append(msg)
+        count=ingested;success=h['last_success'];fails=h['failure_count']+1;persisted_sample=False
+    status=coverage.finalize(cov,status,result.get('error','') if result is not None else cov.get('error',''))
+    cov['last_good']=coverage.sample_projection(cov,status) if persisted_sample else prior
     next_at=core.iso(now()+timedelta(hours=min(48,source['interval_hours']*2**min(fails,4))))
     with db() as c:
         ec=c.execute('SELECT COUNT(DISTINCT event_id) FROM event_sources WHERE source_id=?',(source['id'],)).fetchone()[0]
         cov['stored_events']=ec
         c.execute('UPDATE source_health SET status=?,message=?,last_attempt=?,last_success=?,raw_count=?,event_count=?,failure_count=?,next_attempt=?,coverage=? WHERE id=?',
-            (status,msg,started,success,count if cov.get('pages_visited') else h['raw_count'],ec,fails,next_at,json.dumps(cov,ensure_ascii=False),source['id']))
+            (status,msg,started,success,count if persisted_sample else h['raw_count'],ec,fails,next_at,json.dumps(cov,ensure_ascii=False),source['id']))
     row={'source':source['id'],'status':status,'count':count,'changed':changes,'message':msg}
     log('source',status,row,started);return row
 
