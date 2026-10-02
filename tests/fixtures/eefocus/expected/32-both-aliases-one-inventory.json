@@ -1,0 +1,46 @@
+{
+  "stage": "collect_and_ingest_design",
+  "report": {
+    "status": "partial",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 2,
+      "extracted": 2,
+      "unique": 1,
+      "admitted": 1,
+      "rejected": {},
+      "duplicates": 1,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "detail_attempted": 2,
+      "detail_resolved": 2,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "requests_attempted": 3
+    }
+  },
+  "database_counts": {
+    "raw_items": 1,
+    "events": 1,
+    "event_sources": 1
+  },
+  "proposed_identity_alias_count": 2,
+  "assertions": [
+    "Visible remains 2 even though both details prove one event",
+    "Re-dedupe after identity resolution; do not ingest both original URLs",
+    "Current unique is calculated before enrichment: moving/reconciling this count is required code work",
+    "No artificial source link is inserted merely to store an alias"
+  ],
+  "required_code_changes": [
+    "R2 post-enrichment canonical dedupe and metric reconciliation"
+  ]
+}

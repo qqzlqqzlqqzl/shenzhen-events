@@ -1,0 +1,111 @@
+{
+  "row_counts": {
+    "raw_items": 2,
+    "events": 2,
+    "event_sources": 2
+  },
+  "raw_item": {
+    "id": 501,
+    "source_id": "eefocus-events-synthetic",
+    "url": "https://www.eefocus.com/live/980102.html",
+    "payload_reference": "last-verified-event"
+  },
+  "event": {
+    "id": "event-synthetic-980102",
+    "url": "https://www.eefocus.com/live/980102.html",
+    "title": "合成线上电路研讨会",
+    "start_at": "2026-10-23T14:00:00+08:00",
+    "end_at": "2026-10-23T15:00:00+08:00",
+    "all_day": false,
+    "status": "scheduled",
+    "details": {
+      "attendance": "online",
+      "source_status": "即将开始",
+      "review_hold": false,
+      "review_notes": "",
+      "address_precision": "online"
+    }
+  },
+  "event_source": {
+    "event_id": "event-synthetic-980102",
+    "source_id": "eefocus-events-synthetic",
+    "url": "https://www.eefocus.com/live/980102.html",
+    "raw_id": 501
+  },
+  "preference": {
+    "event_id": "event-synthetic-980102",
+    "favorite": 1,
+    "hidden": 0,
+    "feedback": "interested",
+    "feedback_tags": [
+      "要参加"
+    ],
+    "revision": 7,
+    "viewed_at": "2026-09-20T11:00:00+08:00"
+  },
+  "alias_history": [
+    {
+      "binding_id": "binding-980002-to-980102",
+      "source_id": "eefocus-events-synthetic",
+      "alias_url": "https://www.eefocus.com/event/980002.html",
+      "canonical_url": "https://www.eefocus.com/live/980102.html",
+      "event_id": "event-synthetic-980102",
+      "verified_at": "2026-09-20T10:00:00+08:00",
+      "revoked": false,
+      "evidence_file": "fixtures/safety-historical-verification.json",
+      "evidence_sha256": "a03c681035b9d86ce7c1485707574cbccd1c753938c74f16bd9577b6dde602b4",
+      "occurrence": "2026-10-23"
+    },
+    {
+      "binding_id": "binding-reused-alias-second",
+      "source_id": "eefocus-events-synthetic",
+      "alias_url": "https://www.eefocus.com/event/980002.html",
+      "canonical_url": "https://www.eefocus.com/live/980999.html",
+      "event_id": "event-synthetic-980999",
+      "verified_at": "2026-09-21T10:00:00+08:00",
+      "revoked": false,
+      "evidence_file": "fixtures/safety-historical-second-verification.json",
+      "evidence_sha256": "c8ae5fe095c311dde3534b1dd8e9a877c1f2aac8bff37cd9ba4c516ed77d4c23",
+      "occurrence": "2026-10-30"
+    }
+  ],
+  "other_event": {
+    "id": "event-synthetic-980999",
+    "url": "https://www.eefocus.com/live/980999.html",
+    "title": "合成线上电路研讨会第二期",
+    "start_at": "2026-10-30T14:00:00+08:00",
+    "end_at": "2026-10-30T15:00:00+08:00",
+    "all_day": false,
+    "status": "scheduled",
+    "details": {
+      "attendance": "online",
+      "source_status": "即将开始",
+      "review_hold": false,
+      "review_notes": "",
+      "address_precision": "online"
+    }
+  },
+  "other_preference": {
+    "event_id": "event-synthetic-980999",
+    "favorite": 0,
+    "hidden": 0,
+    "feedback": "interested",
+    "feedback_tags": [
+      "要参加"
+    ],
+    "revision": 7,
+    "viewed_at": "2026-09-20T11:00:00+08:00"
+  },
+  "other_raw_item": {
+    "id": 502,
+    "source_id": "eefocus-events-synthetic",
+    "url": "https://www.eefocus.com/live/980999.html",
+    "payload_reference": "last-verified-event"
+  },
+  "other_event_source": {
+    "event_id": "event-synthetic-980999",
+    "source_id": "eefocus-events-synthetic",
+    "url": "https://www.eefocus.com/live/980999.html",
+    "raw_id": 502
+  }
+}

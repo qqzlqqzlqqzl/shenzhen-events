@@ -16,6 +16,10 @@ def content_hash(source,e,body):
     payload=dict(e)
     # Derived labels and observation timestamps are not new source content.
     payload.pop('topics',None);payload.pop('details',None)
+    if source.get('kind')=='eefocus_events':
+        details=e.get('details') or {}
+        payload['source_authority']={key:details.get(key) for key in
+            ('attendance','source_status','reinstated','time_conflict','attendance_conflict')}
     if is_search(source,e):payload.pop('url',None)
     return hashlib.sha256((json.dumps(payload,ensure_ascii=False,sort_keys=True)+'\n'+body).encode()).hexdigest()
 

@@ -1,0 +1,20 @@
+{
+  "stage": "cache_and_merge",
+  "cache_reused": false,
+  "if_stale_patch_is_forced": {
+    "item_subset": {
+      "start_at": "2026-11-12T00:00:00+08:00",
+      "end_at": "2026-11-13T00:00:00+08:00",
+      "all_day": true,
+      "status": "needs_review",
+      "details": {
+        "time_conflict": true
+      }
+    },
+    "upcoming_included": false
+  },
+  "assertions": [
+    "Do not move the listing back to November 10",
+    "Fingerprint includes date, status, attendance and location, excluding top-level published_at and details.checked_at"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "evidence_id": "reinstate-001",
+  "source_id": "eefocus-events-synthetic",
+  "canonical_url": "https://www.eefocus.com/live/980102.html",
+  "event_id": "event-synthetic-980102",
+  "observation_ids_addressed": [
+    "cancel-observation-001"
+  ],
+  "explicit_text": "本次2026年10月23日电路研讨会原取消安排现已恢复，按原时间举办。",
+  "observed_at": "2026-10-02T11:05:00+08:00",
+  "effective_occurrence": "2026-10-23",
+  "identity_evidence": "bounded validated event-to-live redirect; main heading and actual meeting instant match stored occurrence",
+  "details_file": "fixtures/safety-reinstatement-detail.html",
+  "conflicting_current_cancellation": false
+}

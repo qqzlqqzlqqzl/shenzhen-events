@@ -30,6 +30,9 @@ def collect_source(source):
         result=coverage.collect_report(source,previous)
         cov=result['coverage'];status=result['status']
         for e in result['items']:changes+=int(ingest(source,e))
+        if source.get('kind')=='eefocus_events':
+            from . import eefocus
+            eefocus.bind_stored(source)
         if cov['parser_unaccounted']:
             cov['reasons'].append('可见条目与解析量不符，需检查适配器')
             if status=='ok':status='partial'

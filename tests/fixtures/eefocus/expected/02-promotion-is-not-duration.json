@@ -1,0 +1,37 @@
+{
+  "stage": "parse",
+  "item_subset": {
+    "title": "Keysight 合成现场技术会",
+    "url": "https://www.eefocus.com/event/980001.html",
+    "summary": "本条为原创合成资料，仅用于验证活动采集边界、时间证据和重复导入。具体活动信息以此测试输入的明确字段为准，不对应真实报名。",
+    "location": "深圳市南山区合成会议室",
+    "start_at": null,
+    "end_at": null,
+    "all_day": false,
+    "city": "深圳",
+    "organizer": "",
+    "cost_text": "",
+    "event_type": "Event",
+    "status": "needs_review",
+    "details": {
+      "publisher": "与非网",
+      "source_event_id": "980001",
+      "evidence_url": "https://www.eefocus.com/event/980001.html",
+      "attendance": "offline",
+      "date_evidence": "推广期：2026年9月20日—10月22日",
+      "source_status": "报名中",
+      "time_evidence": [
+        {
+          "field": "list_promotion_window",
+          "text": "推广期：2026年9月20日—10月22日",
+          "url": "https://www.eefocus.com/event/"
+        }
+      ],
+      "checked_at": "2026-10-02T11:00:00+08:00",
+      "review_notes": "推广期不是实际举办日期；等待明确的活动时间证据。"
+    }
+  },
+  "upcoming_included": false,
+  "forbidden_start_at": "2026-09-20T00:00:00+08:00",
+  "forbidden_end_at": "2026-10-23T00:00:00+08:00"
+}

@@ -6,7 +6,7 @@ from datetime import timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 import feedparser
 from bs4 import BeautifulSoup
-from . import core, collectors as c, details, official_sources, aggregates, source_fields, recurring_sources
+from . import core, collectors as c, details, official_sources, aggregates, source_fields, recurring_sources, eefocus
 
 
 def set_query(url, **values):
@@ -209,6 +209,8 @@ def rss_page(source, html, metrics):
 
 def collect_report(source, previous=None):
     started=time.monotonic();previous=previous or {};kind=source['kind']
+    if kind==eefocus.KIND:
+        source={**source,'coverage_mode':'single_page','max_pages':1}
     metrics={'version':1,'mode':source.get('coverage_mode','single_page'),'pages_visited':0,'page_urls':[],
         'source_total':None,'visible':0,'extracted':0,'unique':0,'shenzhen_candidates':0,'admitted':0,'rejected':{},
         'duplicates':0,'parser_unaccounted':0,'truncated':False,'next_cursor':None,'reasons':[],
@@ -236,6 +238,8 @@ def collect_report(source, previous=None):
             else:
                 if kind=='wordpress_events':
                     html,soup,final,pagination=c.fetch(url,proxy=source.get('proxy'),include_pagination=True)
+                elif kind==eefocus.KIND:
+                    html,soup,final,_=eefocus.fetch(url,source,deadline,metrics,inventory=True)
                 elif kind in recurring_sources.KINDS:
                     html,soup,final=recurring_sources.bounded_fetch(c.fetch,url,source,deadline,metrics)
                 else:html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
@@ -249,6 +253,7 @@ def collect_report(source, previous=None):
                     metrics['inventory_module_url']=module_url
                     items,visible,excluded=parse_page(source,module,module_soup,module_final)
                     metrics['source_total']=visible
+                elif kind==eefocus.KIND:items,visible,excluded=eefocus.parse(soup,final)
                 else:items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
                 nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx','devevents','elecfans_webinar','shenzhenware_events') else (None,None)
                 if kind=='szhzfw':nxt=monthly_queue.pop(0) if monthly_queue else None
@@ -262,7 +267,9 @@ def collect_report(source, previous=None):
                 if not items and kind=='hdx' and ('login' in final.lower() or ('登录' in c.text(soup) and not soup.select_one('.search-tab-content-list'))):
                     metrics['access_boundary']=url
                     raise c.Blocked('后续分页要求登录；已保留公开可读页，未绕过访问限制')
-                if not items and kind in recurring_sources.KINDS:
+                if not items and kind==eefocus.KIND:
+                    metrics['recognized_empty']=visible==0
+                elif not items and kind in recurring_sources.KINDS:
                     # The source-specific parser has already validated the inventory shape.
                     metrics['recognized_empty']=True
                 elif not items and kind not in ('rss','wordpress_events') and not (kind=='szhzfw' and nxt):
@@ -298,15 +305,16 @@ def collect_report(source, previous=None):
         metrics['reasons'].append('下轮更新公开页；登录后内容不计为已覆盖')
     if not metrics['truncated']:metrics['next_cursor']=None
     items=list(rows.values())[:max_entries];metrics['unique']=len(items)
-    if kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':deadline},items,metrics)
-    if kind in recurring_sources.KINDS and metrics.get('detail_blocked'):
+    if kind==eefocus.KIND:items=eefocus.enrich(source,items,metrics,deadline)
+    elif kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':deadline},items,metrics)
+    if kind in (*recurring_sources.KINDS,eefocus.KIND) and metrics.get('detail_blocked'):
         error='来源详情限制访问，已退避并保留已读取的列表'
         blocked=True
     admitted=[]
     for e in items:
         mode=core.event_attendance(e);online=mode in ('online','hybrid') and source.get('allow_online',False)
         city='深圳' if online else city_evidence(e,source)
-        if kind in recurring_sources.KINDS and not online and city!='深圳':
+        if kind in (*recurring_sources.KINDS,eefocus.KIND) and not online and city!='深圳':
             rejects['城市尚未确认' if city=='待确认' else '其他城市']+=1;continue
         if city not in ('深圳','待确认'):rejects['其他城市']+=1;continue
         if city=='待确认' and source.get('scope')=='national':

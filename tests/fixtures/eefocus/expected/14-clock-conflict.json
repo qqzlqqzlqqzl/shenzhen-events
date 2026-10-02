@@ -1,0 +1,17 @@
+{
+  "stage": "enriched_event",
+  "item_subset": {
+    "start_at": "2026-10-10T00:00:00+08:00",
+    "end_at": "2026-10-11T00:00:00+08:00",
+    "all_day": true,
+    "status": "needs_review",
+    "details": {
+      "time_conflict": true
+    }
+  },
+  "upcoming_included": false,
+  "assertions": [
+    "Preserve both conflicting time_evidence records",
+    "Do not silently choose header, body, first or longest range"
+  ]
+}

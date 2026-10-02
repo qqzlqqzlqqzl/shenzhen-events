@@ -1,0 +1,80 @@
+{
+  "checked_at": "2026-10-02T03:30:44Z",
+  "repository": "qqzlqqzlqqzl/shenzhen-events",
+  "branch": "main",
+  "atomic_commit_pin": false,
+  "explanation": "Six complete files read from default branch through the authorized GitHub connector; each blob SHA matches the existing read-only local snapshot. No live publisher requests, repository writes, adapter execution, or adapter tests.",
+  "files": [
+    {
+      "path": "radar/recurring_sources.py",
+      "git_blob": "d5566864adefddae9fca5e69c40ced72b1ae73df",
+      "url": "https://github.com/qqzlqqzlqqzl/shenzhen-events/blob/main/radar/recurring_sources.py"
+    },
+    {
+      "path": "radar/coverage.py",
+      "git_blob": "861f2e339c0347e7c1d589587bfedd81f7d8ece5",
+      "url": "https://github.com/qqzlqqzlqqzl/shenzhen-events/blob/main/radar/coverage.py"
+    },
+    {
+      "path": "radar/collectors.py",
+      "git_blob": "0ae798c313c9e0f8449ddd27b0453cae609505a5",
+      "url": "https://github.com/qqzlqqzlqqzl/shenzhen-events/blob/main/radar/collectors.py"
+    },
+    {
+      "path": "radar/core.py",
+      "git_blob": "d6086f6e07f65152b60a76626b2ee89018e10153",
+      "url": "https://github.com/qqzlqqzlqqzl/shenzhen-events/blob/main/radar/core.py"
+    },
+    {
+      "path": "radar/source_identity.py",
+      "git_blob": "25e0ed2dc8b6a2a306b5aed9a64048d5c83cc6e9",
+      "url": "https://github.com/qqzlqqzlqqzl/shenzhen-events/blob/main/radar/source_identity.py"
+    },
+    {
+      "path": "radar/worker.py",
+      "git_blob": "f5d02808719f1432ab249c79690742ea5ad82c72",
+      "url": "https://github.com/qqzlqqzlqqzl/shenzhen-events/blob/main/radar/worker.py"
+    }
+  ],
+  "publisher_route_shape": {
+    "basis": "Exact prior verified references supplied by parent; no new publisher fetch by this task",
+    "references": [
+      "https://www.eefocus.com/event/2091127.html",
+      "https://www.eefocus.com/event/2093134.html",
+      "https://www.eefocus.com/live/2072182.html"
+    ],
+    "synthetic_routes_are_observed": false
+  },
+  "v3_local_recheck": {
+    "network_accessed": false,
+    "new_remote_revision_verified": false,
+    "scope": "Read-only local bytes matching all six inherited Git blobs. Line anchors below refer to those exact blobs. No application imports."
+  },
+  "v3_source_anchors": [
+    {
+      "path": "radar/worker.py",
+      "lines": "25-60",
+      "finding": "Only returned items call ingest; no independent safety transition channel is shown"
+    },
+    {
+      "path": "radar/recurring_sources.py",
+      "lines": "387-430",
+      "finding": "Detail validates final URL equality before extracting patch; no EEFocus evidence validator"
+    },
+    {
+      "path": "radar/recurring_sources.py",
+      "lines": "481-542",
+      "finding": "Detail failures leave base item; HTTP success plus patch parsing increments resolved"
+    },
+    {
+      "path": "radar/core.py",
+      "lines": "315-378",
+      "finding": "Ingest can rekey raw URL and overwrites held event status/details; must not be reused for unverified safety-only observations"
+    },
+    {
+      "path": "radar/core.py",
+      "lines": "436-546",
+      "finding": "Upcoming/calendar/range filter stored status; an overlay only displayed after filtering cannot ensure consistent totals or eligibility"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "stage": "merge_and_ingest_design",
+  "expected_event": {
+    "status": "cancelled",
+    "details": {
+      "source_status": "已取消",
+      "review_hold": true,
+      "review_notes": "人工保留：确认参加资格后再展示",
+      "address_precision": "undisclosed"
+    }
+  },
+  "expected_preference": {
+    "favorite": 1,
+    "hidden": 0
+  },
+  "upcoming_included": false,
+  "assertions": [
+    "Manual hold is not cleared; cancellation has display/status precedence without destroying held metadata",
+    "Do not let an old held source_status=报名中 overwrite fresh cancellation evidence",
+    "Current ingest forces held events to needs_review and overlays held details wholesale; update this deliberately"
+  ],
+  "required_code_changes": [
+    "R4 cancellation precedence through merge, normalize and ingest"
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "stage": "parse_and_collect_design",
+  "parse": {
+    "visible": 20,
+    "extracted": 12,
+    "excluded": {
+      "已结束或回放": 2,
+      "非活动推广": 3,
+      "无有效标题或链接": 2,
+      "重复活动链接": 1
+    },
+    "extracted_post_ids": [
+      "980001",
+      "980002",
+      "980005",
+      "980009",
+      "980010",
+      "980011",
+      "980012",
+      "980013",
+      "980017",
+      "980018",
+      "980019",
+      "980020"
+    ]
+  },
+  "report": {
+    "status": "partial",
+    "error": "",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 20,
+      "extracted": 12,
+      "unique": 12,
+      "admitted": 0,
+      "rejected": {
+        "已结束或回放": 2,
+        "非活动推广": 3,
+        "无有效标题或链接": 2,
+        "重复活动链接": 1
+      },
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 12,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "requests_attempted": 1
+    }
+  },
+  "assertions": [
+    "visible = extracted + sum(parse.excluded.values()) = 20",
+    "No request to page=2: listing pagination has not been verified",
+    "All no-date candidates retain an explicit detail_candidate signal until admission or a >=40-character genuine summary",
+    "No sidebars, navigation links, trial cards or downloads enter upcoming results",
+    "unique=12 counts provisional candidate URLs; admitted=0 because all identities await verification",
+    "All 12 candidates remain eligible for the bounded detail/identity queue; none enters raw_items, events or event_sources",
+    "Returning these unresolved items to worker is forbidden: current worker ingests every returned item"
+  ],
+  "identity_accounting": {
+    "new_candidates": 12,
+    "identity_verified": 0,
+    "identity_pending": 12,
+    "existing_rows_updated": 0
+  },
+  "database_counts": {
+    "raw_items": 0,
+    "events": 0,
+    "event_sources": 0
+  },
+  "required_code_changes": [
+    "R1 verified-identity admission gate",
+    "R2 durable alias/identity evidence and post-enrichment dedupe"
+  ]
+}

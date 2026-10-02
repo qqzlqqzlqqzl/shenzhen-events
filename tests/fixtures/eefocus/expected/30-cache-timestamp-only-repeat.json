@@ -1,0 +1,22 @@
+{
+  "stage": "cache_and_ingest_design",
+  "fingerprint_equal": true,
+  "fingerprint": "f0a72f986a6e32aea82aefdb70bf3a669ada6b7255cae38e84e00d25d48c750b",
+  "coverage_subset": {
+    "detail_cached": 1,
+    "detail_attempted": 0,
+    "detail_failed": 0,
+    "detail_deferred": 0
+  },
+  "changed": 0,
+  "expected_enriched_fields": {
+    "organizer": "合成测试机构"
+  },
+  "assertions": [
+    "Old and new listing differ only at details.checked_at; prior_raw_payload already contains the same cached organizer patch",
+    "Cache payload is a JSON string containing patch",
+    "Fresh identity evidence separately permits admission",
+    "Fingerprint deliberately ignores top-level published_at AND details.checked_at; no behavior change requested",
+    "If published_at itself changes, detail fingerprint stays equal but source content_hash may change; do not conflate those functions"
+  ]
+}

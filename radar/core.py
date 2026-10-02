@@ -149,7 +149,7 @@ def normalize_event(e):
     e['event_type_state']='source' if e['event_type']!='Event' else 'pending'
     e['topics']=resolved_topics(e['topics'],e['event_type'],e['title'],e['summary'])
     e['city']=e.get('city','深圳');e['status']=e.get('status','scheduled')
-    if not e['start_at']:e['status']='needs_review'
+    if not e['start_at'] and not (e['status']=='cancelled' and e['details'].get('identity_adapter')=='eefocus_events'):e['status']='needs_review'
     return e
 
 @contextmanager
@@ -200,6 +200,8 @@ def init():
             if mapped!=vals:c.execute('UPDATE events SET topics=? WHERE id=?',(json.dumps(mapped,ensure_ascii=False),row['id']))
         c.executescript("""
         CREATE TABLE IF NOT EXISTS detail_cache(source_id TEXT,url TEXT,fingerprint TEXT,payload TEXT,status TEXT,checked_at TEXT,next_attempt TEXT,PRIMARY KEY(source_id,url));
+        CREATE TABLE IF NOT EXISTS eefocus_identity_bindings(binding_id TEXT PRIMARY KEY,source_id TEXT,alias_url TEXT,canonical_url TEXT,evidence TEXT,verified_at TEXT,event_id TEXT);
+        CREATE INDEX IF NOT EXISTS idx_eefocus_binding_alias ON eefocus_identity_bindings(source_id,alias_url);
         CREATE TABLE IF NOT EXISTS source_jobs(id TEXT PRIMARY KEY,source_id TEXT,state TEXT,requested_at TEXT,updated_at TEXT,message TEXT);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_source_active_job ON source_jobs(source_id) WHERE state IN ('queued','running');
         """)
@@ -342,7 +344,7 @@ def ingest(source,e,body=None):
                 if urls:
                     qs=','.join('?' for _ in urls);row=c.execute(f'SELECT event_id FROM event_sources WHERE url IN ({qs}) LIMIT 1',urls).fetchone()
                     eid=row['event_id'] if row else hashlib.sha256(('alias|'+alias['id']).encode()).hexdigest()[:20]
-            if not eid and e['start_at']:
+            if not eid and e['start_at'] and source.get('kind')!='eefocus_events':
                 for row in c.execute('SELECT * FROM events WHERE substr(start_at,1,10)=?',(e['start_at'][:10],)):
                     if is_duplicate(e,dict(row)):eid=row['id'];break
             eid=eid or hashlib.sha256((source['id']+'|'+e['url']).encode()).hexdigest()[:20]
@@ -351,8 +353,15 @@ def ingest(source,e,body=None):
         if prev and e['event_type']=='Event' and prev['event_type_state'] in ('source','ai'):
             e['event_type']=prev['event_type'];e['event_type_state']=prev['event_type_state']
         held=json.loads(prev['details'] or '{}') if prev else {}
+        if (source.get('kind')=='eefocus_events' and prev and prev['status']=='cancelled'
+                and e['status']!='cancelled' and not e['details'].get('reinstated')):
+            e['status']='cancelled';e['details']['source_status']=held.get('source_status') or '已取消'
         if held.get('review_hold'):
-            e['status']='needs_review';e['details']={**e['details'],**held}
+            fresh_status=e['details'].get('source_status')
+            cancelled_eefocus=source.get('kind')=='eefocus_events' and e['status']=='cancelled'
+            e['status']='cancelled' if cancelled_eefocus else 'needs_review'
+            e['details']={**e['details'],**held}
+            if source.get('kind')=='eefocus_events' and fresh_status:e['details']['source_status']=fresh_status
         if not prev or (changed and rank<=prev['origin_priority']):
             data={'id':eid,'title':e['title'],'title_norm':norm(e['title']),'start_at':e['start_at'],'end_at':e['end_at'],'all_day':int(e['all_day']),'location':e['location'],'district':e['district'],'organizer':e['organizer'],'details':json.dumps(e['details'],ensure_ascii=False),'summary':e['summary'],'topics':json.dumps(e['topics'],ensure_ascii=False),'event_type':e['event_type'],'event_type_state':e['event_type_state'],'priority':r['priority'],'reason':r['reason'],'commercial':r['commercial'],'cost_text':e['cost_text'],'cost_free':int(e['cost_free']),'url':e['url'],'status':e['status'],'origin_priority':rank,'first_seen':prev['first_seen'] if prev else ts,'last_seen':ts,'ai_state':'review' if held.get('review_hold') else 'pending'}
             keys=list(data);c.execute(f"INSERT INTO events ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)}) ON CONFLICT(id) DO UPDATE SET "+','.join(f'{k}=excluded.{k}' for k in keys if k not in ('id','first_seen')),tuple(data.values()))

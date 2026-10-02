@@ -1,0 +1,195 @@
+{
+  "fixture_state_only": true,
+  "initial_database": {
+    "raw_items": [],
+    "events": [],
+    "event_sources": [],
+    "preferences": []
+  },
+  "initial_identity_cache": [],
+  "steps": [
+    {
+      "run": 1,
+      "listing_url": "https://www.eefocus.com/event/980002.html",
+      "detail_budget": 0,
+      "expected_action": "queue pending identity; return no admitted items"
+    },
+    {
+      "run": 2,
+      "listing_url": "https://www.eefocus.com/event/980002.html",
+      "detail_budget": 1,
+      "transport": {
+        "requested_url": "https://www.eefocus.com/event/980002.html",
+        "redirect_chain": [
+          {
+            "from": "https://www.eefocus.com/event/980002.html",
+            "status": 302,
+            "location": "https://www.eefocus.com/live/980102.html"
+          }
+        ],
+        "final_url": "https://www.eefocus.com/live/980102.html",
+        "all_hops_same_origin": true
+      },
+      "verified_payload": {
+        "title": "合成线上电路研讨会",
+        "url": "https://www.eefocus.com/live/980102.html",
+        "summary": "这是一场原创合成技术交流活动，说明用于验证来源身份、时间证据以及人工保留状态，不对应真实报名。",
+        "location": "线上",
+        "start_at": "2026-10-23T14:00:00+08:00",
+        "end_at": "2026-10-23T15:00:00+08:00",
+        "all_day": false,
+        "city": "线上",
+        "organizer": "",
+        "cost_text": "",
+        "event_type": "ConferenceEvent",
+        "status": "scheduled",
+        "published_at": "2026-09-30",
+        "details": {
+          "publisher": "与非网",
+          "source_event_id": "980102",
+          "attendance": "online",
+          "source_status": "报名中",
+          "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+          "time_evidence": [
+            {
+              "field": "detail_meeting_time",
+              "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+              "url": "https://www.eefocus.com/live/980102.html"
+            }
+          ],
+          "timezone_status": "source_explicit",
+          "checked_at": "2026-10-02T11:00:00+08:00"
+        }
+      }
+    },
+    {
+      "between_runs": true,
+      "mutation": "seed isolated test state after successful ingest",
+      "preferences": {
+        "favorite": 1,
+        "hidden": 0,
+        "feedback": "",
+        "feedback_tags": "[]",
+        "revision": 1
+      },
+      "event_patch": {
+        "status": "needs_review",
+        "details": {
+          "publisher": "与非网",
+          "source_event_id": "980102",
+          "attendance": "online",
+          "source_status": "报名中",
+          "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+          "time_evidence": [
+            {
+              "field": "detail_meeting_time",
+              "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+              "url": "https://www.eefocus.com/live/980102.html"
+            }
+          ],
+          "timezone_status": "source_explicit",
+          "checked_at": "2026-10-02T11:00:00+08:00",
+          "review_hold": true,
+          "review_notes": "人工保留：确认参加资格后再展示",
+          "address_precision": "undisclosed"
+        }
+      }
+    },
+    {
+      "run": 3,
+      "listing_url": "https://www.eefocus.com/event/980002.html",
+      "detail_budget": 0,
+      "identity_cache": {
+        "fixture_only_proposed_identity_cache": true,
+        "source_id": "eefocus-events-synthetic",
+        "alias_url": "https://www.eefocus.com/event/980002.html",
+        "canonical_url": "https://www.eefocus.com/live/980102.html",
+        "state": "verified",
+        "verified_at": "2026-10-02T10:00:00+08:00",
+        "expires_at": "2026-10-03T10:00:00+08:00",
+        "redirect_chain_validated": true,
+        "content_identity_validated": true
+      },
+      "detail_patch_cache": "fresh and identical to run 2",
+      "source_payload": {
+        "title": "合成线上电路研讨会",
+        "url": "https://www.eefocus.com/live/980102.html",
+        "summary": "这是一场原创合成技术交流活动，说明用于验证来源身份、时间证据以及人工保留状态，不对应真实报名。",
+        "location": "线上",
+        "start_at": "2026-10-23T14:00:00+08:00",
+        "end_at": "2026-10-23T15:00:00+08:00",
+        "all_day": false,
+        "city": "线上",
+        "organizer": "",
+        "cost_text": "",
+        "event_type": "ConferenceEvent",
+        "status": "scheduled",
+        "published_at": "2026-09-30",
+        "details": {
+          "publisher": "与非网",
+          "source_event_id": "980102",
+          "attendance": "online",
+          "source_status": "报名中",
+          "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+          "time_evidence": [
+            {
+              "field": "detail_meeting_time",
+              "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+              "url": "https://www.eefocus.com/live/980102.html"
+            }
+          ],
+          "timezone_status": "source_explicit",
+          "checked_at": "2026-10-02T11:00:00+08:00"
+        }
+      }
+    },
+    {
+      "run": 4,
+      "listing_url": "https://www.eefocus.com/live/980102.html?utm_source=fixture",
+      "detail_budget": 0,
+      "identity_cache": {
+        "fixture_only_proposed_identity_cache": true,
+        "source_id": "eefocus-events-synthetic",
+        "alias_url": "https://www.eefocus.com/live/980102.html",
+        "canonical_url": "https://www.eefocus.com/live/980102.html",
+        "state": "verified",
+        "verified_at": "2026-10-02T10:00:00+08:00",
+        "expires_at": "2026-10-03T10:00:00+08:00",
+        "redirect_chain_validated": true,
+        "content_identity_validated": true
+      },
+      "detail_patch_cache": "fresh and identical to run 2",
+      "source_payload": {
+        "title": "合成线上电路研讨会",
+        "url": "https://www.eefocus.com/live/980102.html",
+        "summary": "这是一场原创合成技术交流活动，说明用于验证来源身份、时间证据以及人工保留状态，不对应真实报名。",
+        "location": "线上",
+        "start_at": "2026-10-23T14:00:00+08:00",
+        "end_at": "2026-10-23T15:00:00+08:00",
+        "all_day": false,
+        "city": "线上",
+        "organizer": "",
+        "cost_text": "",
+        "event_type": "ConferenceEvent",
+        "status": "scheduled",
+        "published_at": "2026-09-30",
+        "details": {
+          "publisher": "与非网",
+          "source_event_id": "980102",
+          "attendance": "online",
+          "source_status": "报名中",
+          "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+          "time_evidence": [
+            {
+              "field": "detail_meeting_time",
+              "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+              "url": "https://www.eefocus.com/live/980102.html"
+            }
+          ],
+          "timezone_status": "source_explicit",
+          "checked_at": "2026-10-02T11:00:00+08:00"
+        }
+      }
+    }
+  ]
+}

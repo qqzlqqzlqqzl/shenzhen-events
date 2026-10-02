@@ -8,40 +8,57 @@ from .core import clean, iso, date_range, canon_url, now, db, stamp, EVENT_TYPES
 class SourceError(Exception): pass
 class Blocked(SourceError): pass
 
-def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None, include_pagination=False):
+def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None, include_pagination=False,
+          url_policy=None, request_observer=None, include_trace=False):
     """No login scraping. Bounded time/size; public-only redirect validation."""
     session=requests.Session();session.trust_env=False
-    if proxy:
-        if proxy!="http://127.0.0.1:17890":raise SourceError("非允许的出口配置")
-        session.proxies={"http":proxy,"https":proxy}
-    for _ in range(5):
-        p=urlsplit(url)
-        if p.scheme not in ('http','https') or p.username or p.password:raise SourceError('不支持的链接')
-        local=trusted_local and p.hostname=='127.0.0.1' and p.port==1200
-        if not local:
+    try:
+        if proxy:
+            if proxy!="http://127.0.0.1:17890":raise SourceError("非允许的出口配置")
+            session.proxies={"http":proxy,"https":proxy}
+        trace=[]
+        for _ in range(5):
+            if url_policy is not None and not url_policy(url):raise SourceError('redirect_route_rejected')
+            p=urlsplit(url)
+            if p.scheme not in ('http','https') or p.username or p.password:raise SourceError('不支持的链接')
+            local=trusted_local and p.hostname=='127.0.0.1' and p.port==1200
+            if not local:
+                try:
+                    addresses={x[4][0] for x in socket.getaddrinfo(p.hostname,p.port or 443,type=socket.SOCK_STREAM)}
+                    if not addresses or any(not ipaddress.ip_address(x).is_global for x in addresses):raise SourceError('拒绝非公网地址')
+                except socket.gaierror:raise SourceError('DNS 解析失败')
+            r=None
             try:
-                addresses={x[4][0] for x in socket.getaddrinfo(p.hostname,p.port or 443,type=socket.SOCK_STREAM)}
-                if not addresses or any(not ipaddress.ip_address(x).is_global for x in addresses):raise SourceError('拒绝非公网地址')
-            except socket.gaierror:raise SourceError('DNS 解析失败')
-        try:
-            r=session.get(url,headers={'User-Agent':'Mozilla/5.0 (compatible; ShenzhenEvents/1.0; personal low-frequency aggregator)','Accept':'text/html,application/rss+xml,application/json;q=0.9'},timeout=(6,18),allow_redirects=False,stream=True)
-            if r.status_code in (301,302,303,307,308):url=urljoin(url,r.headers.get('location',''));r.close();continue
-            if r.status_code in (403,429):raise Blocked(f'来源限制访问（HTTP {r.status_code}），已退避')
-            r.raise_for_status();buf=bytearray()
-            for chunk in r.iter_content(16384):
-                buf.extend(chunk)
-                if len(buf)>max_bytes:raise SourceError('页面超过采集大小限制')
-            r.close();html=bytes(buf).decode(r.encoding if r.encoding and r.encoding.lower()!='iso-8859-1' else 'utf-8','replace')
-        except requests.RequestException as e:raise SourceError(('HTTP '+str(e.response.status_code)) if getattr(e,'response',None) is not None else type(e).__name__)
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore',category=XMLParsedAsHTMLWarning)
-            soup=BeautifulSoup(html,'html.parser')
-        title=clean(soup.title.get_text() if soup.title else '')
-        if any(x in title.lower() for x in ['captcha','访问验证','安全验证','反爬','请输入验证码']) or '/antispider' in url:raise Blocked('来源要求验证码，未绕过验证')
-        if include_pagination:
-            return html,soup,url,{'total':r.headers.get('X-WP-Total'),'total_pages':r.headers.get('X-WP-TotalPages')}
-        return html,soup,url
-    raise SourceError('重定向次数超限')
+                if request_observer is not None:request_observer(url)
+                r=session.get(url,headers={'User-Agent':'Mozilla/5.0 (compatible; ShenzhenEvents/1.0; personal low-frequency aggregator)','Accept':'text/html,application/rss+xml,application/json;q=0.9'},timeout=(6,18),allow_redirects=False,stream=True)
+                trace.append({'url':url,'status':r.status_code,'location':r.headers.get('location','')})
+                if r.status_code in (301,302,303,307,308):
+                    target=urljoin(url,r.headers.get('location',''))
+                    r.close()
+                    if not r.headers.get('location') or (url_policy is not None and not url_policy(target)):raise SourceError('redirect_route_rejected')
+                    url=target;continue
+                if r.status_code in (403,429):raise Blocked(f'来源限制访问（HTTP {r.status_code}），已退避')
+                r.raise_for_status();buf=bytearray()
+                for chunk in r.iter_content(16384):
+                    buf.extend(chunk)
+                    if len(buf)>max_bytes:raise SourceError('页面超过采集大小限制')
+                r.close();html=bytes(buf).decode(r.encoding if r.encoding and r.encoding.lower()!='iso-8859-1' else 'utf-8','replace')
+            except requests.RequestException as e:raise SourceError(('HTTP '+str(e.response.status_code)) if getattr(e,'response',None) is not None else type(e).__name__)
+            finally:
+                if r is not None:r.close()
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore',category=XMLParsedAsHTMLWarning)
+                soup=BeautifulSoup(html,'html.parser')
+            title=clean(soup.title.get_text() if soup.title else '')
+            if any(x in title.lower() for x in ['captcha','访问验证','安全验证','反爬','请输入验证码']) or '/antispider' in url:raise Blocked('来源要求验证码，未绕过验证')
+            if include_pagination:
+                return html,soup,url,{'total':r.headers.get('X-WP-Total'),'total_pages':r.headers.get('X-WP-TotalPages')}
+            if include_trace:return html,soup,url,trace
+            return html,soup,url
+        raise SourceError('重定向次数超限')
+    finally:
+        session.close()
+
 def text(node):return clean(node.get_text(' ',strip=True)) if node else ''
 def skeleton(title,url,summary='',location='',**kw):return {'title':title,'url':url,'summary':summary,'location':location,'start_at':None,'end_at':None,'all_day':False,**kw}
 

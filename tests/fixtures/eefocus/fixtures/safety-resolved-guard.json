@@ -1,0 +1,21 @@
+{
+  "guard_id": "guard-cancel-001",
+  "source_id": "eefocus-events-synthetic",
+  "event_id": "event-synthetic-980102",
+  "alias_binding_ids": [
+    "binding-980002-to-980102"
+  ],
+  "observation_ids": [
+    "cancel-observation-001"
+  ],
+  "reason": "unconfirmed_cancellation_for_historical_identity",
+  "state": "resolved",
+  "created_at": "2026-10-02T11:00:00+08:00",
+  "auto_expires_at": null,
+  "current_identity_verified": false,
+  "authoritative_cancellation": false,
+  "resolved_at": "2026-10-02T11:05:00+08:00",
+  "resolution_evidence_id": "reinstate-001",
+  "resolution_reason": "explicit_same_occurrence_reinstatement",
+  "revision": 2
+}
