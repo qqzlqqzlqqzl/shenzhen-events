@@ -609,6 +609,35 @@ def test_previous_admission_schema_cannot_reuse_reinstatement_authority(monkeypa
     assert stored()['status'] == 'cancelled' and not stored()['details'].get('reinstated')
 
 
+@pytest.mark.parametrize('notices', [
+    ['原定2026年10月23日，尚未改期至2027年10月23日。'],
+    ['“原定2026年10月23日，改期至2027年10月23日”只是传言。'],
+    ['分会场原定2026年10月23日，改期至2027年10月23日。'],
+    ['原定2026年10月23日，改期至2027年10月23日。',
+     '原定2026年10月23日，尚未改期至2027年10月23日。'],
+])
+def test_ambiguous_reschedule_cannot_change_canonical_occurrence(monkeypatch, notices):
+    canonical, alias = ee.ORIGIN + '/live/990102.html', ee.ORIGIN + '/event/990003.html'
+    base = {'title': '合成同名年度研讨会', 'url': canonical, 'location': '深圳',
+            'start_at': '2026-10-23T14:00:00+08:00', 'end_at': '2026-10-23T15:00:00+08:00'}
+    run(monkeypatch, {ee.LIST_URL: card(base), canonical: detail_html(base)})
+    hold_favorite()
+    before = stored()
+    with core.db() as db:
+        history = [tuple(row) for row in db.execute('SELECT * FROM eefocus_identity_bindings')]
+    body = detail_html(base).replace('2026年10月23日', '2027年10月23日').replace(
+        '</article>', ''.join('<p>' + escape(v) + '</p>' for v in notices) + '</article>')
+    pages = {ee.LIST_URL: card({**base, 'url': alias}).replace('2026年10月23日', '2027年10月23日'),
+             alias: {'status': 302, 'location': canonical}, canonical: body}
+    result, metrics, _ = run(monkeypatch, pages)
+    assert result['count'] == result['changed'] == 0
+    assert 'historical_occurrence_conflict' in metrics['reasons']
+    assert metrics['detail_failed'] == 1 and stored() == before
+    with core.db() as db:
+        assert [tuple(row) for row in db.execute('SELECT * FROM eefocus_identity_bindings')] == history
+        assert db.execute("SELECT COUNT(*) FROM detail_cache WHERE status='ok'").fetchone()[0] == 0
+
+
 @pytest.mark.parametrize('guard', [{'review_hold': True, 'review_notes': '人工保留：确认受邀资格前不展示'},
                                   {'attendance': 'unknown', 'review_notes': '参加方式冲突尚未确认'}])
 def test_time_resolution_preserves_unrelated_review_reason(guard):

@@ -362,8 +362,14 @@ def check_history(source, requested, final, evidence):
     for prior in histories:
         old_dates, new_dates = set(prior.get('occurrence_dates', [])), set(evidence['occurrence_dates'])
         if old_dates and old_dates != new_dates:
-            notices = ' '.join(evidence['reschedule_text'])
-            if not new_dates or not notices or not (old_dates | new_dates).issubset(calendar_dates(notices)):
+            notices = evidence['reschedule_text']
+            # A pair of date mentions is insufficient: every scoped notice must
+            # affirm a whole-event move, without quotes, negation or session scope.
+            full_date = r'20\d{2}年\d{1,2}月\d{1,2}日'
+            explicit_move = (rf'(?:本(?:次|场)活动)?原定(?:于)?{full_date}[，,\s]*'
+                             rf'(?:现已|现|已)?(?:改期|延期|调整)至{full_date}[。！!]?')
+            unambiguous = notices and all(re.fullmatch(explicit_move, date_text(core.clean(v))) for v in notices)
+            if not new_dates or not unambiguous or not (old_dates | new_dates).issubset(calendar_dates(' '.join(notices))):
                 raise c.SourceError('historical_occurrence_conflict')
         if prior.get('organizers') and evidence['organizers'] and prior['organizers'] != evidence['organizers']:
             raise c.SourceError('historical_organizer_conflict')
