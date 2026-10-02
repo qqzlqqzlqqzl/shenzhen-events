@@ -388,6 +388,24 @@ def test_current_contradiction_invalidates_real_fresh_cache(monkeypatch):
     assert later['count'] == 0 and counts()['events'] == 0
 
 
+def test_title_word_boundaries_are_identity_evidence(monkeypatch):
+    base = {'title': '合成 Power Grid 研讨会', 'url': ee.ORIGIN + '/event/990041.html',
+            'summary': '本次合成技术活动讨论电源环路稳定性与测量方法，不对应真实活动。',
+            'location': '线上', 'start_at': '2026-11-12T14:00:00+08:00', 'end_at': '2026-11-12T15:00:00+08:00'}
+    unrelated = detail_html({**base, 'title': '合成 PowerGrid 研讨会'})
+    result, metrics, _ = run(monkeypatch, {ee.LIST_URL: card(base), base['url']: unrelated})
+    assert result['count'] == 0 and 'main_event_title_mismatch' in metrics['reasons']
+    assert ee.heading('Café  研讨会') == ee.heading('Cafe\u0301 研讨会')
+
+
+def test_malformed_redirect_is_counted_failure_without_following(monkeypatch):
+    alias = ee.ORIGIN + '/event/980002.html'
+    result, metrics, calls = run(monkeypatch, {ee.LIST_URL: load('fixtures/redirect-list.html'),
+                                             alias: {'status': 302, 'location': 'https://[invalid/'}})
+    assert result['count'] == 0 and calls == [ee.LIST_URL, alias]
+    subset(metrics, {'pages_visited': 1, 'detail_attempted': 1, 'detail_failed': 1, 'detail_resolved': 0})
+
+
 @pytest.mark.parametrize('failure', [collectors.Blocked('challenge'), rs.Deadline('hard deadline')])
 def test_inventory_failure_preserves_stored_state(monkeypatch, failure):
     pages = {ee.LIST_URL: load('fixtures/redirect-list.html'),

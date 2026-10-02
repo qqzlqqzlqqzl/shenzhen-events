@@ -33,7 +33,8 @@ def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None, include_pa
                 r=session.get(url,headers={'User-Agent':'Mozilla/5.0 (compatible; ShenzhenEvents/1.0; personal low-frequency aggregator)','Accept':'text/html,application/rss+xml,application/json;q=0.9'},timeout=(6,18),allow_redirects=False,stream=True)
                 trace.append({'url':url,'status':r.status_code,'location':r.headers.get('location','')})
                 if r.status_code in (301,302,303,307,308):
-                    target=urljoin(url,r.headers.get('location',''))
+                    try:target=urljoin(url,r.headers.get('location',''))
+                    except ValueError:raise SourceError('redirect_route_rejected')
                     r.close()
                     if not r.headers.get('location') or (url_policy is not None and not url_policy(target)):raise SourceError('redirect_route_rejected')
                     url=target;continue
@@ -181,4 +182,3 @@ def collect(source):
     if not items:raise SourceError('网页可访问，但未提取到有效活动；保留上次数据')
     if source['kind']=='jsonld':items=[e for e in items if '深圳' in e['location'] or 'shenzhen' in e['location'].lower()]
     return items
-

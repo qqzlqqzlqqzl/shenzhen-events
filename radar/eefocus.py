@@ -47,7 +47,7 @@ def event_url(href, base=LIST_URL):
 
 
 def heading(value):
-    return re.sub(r'\s+', '', unicodedata.normalize('NFC', core.clean(value)))
+    return re.sub(r'\s+', ' ', unicodedata.normalize('NFC', core.clean(value))).strip()
 
 
 def cancelled(text):
