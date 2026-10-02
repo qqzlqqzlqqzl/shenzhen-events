@@ -12,18 +12,18 @@ async function ready(query='?view=all',initial={}){
  const dom=new JSDOM(fs.readFileSync(path.join(root,'static/index.html'),'utf8'),{url:'https://fixture.test/events/'+query,runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc});
  const w=dom.window,$=s=>w.document.querySelector(s);w.matchMedia=()=>({matches:false,addEventListener(){}});w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
- const state={expired:false,username:'alice',version:'A',failEvents:false,detailReads:0};
+ const state={expired:false,username:'alice',version:'A',failEvents:false,detailReads:0,safetyEpoch:0,guarded:false,unavailable:false};
  for(const [k,v] of Object.entries(initial))w.localStorage.setItem(k,v);
- const rows=()=>[0,1].map(i=>({id:String(i),title:state.version+' selected event '+i,start_at:'2026-10-05T10:00:00+08:00',end_at:'2026-10-05T12:00:00+08:00',status:'scheduled',favorite:state.version==='A',feedback:state.version==='A'?'interested':'not_interested',feedback_tags:[],revision:state.version==='A'?1:2,event_type:'MusicEvent',event_type_label:'音乐',topics:['文化艺术'],attendance:'offline',district:'南山',sources:[],url:'https://example.com/'+i}));
+ const rows=()=>[0,1].map(i=>({id:String(i),title:state.version+' selected event '+i,start_at:'2026-10-05T10:00:00+08:00',end_at:'2026-10-05T12:00:00+08:00',status:(state.guarded&&i===0)||state.unavailable?'needs_review':'scheduled',stored_status:'scheduled',planning_eligible:!(state.guarded&&i===0)&&!state.unavailable,safety_epoch:state.safetyEpoch,safety:{available:!state.unavailable,guard_count:state.guarded&&i===0?1:0,warning:state.unavailable?'来源安全采集尚未完成；当前安排待重新核实':state.guarded&&i===0?'来源显示已取消；当前活动身份待复核':''},favorite:state.version==='A',feedback:state.version==='A'?'interested':'not_interested',feedback_tags:[],revision:state.version==='A'?1:2,event_type:'MusicEvent',event_type_label:'音乐',topics:['文化艺术'],attendance:'offline',district:'南山',sources:[],url:'https://example.com/'+i}));
  w.fetch=async(url,options)=>{const u=new URL(url,w.location.href),p=u.searchParams;calls.push(u.pathname+u.search);let data={};
  if(state.expired)return {ok:false,status:401,json:async()=>({detail:'expired fixture session'})};
  if(u.pathname.endsWith('/session')||u.pathname.endsWith('/login'))data={username:state.username};
  else if(u.pathname.endsWith('/stats'))data={recommended:2,upcoming:2,weekend:2,districts:['南山'],event_types:[{value:'MusicEvent',label:'音乐'}],topics:[{value:'文化艺术',label:'文化艺术'}]};
  else if(u.pathname.endsWith('/status'))data={sources:[],candidates:[],runs:[],budget:{calls:0,tokens:0},limits:{daily_calls:1,daily_tokens:1},db_bytes:0,retention_days:45,ics_url:'/events/calendar.ics?token=synthetic-calendar-bearer&favorites=true'};
- else if(u.pathname.endsWith('/events')){if(state.failEvents)throw new Error('fixture offline');data={items:rows(),total:2,has_more:false,facets:{},excluded_long:{items:[],total:0}};}
- else if(u.pathname.includes('/event/')){state.detailReads++;data=rows()[0]}
+ else if(u.pathname.endsWith('/events')){if(state.failEvents)throw new Error('fixture offline');if(state.unavailable)return {ok:false,status:503,json:async()=>({code:'safety_unavailable',detail:'captured response awaits recovery'})};data={safety_epoch:state.safetyEpoch,items:rows(),total:2,has_more:false,facets:{},excluded_long:{items:[],total:0}};}
+ else if(u.pathname.includes('/event/')){state.detailReads++;data=rows().find(row=>row.id===u.pathname.split('/').at(-1))||rows()[0]}
  return {ok:true,status:200,json:async()=>data};};
- w.eval(scripts+'\n;window.probe={api,enter,load,openDetail,closeDetail,showLogin,beginFilterDraft,get authenticated(){return authenticated},get epoch(){return authEpoch},get records(){return records},get listSnapshot(){return listSnapshot},get calendarSnapshot(){return calendarSnapshot}};');
+ w.eval(scripts+'\n;window.probe={api,enter,load,openDetail,closeDetail,showLogin,beginFilterDraft,syncPersonal,invalidatePlanning,get authenticated(){return authenticated},get epoch(){return authEpoch},get records(){return records},get listSnapshot(){return listSnapshot},get calendarSnapshot(){return calendarSnapshot}};');
  await wait();await wait();return {w,$,state,calls,async expire(){state.expired=true;await w.probe.api('session').catch(()=>{});await wait()},close(){assert.deepEqual(errors,[]);w.close()}};
 }
 
@@ -62,7 +62,7 @@ function snapshot(r){return {records:[...r.w.probe.records].map(([id,e])=>[id,{.
 for(const kind of ['401','logout','bfcache']){
  test(`${kind} empties and closes session dialogs and disables detached comparison callbacks`,async()=>{
   const r=await ready();r.prompts=[];try{
-   r.w.RadarEventWorkflows.toggle('0');r.w.RadarEventWorkflows.toggle('1');r.$('#compare-open').click();
+   r.w.RadarEventWorkflows.toggle('0');r.w.RadarEventWorkflows.toggle('1');r.$('#compare-open').click();await wait();await wait();
    const stale=r.$('#compare-body button'),retained=stale.onclick;
    assert.equal(r.$('#compare-dialog').open,true);
    r.w.navigator.clipboard={writeText:async()=>{throw new Error('synthetic denial')}};
@@ -76,7 +76,7 @@ for(const kind of ['401','logout','bfcache']){
    assert.equal(r.$('#compare-chips').textContent,'');assert.equal(r.$('#compare-bar').hidden,true);
    assert.equal(stale.onclick,null);unchanged(r,snapshot(r));
    await fresh(r,kind);const before=snapshot(r);retained();stale.click();await wait();unchanged(r,before);
-   assert.equal(r.state.detailReads,0);
+   assert.equal(r.state.detailReads,3); // Only the initiating comparison/detail revalidation.
   }finally{r.close()}
  });
  for(const source of ['public','private'])for(const outcome of ['resolve','reject'])for(const relogin of [false,true]){
@@ -112,10 +112,47 @@ for(const source of ['public','private'])for(const outcome of ['resolve','reject
 test('same-session comparison uses current record and detail close restores focus',async()=>{
  const r=await ready();try{
   const title=r.$('.title-button');title.focus();await r.w.probe.openDetail('0');r.w.probe.closeDetail(false);assert.equal(r.w.document.activeElement,title);
-  r.w.RadarEventWorkflows.toggle('0');r.w.RadarEventWorkflows.toggle('1');r.$('#compare-open').click();
-  r.w.probe.records.get('0').feedback='not_interested';r.$('#compare-body button').click();await wait();
+  r.w.RadarEventWorkflows.toggle('0');r.w.RadarEventWorkflows.toggle('1');r.$('#compare-open').click();await wait();await wait();
+  r.state.version='B';r.$('#compare-body button').click();await wait();
   assert.equal(r.$('#compare-dialog').open,false);assert.equal(r.$('#detail').open,true);assert.equal(r.w.probe.records.get('0').feedback,'not_interested');
   r.w.probe.closeDetail(false);r.w.document.body.dispatchEvent(new r.w.KeyboardEvent('keydown',{key:'?',bubbles:true}));assert.equal(r.$('#shortcut-dialog').open,true);
+ }finally{r.close()}
+});
+
+test('point detail revalidates guarded cached records and personal writes preserve the veto',async()=>{
+ const r=await ready();try{
+  await r.w.probe.openDetail('0');assert.ok(r.$('#detail a[href$=".ics"]'));r.w.probe.closeDetail(false);
+  r.state.guarded=true;r.state.safetyEpoch=1;await r.w.probe.openDetail('0');
+  assert.match(r.$('#detail-body').textContent,/来源显示已取消/);assert.equal(r.$('#detail a[href$=".ics"]'),null);
+  assert.match(r.w.RadarEventWorkflows.shareText(r.w.probe.records.get('0')),/来源显示已取消/);
+  r.w.probe.syncPersonal('0',{favorite:false,planning_eligible:true,status:'scheduled',safety:null});
+  assert.equal(r.w.probe.records.get('0').planning_eligible,false);assert.equal(r.w.probe.records.get('0').safety.guard_count,1);
+ }finally{r.close()}
+});
+
+test('typed safety failure clears snapshots while a saved point remains readable without export',async()=>{
+ const r=await ready();try{
+  r.state.unavailable=true;r.state.safetyEpoch=1;await r.w.probe.load();
+  assert.equal(r.w.probe.listSnapshot,null);assert.equal(r.$('#event-list').querySelectorAll('.event-card').length,0);
+  await r.w.probe.openDetail('0');assert.match(r.$('#detail-body').textContent,/安全采集尚未完成/);
+  assert.equal(r.$('#detail a[href$=".ics"]'),null);assert.equal(r.w.probe.records.get('0').planning_eligible,false);
+ }finally{r.close()}
+});
+
+test('ordinary failed refresh and offline transition retain no export authority',async()=>{
+ const r=await ready();try{
+  await r.w.probe.openDetail('0');r.w.probe.closeDetail(false);r.state.failEvents=true;await r.w.probe.load();
+  assert.equal(r.w.probe.records.get('0').planning_eligible,false);assert.equal(r.w.probe.records.get('0')._safety_pending,true);
+  r.w.dispatchEvent(new r.w.Event('offline'));
+  assert.equal(r.w.probe.listSnapshot,null);assert.equal(r.$('#detail a[href$=".ics"]'),null);
+ }finally{r.close()}
+});
+
+test('comparison awaits point eligibility and refuses stale conflict claims',async()=>{
+ const r=await ready();try{
+  r.w.RadarEventWorkflows.toggle('0');r.w.RadarEventWorkflows.toggle('1');r.state.guarded=true;r.state.safetyEpoch=1;
+  r.$('#compare-open').click();await wait();await wait();assert.match(r.$('#compare-body').textContent,/来源显示已取消/);
+  assert.equal(r.w.RadarEventWorkflows.overlap(r.w.probe.records.get('0'),r.w.probe.records.get('1')),null);
  }finally{r.close()}
 });
 test('detached comparison chip and sequence handlers cannot change a fresh session',async()=>{

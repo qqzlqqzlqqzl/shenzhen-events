@@ -208,6 +208,9 @@ def rss_page(source, html, metrics):
 
 
 def collect_report(source, previous=None):
+    from . import safety
+    safety_capture = safety.begin_capture(source) if source['kind']==eefocus.KIND else None
+    safety_receipt = None
     started=time.monotonic();previous=previous or {};kind=source['kind']
     if kind==eefocus.KIND:
         source={**source,'coverage_mode':'single_page','max_pages':1}
@@ -239,7 +242,18 @@ def collect_report(source, previous=None):
                 if kind=='wordpress_events':
                     html,soup,final,pagination=c.fetch(url,proxy=source.get('proxy'),include_pagination=True)
                 elif kind==eefocus.KIND:
-                    html,soup,final,_=eefocus.fetch(url,source,deadline,metrics,inventory=True)
+                    safety_capture=safety.claim(safety_capture)
+                    try:
+                        html,soup,final,trace=eefocus.fetch(url,source,deadline,metrics,inventory=True)
+                    except c.SourceError as exc:
+                        safety_receipt=safety.known_failure(safety_capture,exc,metrics)
+                        raise
+                    try:
+                        safety_capture=safety.retain(safety_capture,html,final,trace)
+                        safety_receipt=safety.finalize(safety_capture)
+                    except Exception as exc:
+                        safety.mark_unknown(safety_capture,type(exc).__name__)
+                        raise
                 elif kind in recurring_sources.KINDS:
                     html,soup,final=recurring_sources.bounded_fetch(c.fetch,url,source,deadline,metrics)
                 else:html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
@@ -305,7 +319,11 @@ def collect_report(source, previous=None):
         metrics['reasons'].append('下轮更新公开页；登录后内容不计为已覆盖')
     if not metrics['truncated']:metrics['next_cursor']=None
     items=list(rows.values())[:max_entries];metrics['unique']=len(items)
-    if kind==eefocus.KIND:items=eefocus.enrich(source,items,metrics,deadline)
+    if kind==eefocus.KIND:
+        if not safety_receipt:
+            raise safety.SafetyError('mandatory safety receipt absent')
+        metrics['safety']=safety_receipt
+        items=eefocus.enrich(source,items,metrics,deadline)
     elif kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':deadline},items,metrics)
     if kind in (*recurring_sources.KINDS,eefocus.KIND) and metrics.get('detail_blocked'):
         error='来源详情限制访问，已退避并保留已读取的列表'
@@ -338,5 +356,7 @@ def collect_report(source, previous=None):
     status=('blocked' if blocked else 'error') if error and not metrics['pages_visited'] else ('partial' if partial else ('ok' if items else 'empty'))
     metrics['complete_scope']=status=='ok' and metrics['mode'] in ('city_pages','page_inventory') and not cursor
     if cursor and status=='ok':status='partial'
-    return {'items':admitted,'coverage':metrics,'status':status,'error':error}
+    return {'items':admitted,'coverage':metrics,'status':status,'error':error,
+            'safety_observations_version':1 if kind==eefocus.KIND else None,
+            'safety_receipt':safety_receipt}
 

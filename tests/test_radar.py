@@ -61,8 +61,7 @@ def test_sunday_weekend_includes_sunday(monkeypatch):
 
 def test_ics_exclusive_end_and_stable_uid():
     e=ev(start_at='2026-10-14',end_at='2026-10-17',all_day=True);core.ingest(source(),e)
-    with core.db() as c:row=dict(c.execute('SELECT * FROM events').fetchone())
-    row['sources']=[]
+    row=core.events(period='record')[0]
     a=Calendar.from_ical(make_calendar([row])).walk('VEVENT')[0]
     b=Calendar.from_ical(make_calendar([row])).walk('VEVENT')[0]
     assert a.decoded('dtstart')==date(2026,10,14);assert a.decoded('dtend')==date(2026,10,17);assert a['uid']==b['uid']

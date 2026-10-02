@@ -3,12 +3,13 @@
 globalThis.RadarEventWorkflows=(()=>{
  const selected=new Map();let detailOrder=[],returnElement=null;
  function overlap(a,b){
+  if(a.planning_eligible===false||b.planning_eligible===false||a._safety_pending||b._safety_pending)return null;
   if(a.all_day||b.all_day||!a.start_at||!b.start_at||!a.end_at||!b.end_at)return null;
   const [as,ae,bs,be]=[a.start_at,a.end_at,b.start_at,b.end_at].map(Date.parse);
   if(![as,ae,bs,be].every(Number.isFinite)||ae<=as||be<=bs)return null;
   return Math.max(as,bs)<Math.min(ae,be);
  }
- function shareText(e){return e.title+'\n'+RadarUI.fullTime(e)+(e.location?'\n'+e.location:'')+'\n'+safeOriginal(e.url)}
+ function shareText(e){return (e.safety?.warning||e._safety_pending?'【'+(e.safety?.warning||'安全状态待重新核实')+'】\n':'')+e.title+'\n'+RadarUI.fullTime(e)+(e.location?'\n'+e.location:'')+'\n'+safeOriginal(e.url)}
  function safeOriginal(value){try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password?u.href:''}catch{return ''}}
  function node(tag,text,cls){const n=document.createElement(tag);n.textContent=text;if(cls)n.className=cls;return n}
  function paint(){
@@ -19,10 +20,11 @@ globalThis.RadarEventWorkflows=(()=>{
   for(const b of document.querySelectorAll('[data-compare]')){const yes=selected.has(b.dataset.compare);b.setAttribute('aria-pressed',String(yes));b.textContent=yes?'已加入对比':'加入对比'}
  }
  function toggle(id){if(!authenticated)return;const e=records.get(id);if(!e)return;if(selected.has(id))selected.delete(id);else if(selected.size>=3){toast('最多比较3项，先移除不需要的候选。');return}else selected.set(id,{...e});paint()}
- function compare(){
-  if(!authenticated)return;const epoch=authEpoch;
+ async function compare(){
+  if(!authenticated)return;const epoch=authEpoch;invalidateSafety();
+  for(const [id,prior] of selected){try{const current=await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch)return;selected.set(id,current);records.set(id,current);}catch(error){if(!authenticated||epoch!==authEpoch)return;prior.safety={...prior.safety,warning:'安全状态未重新核实；仅供历史查阅'};}}
   const box=document.querySelector('#compare-body');box.replaceChildren();const list=[...selected.values()];
-  for(const e of list){const article=node('article','','compare-item');article.append(node('h3',e.title));for(const [label,value] of [['时间',RadarUI.fullTime(e)],['参加方式',e.attendance_label||'待确认'],['地点',e.location||'未注明'],['费用',costText(e)||'费用未注明'],['主办',e.organizer||'未注明']]){const p=node('p','');p.append(node('b',label+'：'),node('span',value));article.append(p)}
+  for(const e of list){const article=node('article','','compare-item');article.append(node('h3',e.title));if(e.safety?.warning)article.append(node('p',e.safety.warning,'warn'));for(const [label,value] of [['时间',RadarUI.fullTime(e)],['参加方式',e.attendance_label||'待确认'],['地点',e.location||'未注明'],['费用',costText(e)||'费用未注明'],['主办',e.organizer||'未注明']]){const p=node('p','');p.append(node('b',label+'：'),node('span',value));article.append(p)}
    const url=safeOriginal(e.url);if(url){const a=node('a','查看原文 ↗');a.href=url;a.target='_blank';a.rel='noopener noreferrer';article.append(a)}const open=node('button','查看完整详情');open.type='button';open.onclick=()=>{if(!authenticated||epoch!==authEpoch)return;document.querySelector('#compare-dialog').close();if(!records.has(e.id))records.set(e.id,e);openDetail(e.id)};article.append(open);box.append(article)}
   for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const result=overlap(list[i],list[j]);box.append(node('p',`第 ${i+1} 与 ${j+1} 项：`+(result===null?'时间信息不足，无法判定冲突':result?'活动时段重叠，请自行取舍':'明确时段不重叠；未计入通勤时间'),'compare-conflict'))}
   document.querySelector('#compare-dialog').showModal();document.querySelector('#close-compare').focus();
@@ -59,6 +61,7 @@ globalThis.RadarEventWorkflows=(()=>{
    if(document.querySelector('dialog[open]'))return;if(e.key==='/'){e.preventDefault();if(innerWidth<620)beginFilterDraft();document.querySelector('#search').focus()}if(e.key==='?'){e.preventDefault();document.querySelector('#shortcut-dialog').showModal()}
   });
  }
+ function invalidateSafety(){for(const e of selected.values()){e._safety_pending=true;e.planning_eligible=false;e.safety={...e.safety,warning:e.safety?.warning||'安全状态待重新核实；暂不可安排'};}for(const button of document.querySelectorAll('#compare-body button'))button.onclick=null;document.querySelector('#compare-body')?.replaceChildren();}
  function clear(){
   selected.clear();detailOrder=[];returnElement=null;
   // Remove session-owned content and callbacks before another login can use them.
@@ -68,5 +71,5 @@ globalThis.RadarEventWorkflows=(()=>{
   for(const id of ['copy-dialog','compare-dialog','shortcut-dialog']){const dialog=document.getElementById(id);if(dialog.open)dialog.close()}
   paint();
  }
- return {has:id=>selected.has(id),overlap,safeOriginal,shareText,toggle,paint,beginDetail,mountDetail,restoreFocus,unplanned,init,clear};
+ return {has:id=>selected.has(id),overlap,safeOriginal,shareText,toggle,paint,beginDetail,mountDetail,restoreFocus,unplanned,init,clear,invalidateSafety};
 })();

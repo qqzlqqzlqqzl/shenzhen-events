@@ -34,4 +34,4 @@ def test_saved_collection_keeps_long_and_unplanned(tmp_path,monkeypatch):
     with TestClient(api.app,base_url='https://testserver') as c:
         assert c.get('/events/api/calendar-summary').status_code==401
         c.cookies.set(api.COOKIE,api.sign_session({'id':1,'username':'owner'}),path='/events')
-        assert c.get('/events/api/calendar-summary').json()=={'total':2,'long_running':1,'unscheduled':1}
+        assert c.get('/events/api/calendar-summary').json()=={'total':2,'long_running':1,'unscheduled':1,'safety_epoch':0}

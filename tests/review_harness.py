@@ -22,13 +22,8 @@ class Harness:
         with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
         self.base=f'http://127.0.0.1:{port}'
         self.server=subprocess.Popen([str(ROOT/'.venv/bin/python'),'-m','uvicorn','radar.api:app','--host','127.0.0.1','--port',str(port),'--no-access-log'],cwd=ROOT,env=dict(os.environ),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        import requests
-        for _ in range(80):
-            try:
-                if requests.get(self.base+'/events/api/health',timeout=.3).ok:break
-            except requests.RequestException:pass
-            time.sleep(.1)
-        else:raise RuntimeError('isolated API did not start')
+        from browser_startup import wait_for_api
+        wait_for_api(self.server,self.base)
         spec=importlib.util.spec_from_file_location('accept',ROOT/'tests/browser_acceptance.py');accept=importlib.util.module_from_spec(spec);spec.loader.exec_module(accept)
         from playwright.sync_api import sync_playwright
         self.pw=sync_playwright().start();self.browser=self.pw.chromium.launch(executable_path=accept.browser_path(),headless=True,args=['--no-sandbox','--no-proxy-server','--disable-dev-shm-usage'],env=dict(os.environ))

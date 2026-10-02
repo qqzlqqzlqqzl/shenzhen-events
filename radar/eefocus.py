@@ -56,6 +56,35 @@ def cancelled(text):
     return bool(re.fullmatch(r'(?:本(?:次|场)活动)?(?:已|现已)?取消(?:举办)?[。！!]?|活动已取消', core.clean(text)))
 
 
+def cancellation_observations(soup, url):
+    """Extract card authority independently of optional detail admission."""
+    from . import safety
+    parse(soup, url)
+    root = soup.select('div.special-list > ul.section-list-item-ul,main.special-list > ul.section-list-item-ul')[0]
+    nodes = root.select(':scope > li.section-special-item')
+    if len(nodes) > safety.limits()['cards']:
+        raise safety.Capacity('recognized-card bound exceeded; exact capture remains fenced')
+    observations, slices = [], 0
+    for index, node in enumerate(nodes):
+        a = node.select_one('a.item-title[href]')
+        alias = event_url(a.get('href') if a else '')
+        if not a or not alias or not c.text(a):
+            continue
+        labels = [c.text(n) for n in node.select('.event-status,.status')]
+        again = [bool(re.fullmatch(r'恢复举办后，本次\d{1,2}月\d{1,2}日活动再次取消[。！!]?', value)) for value in labels]
+        if not labels or not all(cancelled(value) or repeated for value, repeated in zip(labels, again)):
+            continue
+        excerpt = str(node).encode(); slices += len(excerpt)
+        if len(excerpt) > safety.limits()['slice_bytes'] or slices > safety.limits()['slices_bytes']:
+            raise safety.Capacity('card evidence bound exceeded; no truncated receipt')
+        raw = c.text(node.select_one('.event-time'))
+        key = node.get('data-post-id') or f'{index}:{alias}'
+        observations.append(dict(alias_url=alias,card_key=str(key),title=c.text(a),status_text=' / '.join(labels),
+                                 occurrence=sorted(calendar_dates(raw)),cancelled_again=any(again),card_index=index,
+                                 card_digest=hashlib.sha256(excerpt).hexdigest()))
+    return observations
+
+
 def date_text(text):
     """Normalize full slash dates for parsing; retain the original evidence."""
     return re.sub(r'(?<!\d)(20\d{2})/(\d{1,2})/(\d{1,2})(?!\d)',
@@ -284,7 +313,8 @@ def detail(base, soup, final, trace):
                 'occurrence_dates': sorted({v[0][:10] for v in schedules}),
                 'organizers': orgs,
                 'reschedule_text': [v for v in lines if re.search(r'原定.*(?:改期|延期|调整)|(?:改期|延期|调整)至', v)],
-                'body_digest': hashlib.sha256(str(body).encode()).hexdigest()}
+                'body_digest': hashlib.sha256(str(body).encode()).hexdigest(),
+                'main_body': str(body), 'current_statuses': statuses}
     return merge_detail(base, patch), evidence
 
 
@@ -325,10 +355,12 @@ def fetch(url, source, deadline, metrics, inventory=False):
     def observed(_):
         metrics['http_requests_attempted'] = metrics.get('http_requests_attempted', 0) + 1
     def request(target, **kw):
-        if not inventory:
+        if inventory:
+            return c.fetch(target, **kw, url_policy=lambda u: safe_url(u, inventory),request_observer=observed,include_trace=True)
+        from . import safety
+        with safety.optional_capacity():
             metrics['detail_attempted'] += 1
-        return c.fetch(target, **kw, url_policy=lambda u: safe_url(u, inventory),
-                       request_observer=observed, include_trace=True)
+            return c.fetch(target, **kw, url_policy=lambda u: safe_url(u),request_observer=observed,include_trace=True)
     return rs.bounded_fetch(request, url, source, deadline, metrics, max_bytes=1000000)
 
 
@@ -380,6 +412,7 @@ def check_history(source, requested, final, evidence):
 
 
 def enrich(source, items, metrics, deadline):
+    from . import safety
     limit = max(0, min(12, int(source.get('detail_budget', 8))))
     with core.db() as db:
         cache = {r['url']: dict(r) for r in db.execute('SELECT * FROM detail_cache WHERE source_id=?', (source['id'],))}
@@ -404,6 +437,7 @@ def enrich(source, items, metrics, deadline):
                 trace_identity(base['url'], evidence['canonical_url'], evidence['trace'])
                 check_history(source, base['url'], evidence['canonical_url'], evidence)
                 item = merge_detail(base, payload['item'])
+                item['_identity_binding_ids'] = record_bindings(source, base['url'], evidence)
                 out.append(item)
                 resolved[base['url']] = item['url']
                 cached_aliases[base['url']] = item['url']
@@ -423,15 +457,13 @@ def enrich(source, items, metrics, deadline):
             attempted = metrics['detail_attempted']
             item, evidence = detail(base, soup, final, trace)
             check_history(source, base['url'], final, evidence)
+            item['_identity_binding_ids'] = record_bindings(source, base['url'], evidence)
             out.append(item)
             resolved[base['url']] = item['url']
             metrics['detail_resolved'] += 1
             payload = json.dumps({'item': item, 'evidence': evidence}, ensure_ascii=False)
             status = 'ok'
             with core.db() as db:
-                binding = hashlib.sha256((source['id'] + base['url'] + json.dumps(evidence, sort_keys=True)).encode()).hexdigest()
-                db.execute('INSERT OR IGNORE INTO eefocus_identity_bindings VALUES(?,?,?,?,?,?,NULL)',
-                           (binding, source['id'], base['url'], final, json.dumps(evidence), core.stamp()))
                 if final != base['url']:
                     # The final response itself proves this direct self-mapping;
                     # no transitive alias graph or guessed numeric-ID relation.
@@ -440,9 +472,10 @@ def enrich(source, items, metrics, deadline):
                     direct_evidence = {**evidence, 'requested_url': final, 'trace': [trace[-1]]}
                     db.execute('INSERT INTO detail_cache VALUES(?,?,?,?,?,?,?) ON CONFLICT(source_id,url) DO UPDATE SET fingerprint=excluded.fingerprint,payload=excluded.payload,status=excluded.status,checked_at=excluded.checked_at,next_attempt=excluded.next_attempt',
                                (source['id'], final, rs.detail_fingerprint(direct), json.dumps({'item': item, 'evidence': direct_evidence}), 'ok', core.stamp(), core.iso(core.now()+timedelta(hours=24))))
-                    direct_binding = hashlib.sha256((source['id'] + final + json.dumps(direct_evidence, sort_keys=True)).encode()).hexdigest()
-                    db.execute('INSERT OR IGNORE INTO eefocus_identity_bindings VALUES(?,?,?,?,?,?,NULL)',
-                               (direct_binding, source['id'], final, final, json.dumps(direct_evidence), core.stamp()))
+        except safety.Capacity as exc:
+            metrics['reasons'].append(str(exc))
+            metrics['identity_pending_urls'].append(base['url'])
+            break
         except rs.Deadline as exc:
             attempted = metrics['detail_attempted']
             metrics['truncated'] = bool(attempted)
@@ -488,16 +521,92 @@ def enrich(source, items, metrics, deadline):
             metrics['duplicates'] += 1
             metrics['unique'] -= 1
             prior = dedup[item['url']]
+            binding_ids=list(dict.fromkeys(prior.get('_identity_binding_ids',[])+item.get('_identity_binding_ids',[])))
             if item.get('status') == 'cancelled' or item['details'].get('time_conflict'):
                 dedup[item['url']] = item
             elif prior.get('start_at') != item.get('start_at'):
                 prior['status'] = 'needs_review'
                 prior['details']['time_conflict'] = True
+            dedup[item['url']]['_identity_binding_ids']=binding_ids
         else:
             dedup[item['url']] = item
     return list(dedup.values())
 
 
 def bind_stored(source):
+    # Exact immutable anchoring is now part of core.ingest's transaction.
+    return None
+
+
+def record_bindings(source, requested, evidence):
+    from . import safety
+    if len(evidence.get('main_body','').encode())>safety.limits()['slice_bytes']:
+        raise c.SourceError('identity_evidence_slice_bound_exceeded')
+    ids = []
+    variants = [(requested, evidence)]
+    final = evidence['canonical_url']
+    if final != requested:
+        variants.append((final, {**evidence, 'requested_url': final, 'trace': [evidence['trace'][-1]]}))
     with core.db() as db:
-        db.execute('UPDATE eefocus_identity_bindings SET event_id=(SELECT event_id FROM event_sources WHERE source_id=eefocus_identity_bindings.source_id AND url=eefocus_identity_bindings.canonical_url) WHERE source_id=? AND event_id IS NULL', (source['id'],))
+        db.execute('BEGIN IMMEDIATE')
+        reservation=safety.uid('identity')
+        safety.reserve_capacity(db,2*safety.MIB,reservation,'identity_evidence')
+        for alias, proof in variants:
+            proof=dict(proof)
+            if proof.get('main_body'):
+                proof['main_body_digest']=safety.blob(db,proof.pop('main_body'),'identity_main_body')
+            if len(safety.encoded(proof).encode())>safety.limits()['row_bytes']:
+                raise c.SourceError('identity_metadata_bound_exceeded')
+            binding = hashlib.sha256((source['id'] + alias + json.dumps(proof, sort_keys=True)).encode()).hexdigest()
+            prior = db.execute('SELECT * FROM eefocus_identity_bindings WHERE binding_id=?', (binding,)).fetchone()
+            if prior and (prior['source_id'] != source['id'] or prior['alias_url'] != alias or prior['canonical_url'] != final or safety.encoded(json.loads(prior['evidence'])) != safety.encoded(proof)):
+                raise c.SourceError('immutable_binding_collision')
+            if not prior:
+                db.execute('INSERT INTO eefocus_identity_bindings VALUES(?,?,?,?,?,?,NULL)',
+                           (binding, source['id'], alias, final, json.dumps(proof), core.stamp()))
+            ids.append(binding)
+        db.execute('DELETE FROM safety_capacity WHERE reservation_id=?',(reservation,))
+    return ids
+
+
+def resolve_guard_details(source, guard_ids, resolution_id, metrics=None):
+    """Detail-only source resolution; never ingest or write successful caches."""
+    from . import safety
+    with core.db() as db:
+        prior=db.execute('SELECT * FROM safety_resolutions WHERE resolution_id=?',(resolution_id,)).fetchone()
+        if prior:
+            addressed=[row['guard_id'] for row in json.loads(prior['expectations'])]
+            if prior['source_id']!=source['id'] or addressed!=guard_ids or prior['kind']!='explicit_same_occurrence_reinstatement':
+                raise safety.Integrity('resolution operation ID reused with different scope')
+            return json.loads(prior['result'])
+    expectations = safety.guard_snapshot(guard_ids)
+    if not expectations or len({entry['event_id'] for entry in expectations}) != 1:
+        raise safety.Integrity('resolution must name one exact event target')
+    with core.db() as db:
+        db.execute('BEGIN')
+        row = dict(db.execute('SELECT * FROM events WHERE id=?',(expectations[0]['event_id'],)).fetchone())
+        authority=safety.resolution_authority(db,row['id'])
+        base = dict(row);base['details'] = json.loads(base['details'] or '{}')
+        base['url'] = expectations[0]['alias_url']
+        base['details']['date_evidence'] = '直播时间：'+base['start_at'][:10].replace('-', '年', 1).replace('-', '月', 1)+'日'
+        base['details']['time_evidence'] = []
+        base['status'] = 'scheduled'
+    metrics = metrics if metrics is not None else dict(detail_attempted=0)
+    deadline = time.monotonic()+min(60, float(source.get('max_seconds',60)))
+    html, soup, final, trace = fetch(base['url'],source,deadline,metrics)
+    item, evidence = detail(base,soup,final,trace)
+    check_history(source,base['url'],final,evidence)
+    statuses = evidence['current_statuses']
+    explicit = re.compile(r'本次(?P<date>20\d{2}年\d{1,2}月\d{1,2}日)(?P<subject>[\u3400-\u9fffA-Za-z0-9]{1,60})原取消安排现已恢复，按原时间举办[。！!]?')
+    notices = [match for text in statuses if (match := explicit.fullmatch(date_text(text)))]
+    positive = item['details'].get('reinstated') or (len(notices)==len(statuses) and bool(notices)
+               and all(match['subject']=='活动' or heading(row['title']).endswith(match['subject']) for match in notices))
+    old_dates = sorted({day for entry in expectations for day in json.loads(entry['occurrence'])})
+    if (not positive or not statuses or item.get('status')=='cancelled'
+            or evidence['occurrence_dates'] != old_dates
+            or final != row['url'] or item.get('start_at') != row['start_at']
+            or item.get('end_at') != row['end_at'] or bool(item.get('all_day')) != bool(row['all_day'])
+            or any(calendar_dates(match['date']) != set(old_dates) for match in notices)):
+        raise safety.Integrity('explicit same-occurrence reinstatement missing')
+    verified = safety.VerifiedResolution(source['id'],row['id'],html,json.dumps(evidence),authority)
+    return safety.resolve_verified(resolution_id,expectations,verified)

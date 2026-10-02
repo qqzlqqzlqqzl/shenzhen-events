@@ -34,11 +34,8 @@ def cleanup():
     try:server.wait(timeout=5)
     except subprocess.TimeoutExpired:server.kill()
     shutil.rmtree(FIX,ignore_errors=True)
-for _ in range(80):
-    try:
-        if requests.get(BASE+'/events/api/health',timeout=.2).status_code==200:break
-    except requests.RequestException:pass
-    time.sleep(.1)
+from browser_startup import wait_for_api
+wait_for_api(server,BASE)
 report={'checks':{},'errors':[],'environment':'isolated fixture database; localhost only; America/Los_Angeles browser timezone'}
 pw=sync_playwright().start();br=pw.chromium.launch(executable_path=accept.browser_path(),headless=True,args=['--no-sandbox','--no-proxy-server','--disable-dev-shm-usage'])
 ctx=br.new_context(viewport={'width':1440,'height':1050},locale='zh-CN',timezone_id='America/Los_Angeles')

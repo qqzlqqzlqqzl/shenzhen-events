@@ -164,6 +164,9 @@ def db():
 def init():
     with db() as c:
         c.execute('PRAGMA journal_mode=WAL')
+        if c.execute("SELECT 1 FROM sqlite_master WHERE name='safety_meta'").fetchone():
+            from . import safety
+            safety.assert_schema(c)
         c.executescript('''
         CREATE TABLE IF NOT EXISTS raw_items(id INTEGER PRIMARY KEY,source_id TEXT NOT NULL,url TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,content_hash TEXT NOT NULL,payload TEXT NOT NULL,collected_at TEXT NOT NULL,analysis_state TEXT NOT NULL DEFAULT 'pending',analysis_version TEXT,ai_result TEXT,UNIQUE(source_id,url));
         CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,title TEXT,title_norm TEXT,start_at TEXT,end_at TEXT,all_day INTEGER,location TEXT,district TEXT,organizer TEXT,summary TEXT,topics TEXT,priority TEXT,reason TEXT,commercial TEXT,cost_text TEXT,cost_free INTEGER,url TEXT,status TEXT,origin_priority INTEGER DEFAULT 50,first_seen TEXT,last_seen TEXT,ai_state TEXT DEFAULT 'pending');
@@ -206,6 +209,8 @@ def init():
         CREATE UNIQUE INDEX IF NOT EXISTS idx_source_active_job ON source_jobs(source_id) WHERE state IN ('queued','running');
         """)
         for s in json.loads((ROOT/'sources.json').read_text()):c.execute('INSERT INTO source_health(id,name,url) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,url=excluded.url',(s['id'],s['name'],s.get('public_url',s['url'])))
+        from . import safety
+        safety.migrate(c)
 
 def dedupe_aliases():
     p=ROOT/'dedupe_aliases.json'
@@ -252,6 +257,7 @@ def merge_preferences(c,winner,loser):
 def reconcile_aliases():
     merged=[]
     with db() as c:
+        c.execute('BEGIN IMMEDIATE')
         for a in dedupe_aliases():
             urls=[canon_url(x) for x in a.get('urls',[]) if canon_url(x)]
             if not urls:continue
@@ -261,6 +267,12 @@ def reconcile_aliases():
             rows=[dict(c.execute('SELECT * FROM events WHERE id=?',(eid,)).fetchone()) for eid in ids]
             rows=[r for r in rows if r and (not a.get('date') or (r.get('start_at') or '')[:10]==a['date'])]
             if len(rows)<2:continue
+            from . import safety
+            if any(safety.protected(c,row['id']) for row in rows):
+                # An audited merge contract must preserve original targets.
+                # Until then, defer rather than silently retarget immutable IDs.
+                safety.diagnostic(c,'safety_merge_deferred',None,dict(alias_id=a['id'],event_ids=sorted(r['id'] for r in rows)))
+                continue
             preferred=canon_url(a.get('preferred_url',''));preferred_ids={x[0] for x in c.execute('SELECT event_id FROM event_sources WHERE url=?',(preferred,))} if preferred else set()
             rows.sort(key=lambda r:(r['id'] not in preferred_ids,r.get('origin_priority',50),r.get('first_seen',''),r['id']));winner=rows[0]['id']
             for loser in rows[1:]:
@@ -315,11 +327,14 @@ def is_duplicate(a,b):
     return an==bn or (min(len(an),len(bn))>=10 and ratio(an,bn)>=93)
 
 def ingest(source,e,body=None):
+    binding_ids=e.get('_identity_binding_ids',[])
     e=normalize_event(e)
     if not e:return False
+    e.pop('_identity_binding_ids',None)
     body=clean(body or e['summary'])[:14000];payload=json.dumps(e,ensure_ascii=False,sort_keys=True)
     h=source_identity.content_hash(source,e,body);ts=stamp()
     with db() as c:
+        c.execute('BEGIN IMMEDIATE')
         old=source_identity.find_existing(c,source,e,body);changed=not old
         if old:
             prior=json.loads(old['payload'])
@@ -381,6 +396,12 @@ def ingest(source,e,body=None):
             if e['details'] and (not held or (rank<=prev['origin_priority'] and not held.get('review_hold'))):
                 c.execute('UPDATE events SET details=? WHERE id=?',(json.dumps(e['details'],ensure_ascii=False),eid))
         c.execute('INSERT INTO event_sources VALUES(?,?,?,?,?) ON CONFLICT(source_id,url) DO UPDATE SET event_id=excluded.event_id,raw_id=excluded.raw_id,seen_at=excluded.seen_at',(eid,source['id'],e['url'],rid,ts))
+        if source.get('kind')=='eefocus_events':
+            from . import safety
+            if binding_ids:
+                safety.anchor(c,source,{**e,'_identity_binding_ids':binding_ids},eid,rid)
+            elif c.execute('SELECT 1 FROM safety_observations WHERE source_id=? AND alias_url=? LIMIT 1',(source['id'],e['url'])).fetchone():
+                raise safety.Integrity('pending observations require exact admitted binding authority')
     return changed
 
 def span_days(e):
@@ -442,8 +463,12 @@ def _source_links(c, event_ids):
         links.setdefault(row['event_id'],[]).append(dict(row))
     return links
 
+class EventRows(list):
+    """A candidate set plus the epoch of its coherent SQLite read snapshot."""
+    safety_epoch = None
+
+
 def events(query='',period='upcoming',district='',tag='',free=False,recommended=False,favorites=False,include_hidden=False,range_start=None,range_end=None,event_id=None,hide_long=False,sort='asc',event_types=None,topics_filter=None,attendance='all',feedback='',feedback_tag='',viewed='all',districts=None):
-    if event_id:event_id=resolve_event_id(event_id)
     aliases=dedupe_aliases()
     topics_filter=[canonical_topic(x) for x in topics_filter or []]
     if tag:topics_filter.append(canonical_topic(tag))
@@ -482,7 +507,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     legacy_end=f"(COALESCE(e.end_at,'')<>'' AND e.end_at NOT GLOB '{canonical_time}')"
     legacy_time=f"({legacy_start} OR {legacy_end})"
     if period=='review':
-        add("e.status='needs_review'")
+        add("(e.status='needs_review' OR (e.status='scheduled' AND (COALESCE(json_extract(e.details,'$.review_hold'),0)<>0 OR COALESCE(json_extract(e.details,'$.attendance_conflict'),0)<>0 OR COALESCE(json_extract(e.details,'$.time_conflict'),0)<>0)) OR EXISTS (SELECT 1 FROM event_safety_guards sg WHERE sg.event_id=e.id AND sg.state='active'))")
     elif period in ('calendar','range'):
         add("e.start_at IS NOT NULL AND e.start_at<>'' AND e.status='scheduled'")
     elif period=='past':
@@ -502,14 +527,31 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
             add(f'(e.end_at>? OR substr(e.start_at,1,10)>=? OR {legacy_time})',
                 range_start,datetime.fromisoformat(range_start).date().isoformat())
     where=' AND '.join(clauses) or '1'
-    out=[]
+    if period not in ('saved','record','feedback','history','past','review'):
+        where += " AND NOT EXISTS (SELECT 1 FROM event_safety_guards sg WHERE sg.event_id=e.id AND sg.state='active')"
+    out=EventRows()
     with db() as c:
         # One read snapshot binds event rows and their source attribution.
         c.execute('BEGIN')
+        from . import safety
+        out.safety_epoch=safety.assert_schema(c)
+        if period not in ('saved','record','feedback','history','past','review') and safety.fenced(c):
+            raise safety.SafetyError('source acquisition safety state unavailable')
+        if event_id:
+            seen=set()
+            while event_id not in seen:
+                seen.add(event_id)
+                redirect=c.execute('SELECT target_id FROM event_redirects WHERE alias_id=?',(event_id,)).fetchone()
+                if not redirect:break
+                event_id=redirect[0]
+            # The ID predicate is built before the snapshot; replace its exact
+            # parameter only after redirect resolution in this same snapshot.
+            params[0]=event_id
         cursor=c.execute("SELECT e.*,COALESCE(p.favorite,0) favorite,COALESCE(p.hidden,0) hidden,COALESCE(p.feedback,'') feedback,COALESCE(p.feedback_tags,'[]') feedback_tags,p.feedback_updated_at feedback_updated_at,COALESCE(p.revision,0) revision,p.viewed_at viewed_at FROM events e LEFT JOIN preferences p ON e.id=p.event_id WHERE "+where+" ORDER BY e.start_at,e.id",params)
         # Bound intermediate hydration, not the matching set used for totals/facets.
         while batch:=cursor.fetchmany(256):
             rows=[dict(row) for row in batch]
+            safety.projection(c,rows)
             links=_source_links(c,[e['id'] for e in rows])
             for e in rows:
                 if event_id and e['id']!=event_id:continue
@@ -575,5 +617,3 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
     if period=='history':out.sort(key=lambda e:e.get('viewed_at') or '',reverse=True)
     if period=='feedback':out.sort(key=lambda e:e.get('feedback_updated_at') or '',reverse=True)
     return out
-
-

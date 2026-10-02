@@ -126,13 +126,14 @@ executor made no publisher request. `sources.json` stays unchanged.
 
 ## Required separate follow-up before registration
 
-Durable safety-only cancellation observations and eligibility guards from
-cases 47–64 (apart from case 59's identity contradiction) are not implemented
-or claimed tested. In particular, an unverified cancelled listing cannot yet
-suppress an existing historical target through a durable independent channel.
-The follow-up must cover restart, query/count/calendar consistency, unresolved
-and ambiguous targets, persistence failure, evidence-scoped resolution, replay
-and concurrency, while retaining favorites, holds and alias history.
+The separate cancellation-guard slice now implements durable safety-only
+observations and eligibility guards from cases 47–64 (apart from case 59's
+identity contradiction). See [its implementation boundary and evidence](eefocus-cancellation-guard.md).
+It independently suppresses exact historical targets without admission and
+covers restart, queries/counts/ICS/UI, ambiguous targets, persistence failure,
+scoped resolution, replay, late anchoring, AI races and bounded capacity while
+retaining favorites, holds and alias history. Independent implementation
+acceptance remains required; approval of its design alone is insufficient.
 
 Keep this PR in draft and leave the source unregistered until that follow-up and
 the remaining publisher state/positive-detail validation are complete. No
