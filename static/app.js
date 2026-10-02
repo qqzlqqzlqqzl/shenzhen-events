@@ -75,19 +75,26 @@ async function stats() {
     if(!$('#type-options input'))renderFacetOptions('type',s.event_types||[],s.type_pending||0);if(!$('#topic-options input'))renderFacetOptions('topic',s.topics||[]);
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===statsTicket)$('#update-note').textContent=e.message}
 }
-let filterStorageKey='radar.filters.v1:owner';
+let filterStorageKey='radar.filters.v1:owner',filterOwner=null,generatedFilterURL=null,filterWriteBlocked=false;
 const filterKeys=new Set(['q','district','districts','district_none','type','topic','type_none','topic_none','tag','free','show_long','sort','attendance','feedback','feedback_tag','viewed','from','until','saved_only']);
-function rememberFilters(){
-  try{const p=urlParams();RadarPlanner.range(p.get('from')||'',p.get('until')||'');for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);localStorage.setItem(filterStorageKey,JSON.stringify({version:1,query:p.toString()}))}catch{}
+function storedFilters(){
+ const raw=localStorage.getItem(filterStorageKey);if(raw===null)return {valid:true,saved:null};
+ try{const saved=JSON.parse(raw);return {valid:saved?.version===1&&typeof saved.query==='string'&&saved.query.length<=4096,saved}}catch{return {valid:false,saved:null}}
+}
+function rememberFilters(explicit=false){
+ // Rejected or unreadable bytes survive automatic entry/navigation. Only an
+ // explicit applied choice can replace readable invalid data.
+ if(filterWriteBlocked&&!explicit)return;
+ try{const stored=storedFilters();if(!stored.valid&&!explicit){filterWriteBlocked=true;return}const p=urlParams();RadarPlanner.range(p.get('from')||'',p.get('until')||'');for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);localStorage.setItem(filterStorageKey,JSON.stringify({version:1,query:p.toString()}));filterWriteBlocked=false}catch{filterWriteBlocked=true}
 }
 function restoreSavedFilters(){
-  const explicit=new URLSearchParams(location.search);
-  if([...explicit.keys()].some(k=>filterKeys.has(k)||['view','month','event'].includes(k)))return;
-  try{const saved=JSON.parse(localStorage.getItem(filterStorageKey)||'null');if(saved?.version!==1||typeof saved.query!=='string'||saved.query.length>4096)return;
-    const p=new URLSearchParams(saved.query);for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);
-    for(const [k,v] of p)explicit.append(k,v);
-    if(p.size)history.replaceState({radar:true},'',location.pathname+'?'+explicit.toString());
-  }catch{}
+ const explicit=new URLSearchParams(location.search);
+ if([...explicit.keys()].some(k=>filterKeys.has(k)||['view','month','event'].includes(k)))return;
+ try{const {valid,saved}=storedFilters();filterWriteBlocked=!valid;if(!valid||!saved)return;
+  const p=new URLSearchParams(saved.query);for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);
+  for(const [k,v] of p)explicit.append(k,v);
+  if(p.size){history.replaceState({radar:true},'',location.pathname+'?'+explicit.toString());generatedFilterURL=location.pathname+location.search}
+ }catch{filterWriteBlocked=true}
 }
 function readURL() {
   const p=new URLSearchParams(location.search);view=Object.hasOwn(views,p.get('view'))?p.get('view'):'discover';
@@ -129,15 +136,20 @@ function writeURL(mode='push',event=null) {
   // Invalid legacy URLs remain editable, but are never newly persisted.
   try{RadarPlanner.range(appliedDates.from,appliedDates.until)}catch{
     const p=new URLSearchParams(location.search);if(event)p.set('event',event);else p.delete('event');
-    const u=location.pathname+(p.size?'?'+p:'');if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);return;
+    const u=location.pathname+(p.size?'?'+p:'');if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);generatedFilterURL=location.pathname+location.search;return;
   }
   rememberFilters();
   const p=urlParams();if(event)p.set('event',event);const u=location.pathname+(p.size?'?'+p:'');
-  if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);
+  if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);generatedFilterURL=location.pathname+location.search;
 }
 function clearFilters(){clearTimeout(debounce);dateLoadError='';$('#calendar-saved-only').checked=false;$('#date-from').value='';$('#date-until').value='';$('#date-error').textContent='';$('#feedback-filter').value='';$('#feedback-tag-filter').value='';$('#viewed-filter').value='all';$('#attendance').value='all';$('#search').value='';$$('#type-options input,#topic-options input,#district-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');updateFacetSummary('district');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc';syncFilterControls()}
 async function enter(user={}) {
-  filterStorageKey='radar.filters.v1:'+String(user.username||'owner');RadarPlanner.user(user.username);
+  const owner=typeof user.username==='string'&&user.username?user.username:null;
+  // Conditional boundary: a verified different owner in the same DOM should
+  // not inherit a URL generated by the previous owner. Supplied links survive.
+  if(owner&&filterOwner&&owner!==filterOwner&&generatedFilterURL===location.pathname+location.search){history.replaceState({radar:true},'',location.pathname);generatedFilterURL=null}
+  if(owner)filterOwner=owner;
+  const nextStorageKey='radar.filters.v1:'+String(user.username||'owner');if(nextStorageKey!==filterStorageKey)filterWriteBlocked=false;filterStorageKey=nextStorageKey;RadarPlanner.user(user.username);
   authenticated=true;authEpoch++;$('.hero').hidden=true;$('#manage-sources').hidden=false;$('#login-panel').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;
   await stats();if(!authenticated)return;restoreSavedFilters();readURL();rememberFilters();await load();const id=new URLSearchParams(location.search).get('event');if(id&&authenticated)await openDetail(id,false);
 }
@@ -327,7 +339,7 @@ function validateDateInputs(){
 }
 function commitDateInputs(){appliedDates={from:$('#date-from').value,until:$('#date-until').value};dateLoadError='';dateLoadValues=null;appliedFilterQuery=draftParams().toString()}
 function navigate(next,reset=false){if(filterDraft)finishFilterDraft(false);clearTimeout(debounce);if(reset){clearFilters();dateLoadError=''}if(!validateDateInputs())return;commitDateInputs();closeDetail(false);view=Object.hasOwn(views,next)?next:'discover';writeURL();load()}
-function applyFilters(mode='push'){clearTimeout(debounce);syncFilterControls();if(filterDraft)return;if(!validateDateInputs())return;commitDateInputs();closeDetail(false);writeURL(mode);load()}
+function applyFilters(mode='push'){clearTimeout(debounce);syncFilterControls();if(filterDraft)return;if(!validateDateInputs())return;commitDateInputs();rememberFilters(true);closeDetail(false);writeURL(mode);load()}
 function restoreNavigation(){if(!authenticated)return;if(filterDraft)finishFilterDraft(false);const before=urlParams().toString();closeDetail(false);readURL();rememberFilters();const after=urlParams().toString();const id=new URLSearchParams(location.search).get('event');if(before!==after||personalQueryDirty)load().then(()=>{if(id)openDetail(id,false)});else if(id)openDetail(id,false)}
 addEventListener('popstate',restoreNavigation);
 $('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit');if(b.disabled)return;b.disabled=true;b.textContent='正在验证…';$('#login-error').textContent='';try{const user=await api('login',{method:'POST',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});$('#password').value='';await enter(user)}catch(err){if(err.name!=='AbortError')$('#login-error').textContent=err.message}finally{b.disabled=false;b.textContent='打开我的雷达 →'}};
