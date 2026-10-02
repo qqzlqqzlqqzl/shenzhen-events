@@ -1,9 +1,13 @@
 """Synthetic source evidence; no production access or identity migration."""
 import json
-from datetime import timedelta
+import subprocess
+from pathlib import Path
+from datetime import date,datetime,timedelta
 import pytest
 from bs4 import BeautifulSoup
-from radar import core, collectors, coverage, details
+from icalendar import Calendar
+from fastapi.testclient import TestClient
+from radar import core, collectors, coverage, details,api
 
 URL='https://example.com/event'
 def soup(html):return BeautifulSoup(html,'html.parser')
@@ -91,6 +95,92 @@ def isolated(tmp_path,monkeypatch):
     monkeypatch.setattr(coverage.time,'sleep',lambda _:None)
 
 def metrics():return dict.fromkeys(['detail_cached','detail_deferred','detail_attempted','detail_resolved','detail_failed'],0)
+
+@pytest.mark.parametrize('start,end,all_day',[
+    ('2026-10-10T14:00:00+08:00','2026-10-10T16:00:00+08:00',False),
+    ('2026-10-10','2026-10-11',True),
+])
+def test_undated_hdx_accepts_detail_date_precision_on_fetch_and_cache(isolated,monkeypatch,start,end,all_day):
+    listing='<div class="search-tab-content-item"><a class="item-title" href="'+URL+'">社区活动</a><p class="item-data">日期待确认</p><p class="item-dress">深圳测试场馆</p></div>'
+    base=coverage.hdx(soup(listing),URL)[0]
+    assert base['start_at'] is None and base['all_day'] is True
+    html='<script type="application/ld+json">'+json.dumps({'@type':'Event','name':'社区活动','url':URL,'startDate':start,'endDate':end})+'</script>'
+    calls=[];monkeypatch.setattr(collectors,'fetch',lambda url,**kw:(calls.append(url) or html,soup(html),url))
+    source={'id':'hdx-fixture','kind':'hdx','enrich_dated':True,'request_delay':0}
+    fresh=coverage.enrich_details(source,[dict(base)],metrics())[0]
+    assert fresh['all_day'] is all_day
+    m=metrics();cached=coverage.enrich_details(source,[dict(base)],m)[0]
+    assert m['detail_cached']==1 and len(calls)==1 and cached['all_day'] is all_day
+    assert cached['start_at']==core.iso(start) and cached['end_at']==core.iso(end)
+    core.ingest(source,cached)
+    with core.db() as db:event_id=db.execute('SELECT id FROM events WHERE url=?',(URL,)).fetchone()[0]
+    monkeypatch.setattr(api,'ROOT',core.ROOT);api.initialize_settings()
+    with TestClient(api.app) as client:
+        client.cookies.set(api.COOKIE,api.sign_session({'id':1,'username':'precision-fixture'}))
+        response=client.get('/events/api/event/'+event_id+'.ics');assert response.status_code==200
+        public=client.get('/events/api/event/'+event_id).json()
+    event=Calendar.from_ical(response.content).walk('VEVENT')[0]
+    assert str(event['uid'])==event_id+'@shenzhen-events'
+    if all_day:
+        assert type(event.decoded('dtstart')) is date and event.decoded('dtstart')==date(2026,10,10)
+        assert event.decoded('dtend')==date(2026,10,11)
+    else:
+        assert isinstance(event.decoded('dtstart'),datetime) and event.decoded('dtstart').hour==14
+        assert event.decoded('dtend').hour==16 and event.decoded('dtend')-event.decoded('dtstart')==timedelta(hours=2)
+    script="require('./static/ui-state.js');console.log(JSON.stringify(RadarUI.calendarEvent("+json.dumps(public)+")));"
+    frontend=json.loads(subprocess.check_output(['node','-e',script],cwd=Path(__file__).resolve().parents[1],text=True))
+    assert frontend['allDay'] is all_day
+    assert frontend['start']==('2026-10-10' if all_day else '2026-10-10T14:00:00')
+    assert frontend['end']==('2026-10-11' if all_day else '2026-10-10T16:00:00')
+
+@pytest.mark.parametrize('base_all_day',[True,False])
+def test_existing_date_precision_is_preserved(base_all_day):
+    base={'start_at':'2026-10-04T00:00:00+08:00','end_at':'2026-10-05T00:00:00+08:00','all_day':base_all_day}
+    e=details.merge(base,{'start_at':'2026-10-03T14:00:00+08:00','end_at':'2026-10-03T16:00:00+08:00','all_day':not base_all_day},{})
+    assert all(e[k]==v for k,v in base.items())
+
+def test_unaccepted_dates_cannot_replace_listing_precision():
+    base={'all_day':True,'details':{'review_hold':'date_conflict'}}
+    e=details.merge(base,{'start_at':'2026-10-03T14:00:00+08:00','all_day':False},{})
+    assert e['all_day'] is True and not e.get('start_at')
+    assert details.merge({'all_day':True},{'all_day':False},{})['all_day'] is True
+
+def test_unknown_tech_listing_attendance_uses_explicit_jsonld(isolated,monkeypatch):
+    listing='<a href="/event/fixture"><h3>社区活动</h3><span>参加方式待确认</span><p>简介</p><div><i i-carbon-location></i>深圳测试场馆</div></a>'
+    base=coverage.tech_all(soup(listing),URL)[0]
+    assert base['details']['attendance']=='unknown'
+    html='<script type="application/ld+json">'+json.dumps({'@type':'Event','name':'社区活动','url':URL,'eventAttendanceMode':'https://schema.org/OnlineEventAttendanceMode','startDate':'2026-10-10T14:00:00+08:00','endDate':'2026-10-10T16:00:00+08:00'})+'</script>'
+    calls=[];monkeypatch.setattr(collectors,'fetch',lambda url,**kw:(calls.append(url) or html,soup(html),url))
+    source={'id':'tech-fixture','kind':'tech','enrich_dated':True,'request_delay':0}
+    fresh=coverage.enrich_details(source,[dict(base)],metrics())[0]
+    assert fresh['details']['attendance']=='online' and core.event_attendance(fresh)=='online'
+    m=metrics();cached=coverage.enrich_details(source,[dict(base)],m)[0]
+    assert m['detail_cached']==1 and len(calls)==1 and cached['details']['attendance']=='online'
+
+@pytest.mark.parametrize('mode',['online','hybrid','offline'])
+def test_explicit_fresh_attendance_remains_authoritative(mode):
+    e=details.merge({'details':{'attendance':mode}},{'details':{'attendance':'online'}},{})
+    assert e['details']['attendance']==mode
+
+def test_attendance_review_hold_preserves_unknown_mode():
+    e=details.merge({'details':{'attendance':'unknown','review_hold':'attendance_conflict'}},{'details':{'attendance':'online'}},{})
+    assert e['details']['attendance']=='unknown' and e['details']['review_hold']=='attendance_conflict'
+
+@pytest.mark.parametrize('part',['structured_details','metadata','metadata_details'])
+@pytest.mark.parametrize('provenance',['malformed',[],None,{'start_at':'malformed'},{'start_at':{'kind':[]}},{'start_at':{'kind':'structured','evidence_url':[]}}])
+def test_malformed_nested_cache_provenance_is_safe_miss(isolated,monkeypatch,part,provenance):
+    observation={'kind':'detail_observation','version':1,'structured':{'details':{}},'metadata':{}}
+    fields=observation['structured']['details'] if part=='structured_details' else observation['metadata'] if part=='metadata' else observation['metadata'].setdefault('details',{})
+    fields['field_provenance']=provenance
+    base={'title':'活动','url':URL,'cost_text':'199元','location':'深圳新场馆'}
+    payload=json.dumps(observation)
+    with core.db() as db:db.execute('INSERT INTO detail_cache VALUES(?,?,?,?,?,?,?)',('a',URL,coverage._detail_fingerprint(base),payload,'ok',core.stamp(),core.iso(core.now()+timedelta(hours=24))))
+    calls=[];html='<main><p>主办方：实际主办</p></main>'
+    monkeypatch.setattr(collectors,'fetch',lambda url,**kw:(calls.append(url) or html,soup(html),url))
+    m=metrics();e=coverage.enrich_details({'id':'a','request_delay':0},[base],m)[0]
+    assert coverage._detail_observation(payload) is None
+    assert len(calls)==1 and m['detail_cached']==0 and m['detail_attempted']==1
+    assert e['cost_text']=='199元' and e['location']=='深圳新场馆' and e['organizer']=='实际主办'
 
 def test_observation_cache_remerges_fresh_fee_location_dates_status(isolated,monkeypatch):
     html='<main><p>费用：50元</p></main><script type="application/ld+json">'+json.dumps({'@type':'Event','name':'活动','startDate':'2026-10-03','location':{'name':'旧场馆'},'offers':{'price':0}})+'</script>'

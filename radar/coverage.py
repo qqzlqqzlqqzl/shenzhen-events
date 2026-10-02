@@ -143,15 +143,28 @@ def _detail_fingerprint(e):
     return hashlib.sha256((e.get('title','')+'|'+e.get('summary','')).encode()).hexdigest()
 
 
+def _detail_fields_valid(fields):
+    """Check the nested containers and scalars consumed by detail merging."""
+    if not isinstance(fields,dict):return False
+    scalar=('cost_text','organizer','location','start_at','end_at','attendance','organizer_role','publisher','evidence_url','detail_text','checked_at')
+    if any(fields.get(key) is not None and not isinstance(fields[key],str) for key in scalar):return False
+    if 'all_day' in fields and type(fields['all_day']) is not bool:return False
+    if 'details' in fields and not _detail_fields_valid(fields['details']):return False
+    if 'field_provenance' in fields:
+        provenance=fields['field_provenance']
+        if not isinstance(provenance,dict):return False
+        for evidence in provenance.values():
+            if not isinstance(evidence,dict) or not isinstance(evidence.get('kind'),str) or not evidence['kind']:return False
+            if 'evidence_url' in evidence and not isinstance(evidence['evidence_url'],str):return False
+    return True
+
+
 def _detail_observation(payload):
     """Legacy whole-event payloads and malformed envelopes are safe misses."""
     try:value=json.loads(payload)
     except (ValueError,TypeError):return None
     if not isinstance(value,dict) or value.get('kind')!='detail_observation' or type(value.get('version')) is not int or value.get('version')!=1:return None
-    if not all(isinstance(value.get(k),dict) for k in ('structured','metadata')):return None
-    if not isinstance(value['structured'].get('details',{}),dict):return None
-    for fields in (value['structured'],value['metadata']):
-        if any(key in fields and not isinstance(fields[key],str) for key in ('cost_text','organizer','location','start_at','end_at') if fields.get(key) is not None):return None
+    if not all(_detail_fields_valid(value.get(key)) for key in ('structured','metadata')):return None
     return value
 
 

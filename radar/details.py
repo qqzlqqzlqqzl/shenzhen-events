@@ -64,15 +64,23 @@ def merge(base,structured,metadata):
     result['details']={**observed,**metadata,**fresh}
     provenance={**(observed.get('field_provenance') or {}),**(metadata.get('field_provenance') or {}),**(fresh.get('field_provenance') or {})}
     held=bool(fresh.get('review_hold'))
+    modes=('online','hybrid','offline')
+    if not held and fresh.get('attendance') not in modes and observed.get('attendance') in modes:
+        result['details']['attendance']=observed['attendance']
+        provenance['attendance']={'kind':'structured','evidence_url':metadata.get('evidence_url',structured.get('url',''))}
     for key,value in structured.items():
-        if key in ('details','cost_free','organizer') or value in (None,'',[],{}):continue
+        if key in ('details','cost_free','organizer','all_day') or value in (None,'',[],{}):continue
         if key=='cost_text' and value in UNKNOWN_COST:continue
         if held and key in ('start_at','end_at','all_day','status'):continue
-        if key=='all_day' and base.get('start_at'):continue
         missing=not result.get(key) or (key=='cost_text' and result.get(key) in UNKNOWN_COST)
         if missing:
             result[key]=value
             provenance[key]={'kind':'structured','evidence_url':metadata.get('evidence_url',structured.get('url',''))}
+    # Listing precision is provisional until a start date has been accepted.
+    # A False timed flag must travel with that evidence, not lose to True.
+    if not held and not base.get('start_at') and structured.get('start_at'):
+        result['all_day']=bool(structured.get('all_day',len(str(structured['start_at']))==10))
+        provenance['all_day']={'kind':'structured','evidence_url':metadata.get('evidence_url',structured.get('url',''))}
     explicit=metadata.get('organizer') or structured.get('organizer')
     if explicit and (not result.get('organizer') or fresh.get('organizer_role')=='publisher'):
         if fresh.get('organizer_role')=='publisher' and base.get('organizer'):
