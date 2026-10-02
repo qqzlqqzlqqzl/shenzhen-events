@@ -8,4 +8,6 @@ The generic detail-cache payload is `{kind: "detail_observation", version: 1, st
 
 Regressions: `tests/test_generic_enrichment.py`, `tests/generic_enrichment_dom.cjs`, and existing source-fields, coverage and recurring-source tests. Full local suite logs are retained separately for the independent review. No source registration, production write, migration, backfill or deployment is part of this change.
 
+Schedule fields are accepted together. A missing end can be filled only when the detail start agrees with the retained current start and precision; a missing start with a current end requires an agreeing detail end. Comparisons normalize timezone offsets. Conflicting cached or freshly fetched schedules leave unknown endpoints unknown, and rejected dates contribute no field provenance. Current endpoints, review holds and genuine matching-start completions are preserved.
+
 Refs: #87. Related scope ownership: #85.

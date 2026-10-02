@@ -139,11 +139,83 @@ def test_existing_date_precision_is_preserved(base_all_day):
     e=details.merge(base,{'start_at':'2026-10-03T14:00:00+08:00','end_at':'2026-10-03T16:00:00+08:00','all_day':not base_all_day},{})
     assert all(e[k]==v for k,v in base.items())
 
+@pytest.mark.parametrize('cached',[False,True],ids=['fetch','cache'])
+@pytest.mark.parametrize('detail_start,detail_end,matching',[
+    ('2026-10-11T14:00:00+08:00','2026-10-11T16:00:00+08:00',False),
+    ('2026-10-10T14:00:00+08:00','2026-10-10T16:00:00+08:00',True),
+    ('2026-10-10T06:00:00Z','2026-10-10T08:00:00Z',True),
+],ids=['conflicting-start','matching-start','matching-instant'])
+def test_douban_missing_end_requires_matching_detail_schedule(isolated,monkeypatch,cached,detail_start,detail_end,matching):
+    url='https://www.douban.com/event/12345/'
+    def listing(start):
+        html='<li class="list-entry"><div class="title"><a href="'+url+'">深圳社区活动</a></div><meta itemprop="startDate" content="'+start+'"><span itemprop="location">深圳测试场馆</span></li>'
+        return coverage.douban_all(soup(html),url)[0]
+    base=listing('2026-10-10T14:00:00+08:00')
+    assert base['start_at']=='2026-10-10T14:00:00+08:00' and base['end_at'] is None and not base['all_day']
+    html='<script type="application/ld+json">'+json.dumps({'@type':'Event','name':base['title'],'url':url,'startDate':detail_start,'endDate':detail_end})+'</script>'
+    calls=[];monkeypatch.setattr(collectors,'fetch',lambda url,**kw:(calls.append(url) or html,soup(html),url))
+    source={'id':'douban-fixture','kind':'douban','enrich_dated':True,'request_delay':0}
+    if cached:
+        old=listing(detail_start)
+        assert coverage._detail_fingerprint(old)==coverage._detail_fingerprint(base)
+        coverage.enrich_details(source,[old],metrics())
+    m=metrics();event=coverage.enrich_details(source,[base],m)[0]
+    assert len(calls)==1 and m['detail_cached']==int(cached) and m['detail_attempted']==int(not cached)
+    assert event['start_at']==base['start_at'] and event['all_day'] is False
+    assert event['end_at']==(core.iso(detail_end) if matching else None)
+    provenance=event['details'].get('field_provenance',{})
+    assert ('end_at' in provenance) is matching
+    assert 'start_at' not in provenance
+    core.ingest(source,event)
+    with core.db() as db:event_id=db.execute('SELECT id FROM events WHERE url=?',(url,)).fetchone()[0]
+    monkeypatch.setattr(api,'ROOT',core.ROOT);api.initialize_settings()
+    with TestClient(api.app) as client:
+        client.cookies.set(api.COOKIE,api.sign_session({'id':1,'username':'schedule-fixture'}))
+        response=client.get('/events/api/event/'+event_id+'.ics');assert response.status_code==200
+        public=client.get('/events/api/event/'+event_id).json()
+    exported=Calendar.from_ical(response.content).walk('VEVENT')[0]
+    assert exported.decoded('dtstart')==datetime(2026,10,10,14,tzinfo=core.TZ)
+    assert public['end_at']==(core.iso(detail_end) if matching else None)
+    if matching:assert exported.decoded('dtend')-exported.decoded('dtstart')==timedelta(hours=2)
+    else:assert 'dtend' not in exported
+
 def test_unaccepted_dates_cannot_replace_listing_precision():
     base={'all_day':True,'details':{'review_hold':'date_conflict'}}
     e=details.merge(base,{'start_at':'2026-10-03T14:00:00+08:00','all_day':False},{})
     assert e['all_day'] is True and not e.get('start_at')
     assert details.merge({'all_day':True},{'all_day':False},{})['all_day'] is True
+
+@pytest.mark.parametrize('observation',[
+    {'end_at':'2026-10-10T16:00:00+08:00'},
+    {'start_at':'invalid','end_at':'2026-10-10T16:00:00+08:00'},
+    {'start_at':'2026-10-10T14:00:00+08:00','end_at':'2026-10-10T16:00:00+08:00','all_day':True},
+])
+def test_detail_end_requires_valid_start_and_matching_precision(observation):
+    event=details.merge({'start_at':'2026-10-10T14:00:00+08:00','end_at':None,'all_day':False},observation,{})
+    assert event['end_at'] is None
+
+@pytest.mark.parametrize('matching',[False,True])
+def test_missing_start_requires_matching_current_end(matching):
+    base={'end_at':'2026-10-10T16:00:00+08:00','all_day':True}
+    observation={'start_at':'2026-10-10T14:00:00+08:00','end_at':'2026-10-10T16:00:00+08:00' if matching else '2026-10-11T16:00:00+08:00','all_day':False}
+    event=details.merge(base,observation,{})
+    assert event.get('start_at')==(observation['start_at'] if matching else None)
+    assert event['end_at']==base['end_at'] and event['all_day'] is (not matching)
+
+def test_rejected_schedule_does_not_claim_observation_provenance():
+    fresh={'start_at':{'kind':'source','evidence_url':URL}}
+    observed={'start_at':{'kind':'structured'},'end_at':{'kind':'structured'},'all_day':{'kind':'structured'},'attendance':{'kind':'structured'}}
+    event=details.merge({'start_at':'2026-10-10T14:00:00+08:00','end_at':None,'all_day':False,'details':{'field_provenance':fresh}},
+        {'start_at':'2026-10-11T14:00:00+08:00','end_at':'2026-10-11T16:00:00+08:00','all_day':False,'details':{'field_provenance':observed}},
+        {'field_provenance':{'end_at':{'kind':'label'}}})
+    assert event['end_at'] is None
+    assert event['details']['field_provenance']=={**fresh,'attendance':observed['attendance']}
+
+def test_rejected_schedule_only_provenance_is_removed():
+    event=details.merge({'start_at':'2026-10-10T14:00:00+08:00','end_at':None,'all_day':False},
+        {'start_at':'2026-10-11T14:00:00+08:00','end_at':'2026-10-11T16:00:00+08:00','details':{'field_provenance':{'start_at':{'kind':'structured'}}}},
+        {'field_provenance':{'end_at':{'kind':'label'}}})
+    assert event['end_at'] is None and 'field_provenance' not in event['details']
 
 def test_unknown_tech_listing_attendance_uses_explicit_jsonld(isolated,monkeypatch):
     listing='<a href="/event/fixture"><h3>社区活动</h3><span>参加方式待确认</span><p>简介</p><div><i i-carbon-location></i>深圳测试场馆</div></a>'
