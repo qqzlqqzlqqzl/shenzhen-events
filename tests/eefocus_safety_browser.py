@@ -50,6 +50,28 @@ try:
     p.locator('.title-button').first.click();expect(p.locator('#toast')).to_be_visible()
     h.check('ordinary_revalidation_failure_disables_cached_export',p.evaluate('(id)=>records.get(id)._safety_pending && records.get(id).planning_eligible===false',remaining))
     p.unroute('**/events/api/event/*',fail_point)
+    # Hold a completed real point response across disconnect. The transport
+    # wrapper deliberately ignores abort, exercising response-generation checks.
+    p.evaluate('''(id)=>{
+      window.savedSafetyFetch=fetch;
+      window.fetch=async(...args)=>{
+        const response=await savedSafetyFetch(...args);
+        if(String(args[0]).endsWith('/event/'+id)){
+          const data=await response.json();
+          await new Promise(resolve=>window.releaseSafetyResponse=resolve);
+          return {ok:response.ok,status:response.status,json:async()=>data};
+        }
+        return response;
+      };
+      window.pendingSafetyDetail=openDetail(id);
+    }''',remaining)
+    p.wait_for_function('typeof releaseSafetyResponse==="function"')
+    h.ctx.set_offline(True);expect(p.locator('#network-banner')).to_be_visible()
+    p.evaluate('releaseSafetyResponse()');p.evaluate('async()=>await pendingSafetyDetail')
+    h.check('late_preoffline_point_response_cannot_restore_export',p.evaluate('(id)=>records.get(id)._safety_pending && records.get(id).planning_eligible===false',remaining) and p.locator('#detail a[href$=".ics"]').count()==0)
+    h.ctx.set_offline(False);p.evaluate('window.fetch=savedSafetyFetch')
+    p.evaluate('(id)=>openDetail(id)',remaining);expect(p.locator('#detail a[href$=".ics"]')).to_have_count(1)
+    h.check('fresh_postreconnect_point_response_restores_valid_export');p.locator('#close-detail').click()
     # Typed availability failures invalidate append/calendar/comparison snapshots.
     def unavailable(route):route.fulfill(status=503,json={'code':'safety_unavailable','detail':'安全采集尚未完成'})
     p.route('**/events/api/events?*',unavailable);p.locator('#refresh-data').click()

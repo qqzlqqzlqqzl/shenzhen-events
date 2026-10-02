@@ -45,6 +45,19 @@ rolls back admission. Ordinary replay returns the original receipt, discovers no
 new targets and cannot reopen resolved dispositions. New captures have new IDs;
 identical bytes after resolution conservatively establish a new generation.
 
+Cancellation date evidence retains its role and original text. Only one explicit,
+fully dated actual-occurrence field can prove a different occurrence. Promotion,
+registration, publication and publisher discovery windows, ambiguous ranges and
+legacy untyped date arrays remain unknown and cannot dismiss a pending notice.
+The late-anchor transaction reparses retained role evidence and rolls back the
+whole admission if applicability cannot be established.
+
+Admission also rereads immutable bindings and current canonical history under
+the ingestion writer lock, before changing raw, canonical or source records.
+A delayed already-verified older occurrence cannot undo a committed forward
+reschedule. This protects alternate/adversarial writers; the normal CLI collector
+already serializes ordinary collectors with its process flock.
+
 ## Projection and resolution
 
 Planning reads, counts, facets, source hydration and guard projection share one
@@ -61,6 +74,13 @@ changes. Ordinary network failure permits visibly disabled historical content;
 typed safety failure discards actionable snapshots. Personal writes update only
 personal fields and cannot overwrite safety metadata. API projection remains the
 authority even if client state is stale.
+
+Connectivity and visibility transitions advance a lifecycle generation and
+abort in-flight work. Responses are checked before dispatch, after headers and
+after body decoding, so a pre-offline response cannot restore planning or export
+controls after reconnect, even if transport ignores abort. Fresh foreground point
+verification can restore them. This is a client presentation/action boundary;
+server ICS independently enforces projected eligibility.
 
 Fresh detail-only reinstatement uses bounded same-origin transport and parser
 evidence for the exact canonical occurrence, dates and clocks. Network work runs
@@ -140,6 +160,16 @@ late anchoring, two-connection races, AI authority, retention, capacity and ICS.
 The original cases 01–46 and 59 continue through the real adapter and worker.
 `tests/eefocus_safety_browser.py` covers actual isolated worker/API/browser flows;
 the full existing Python, DOM, syntax and desktop/mobile browser checks are required.
+
+The independent three-gap review bundle was materialized with the current Library
+helper and verified as `libfile_c2de94af93448191aa7e40091fd6715b`, version 0,
+455345 bytes, SHA-256
+`57acc82700899cd0e01a4444b611ab7781a13b31b960749c085c653169834f11`.
+`tests/test_eefocus_review_gaps.py` exercises typed unknown and explicit-occurrence
+controls through collection, ingestion and API, legacy retained evidence, and
+delayed alternate writers with and without a guard. DOM checks cover delayed
+detail/list/calendar/comparison/export responses and fresh reconnect recovery;
+the isolated real API/browser flow also delays a response across an offline event.
 
 Independent implementation acceptance is still required; design approval is not
 implementation approval. Publisher evidence still lacks a passing upcoming-event

@@ -335,6 +335,9 @@ def ingest(source,e,body=None):
     h=source_identity.content_hash(source,e,body);ts=stamp()
     with db() as c:
         c.execute('BEGIN IMMEDIATE')
+        if source.get('kind')=='eefocus_events' and binding_ids:
+            from . import eefocus
+            eefocus.revalidate_admission_history(c,source,e,binding_ids)
         old=source_identity.find_existing(c,source,e,body);changed=not old
         if old:
             prior=json.loads(old['payload'])

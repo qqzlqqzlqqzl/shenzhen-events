@@ -23,7 +23,7 @@ async function ready(query='?view=all',initial={}){
  else if(u.pathname.endsWith('/events')){if(state.failEvents)throw new Error('fixture offline');if(state.unavailable)return {ok:false,status:503,json:async()=>({code:'safety_unavailable',detail:'captured response awaits recovery'})};data={safety_epoch:state.safetyEpoch,items:rows(),total:2,has_more:false,facets:{},excluded_long:{items:[],total:0}};}
  else if(u.pathname.includes('/event/')){state.detailReads++;data=rows().find(row=>row.id===u.pathname.split('/').at(-1))||rows()[0]}
  return {ok:true,status:200,json:async()=>data};};
- w.eval(scripts+'\n;window.probe={api,enter,load,openDetail,closeDetail,showLogin,beginFilterDraft,syncPersonal,invalidatePlanning,get authenticated(){return authenticated},get epoch(){return authEpoch},get records(){return records},get listSnapshot(){return listSnapshot},get calendarSnapshot(){return calendarSnapshot}};');
+ w.eval(scripts+'\n;window.probe={api,enter,load,openDetail,closeDetail,showLogin,beginFilterDraft,syncPersonal,invalidatePlanning,reloadCalendar:()=>loadCalendar(calendarRange),get authenticated(){return authenticated},get epoch(){return authEpoch},get records(){return records},get listSnapshot(){return listSnapshot},get calendarSnapshot(){return calendarSnapshot}};');
  await wait();await wait();return {w,$,state,calls,async expire(){state.expired=true;await w.probe.api('session').catch(()=>{});await wait()},close(){assert.deepEqual(errors,[]);w.close()}};
 }
 
@@ -145,6 +145,58 @@ test('ordinary failed refresh and offline transition retain no export authority'
   assert.equal(r.w.probe.records.get('0').planning_eligible,false);assert.equal(r.w.probe.records.get('0')._safety_pending,true);
   r.w.dispatchEvent(new r.w.Event('offline'));
   assert.equal(r.w.probe.listSnapshot,null);assert.equal(r.$('#detail a[href$=".ics"]'),null);
+ }finally{r.close()}
+});
+
+function holdResponse(r,match,phase='fetch'){
+ const original=r.w.fetch;let release,issued;const started=new Promise(resolve=>issued=resolve);
+ r.w.fetch=async(...args)=>{const response=await original(...args);if(!match(String(args[0])))return response;
+  const pause=()=>new Promise(resolve=>{release=resolve;issued()});
+  if(phase==='json')return {...response,json:async()=>{const data=await response.json();await pause();return data}};
+  await pause();return response;
+ };
+ return {started,release:()=>release(),restore:()=>{r.w.fetch=original}};
+}
+for(const phase of ['fetch','json'])for(const reconnect of [false,true]){
+ test(`late detail ${phase} response after offline${reconnect?' and reconnect':''} cannot restore export`,async()=>{
+  const r=await ready();try{
+   const hold=holdResponse(r,url=>url.includes('/event/'),phase),pending=r.w.probe.openDetail('0');await hold.started;
+   r.w.dispatchEvent(new r.w.Event('offline'));if(reconnect)r.w.dispatchEvent(new r.w.Event('online'));
+   hold.release();await pending;await wait();
+   assert.equal(r.w.probe.records.get('0').planning_eligible,false);assert.equal(r.w.probe.records.get('0')._safety_pending,true);
+   assert.equal(r.$('#detail a[href$=".ics"]'),null);assert.equal(r.w.probe.listSnapshot,null);
+   hold.restore();if(!reconnect)r.w.dispatchEvent(new r.w.Event('online'));
+   await r.w.probe.openDetail('0');assert.equal(r.w.probe.records.get('0').planning_eligible,true);assert.ok(r.$('#detail a[href$=".ics"]'));
+  }finally{r.close()}
+ });
+}
+for(const consumer of ['list','calendar','compare','export']){
+ test(`offline revokes pending ${consumer} responses even if transport ignores abort`,async()=>{
+  const r=await ready(consumer==='calendar'?'?view=calendar':'?view=all');try{
+   if(consumer==='export')await r.w.probe.openDetail('0');
+   const hold=holdResponse(r,url=>consumer==='list'||consumer==='calendar'?url.includes('/events?'):url.includes('/event/'));
+   let pending;
+   if(consumer==='list')pending=r.w.probe.load();
+   else if(consumer==='calendar')pending=r.w.probe.reloadCalendar();
+   else if(consumer==='compare'){r.w.RadarEventWorkflows.toggle('0');r.w.RadarEventWorkflows.toggle('1');pending=r.$('#compare-open').onclick();}
+   else r.$('#detail a[href$=".ics"]').click();
+   await hold.started;r.w.dispatchEvent(new r.w.Event('offline'));r.w.dispatchEvent(new r.w.Event('online'));hold.release();if(pending)await pending;await wait();
+   assert.equal(r.w.probe.listSnapshot,null);assert.equal(r.w.probe.calendarSnapshot,null);
+   assert.ok([...r.w.probe.records.values()].every(row=>row.planning_eligible===false));
+   assert.equal(r.$('#detail a[href$=".ics"]'),null);
+   if(consumer==='calendar')assert.equal(r.$('#calendar').dataset.safetyVerified,'false');
+   if(consumer==='compare')assert.equal(r.$('#compare-body').textContent,'');
+  }finally{r.close()}
+ });
+}
+test('background invalidation rejects a pending detail until fresh foreground verification',async()=>{
+ const r=await ready();try{
+  const hold=holdResponse(r,url=>url.includes('/event/')),pending=r.w.probe.openDetail('0');await hold.started;
+  Object.defineProperty(r.w.document,'hidden',{configurable:true,value:true});r.w.document.dispatchEvent(new r.w.Event('visibilitychange'));
+  hold.release();await pending;assert.equal(r.w.probe.records.get('0').planning_eligible,false);assert.equal(r.$('#detail a[href$=".ics"]'),null);
+  hold.restore();Object.defineProperty(r.w.document,'hidden',{configurable:true,value:false});
+  r.w.document.dispatchEvent(new r.w.Event('visibilitychange'));await wait();await r.w.probe.openDetail('0');
+  assert.equal(r.w.probe.records.get('0').planning_eligible,true);assert.ok(r.$('#detail a[href$=".ics"]'));
  }finally{r.close()}
 });
 

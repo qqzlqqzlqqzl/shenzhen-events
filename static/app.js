@@ -3,6 +3,7 @@ let view='discover',offset=0,total=0,sequence=0,calendar=null,controller=null;
 let authenticated=false,authEpoch=0,statusTicket=0,statsTicket=0,detailTicket=0,busy=false;
 let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=false,opener=null;
 let listSnapshot=null,calendarSnapshot=null,safetyEpoch=null;
+let connectivityGeneration=0,networkOffline=navigator.onLine===false;
 function invalidatePlanning(clear=false){
   for(const e of records.values()){e._safety_pending=true;e.planning_eligible=false;e.safety={...e.safety,warning:e.safety?.warning||'安全状态待重新核实；暂不可安排或导出'};}
   for(const snapshot of [listSnapshot,calendarSnapshot])for(const e of [...(snapshot?.items||[]),...(snapshot?.excluded?.items||[])]){e._safety_pending=true;e.planning_eligible=false;}
@@ -57,16 +58,21 @@ function renderActiveFilters(){
   if(rest.length){const span=document.createElement('span');span.className='filter-text';span.textContent=rest.join(' · ');box.append(span)}
 }
 async function api(path,options={}) {
-  const epoch=authEpoch,c=new AbortController(),abort=()=>c.abort();
+  const epoch=authEpoch,generation=connectivityGeneration,c=new AbortController(),abort=()=>c.abort();
+  const planningRead=path==='events'||path.startsWith('events?')||path.startsWith('event/')||path==='calendar-summary';
+  const connectivityChanged=()=>generation!==connectivityGeneration||networkOffline||navigator.onLine===false||(planningRead&&document.hidden);
+  if(connectivityChanged())throw new DOMException('网络状态已变化，请重新核实','AbortError');
   if(options.signal?.aborted)c.abort();else options.signal?.addEventListener('abort',abort,{once:true});
   inflight.add(c);let timedOut=false;
   const timer=setTimeout(()=>{timedOut=true;c.abort()},20000);
   try {
     const r=await fetch('/events/api/'+path,{credentials:'same-origin',...options,signal:c.signal,headers:{'Content-Type':'application/json','X-Radar-Request':'1',...(options.headers||{})}});
     if(epoch!==authEpoch)throw new DOMException('Stale session','AbortError');
+    if(connectivityChanged())throw new DOMException('网络状态已变化，请重新核实','AbortError');
     if(r.status===401&&path!=='login'){showLogin('登录已过期，请重新登录。');throw new DOMException('Expired session','AbortError')}
     let data;try{data=await r.json()}catch{throw new Error('服务器返回异常，请重试。')}
     if(epoch!==authEpoch)throw new DOMException('Stale session','AbortError');
+    if(connectivityChanged())throw new DOMException('网络状态已变化，请重新核实','AbortError');
     if(!r.ok){const err=new Error(typeof data.detail==='string'?data.detail:'请求失败，请重试。');err.status=r.status;err.current=data.current;err.code=data.code;if(String(data.code||'').startsWith('safety_'))invalidatePlanning(true);throw err}
     acceptSafety(data);return data;
   } catch(e) {if(timedOut)throw new Error('请求超时，已有数据未更改，请重试。');throw e}
@@ -404,8 +410,9 @@ initStatusRecovery();
 
 // A disconnected or background snapshot remains readable, but cannot authorize
 // planning/export. Foreground use obtains fresh point/list eligibility.
-window.addEventListener('offline',()=>invalidatePlanning(true));
-document.addEventListener('visibilitychange',()=>{if(document.hidden)invalidatePlanning();else if(authenticated&&!filterDraft){if(detailId)openDetail(detailId,false);else load();}});
+window.addEventListener('offline',()=>{networkOffline=true;connectivityGeneration++;for(const c of inflight)c.abort();invalidatePlanning(true);});
+window.addEventListener('online',()=>{networkOffline=false;connectivityGeneration++;});
+document.addEventListener('visibilitychange',()=>{connectivityGeneration++;for(const c of inflight)c.abort();if(document.hidden)invalidatePlanning();else if(authenticated&&!filterDraft){if(detailId)openDetail(detailId,false);else load();}});
 document.addEventListener('click',async event=>{
   const link=event.target.closest('a[href*=".ics"]');if(!link||!authenticated)return;
   event.preventDefault();const href=link.getAttribute('href'),id=href.match(/event\/([^/]+)\.ics/)?.[1];

@@ -54,15 +54,30 @@ def seed_second_history(monkeypatch):
     current collector's history check for a newly acquired candidate.
     """
     canonical=ee.ORIGIN+'/live/980999.html'
-    transport(monkeypatch,{ee.LIST_URL:load('fixtures/safety-historical-second-list.html'),
-        ALIAS:{'status':302,'location':canonical},canonical:load('fixtures/safety-historical-second-detail.html')})
-    metrics={'detail_attempted':0};deadline=time.monotonic()+10
-    _,soup,final,_=ee.fetch(ee.LIST_URL,DESIGN['source'],deadline,metrics,inventory=True)
-    base=ee.parse(soup,final)[0][0]
-    _,soup,final,trace=ee.fetch(ALIAS,DESIGN['source'],deadline,metrics)
-    patch,proof=ee.detail(base,soup,final,trace)
-    item=ee.merge_detail(base,patch);ids=ee.record_bindings(DESIGN['source'],ALIAS,proof)
-    item['_identity_binding_ids']=ids;assert core.ingest(DESIGN['source'],item)
+    # Establish the second historical record through the actual worker in an
+    # empty isolated database. Import that immutable prior state as the fixture;
+    # today's writer correctly rejects admitting a reused alias over the first.
+    history_root=core.ROOT/'second-history';history_root.mkdir()
+    (history_root/'.private').mkdir();(history_root/'.private/settings.json').write_text(json.dumps(core.config()))
+    (history_root/'sources.json').write_text(json.dumps([DESIGN['source']]))
+    with monkeypatch.context() as context:
+        context.setattr(core,'ROOT',history_root);core.init()
+        result,_,_=run(context,{ee.LIST_URL:load('fixtures/safety-historical-second-list.html'),
+            ALIAS:{'status':302,'location':canonical},canonical:load('fixtures/safety-historical-second-detail.html')})
+        assert result['count']==1
+        with core.db() as c:
+            history={table:[dict(r) for r in c.execute('SELECT * FROM '+table)] for table in
+                ('events','raw_items','event_sources','eefocus_identity_bindings','eefocus_target_anchors','safety_evidence_blobs')}
+    with core.db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        for row in history['safety_evidence_blobs']:
+            keys=list(row);c.execute('INSERT OR IGNORE INTO safety_evidence_blobs('+','.join(keys)+') VALUES('+','.join('?' for _ in keys)+')',tuple(row.values()))
+        old_raw=history['raw_items'][0].pop('id');row=history['raw_items'][0];keys=list(row)
+        raw=c.execute('INSERT INTO raw_items('+','.join(keys)+') VALUES('+','.join('?' for _ in keys)+')',tuple(row.values())).lastrowid
+        for table in ('events','event_sources','eefocus_identity_bindings','eefocus_target_anchors'):
+            for row in history[table]:
+                if 'raw_id' in row:assert row['raw_id']==old_raw;row['raw_id']=raw
+                keys=list(row);c.execute('INSERT INTO '+table+'('+','.join(keys)+') VALUES('+','.join('?' for _ in keys)+')',tuple(row.values()))
     with core.db() as c:
         eid=c.execute('SELECT id FROM events WHERE url=?',(canonical,)).fetchone()[0]
         binding=c.execute('SELECT binding_id FROM eefocus_identity_bindings WHERE alias_url=? AND event_id=?',(ALIAS,eid)).fetchone()[0]

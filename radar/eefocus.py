@@ -11,6 +11,7 @@ import re
 import time
 import unicodedata
 from collections import Counter
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
@@ -23,6 +24,7 @@ ORIGIN = 'https://www.eefocus.com'
 LIST_URL = ORIGIN + '/event/'
 # Earlier positive cache entries used permissive status/history checks.
 SCHEMA = 'eefocus_identity_v3'
+CANCELLATION_TIME_SCHEMA = 'eefocus_cancellation_time_v1'
 
 
 def safe_url(url, inventory=False):
@@ -77,12 +79,44 @@ def cancellation_observations(soup, url):
         excerpt = str(node).encode(); slices += len(excerpt)
         if len(excerpt) > safety.limits()['slice_bytes'] or slices > safety.limits()['slices_bytes']:
             raise safety.Capacity('card evidence bound exceeded; no truncated receipt')
-        raw = c.text(node.select_one('.event-time'))
+        time_evidence = cancellation_time_evidence([c.text(n) for n in node.select('.event-time')],root.parent.name=='div',url)
         key = node.get('data-post-id') or f'{index}:{alias}'
         observations.append(dict(alias_url=alias,card_key=str(key),title=c.text(a),status_text=' / '.join(labels),
-                                 occurrence=sorted(calendar_dates(raw)),cancelled_again=any(again),card_index=index,
+                                 occurrence=time_evidence['occurrence'],time_evidence=time_evidence,cancelled_again=any(again),card_index=index,
                                  card_digest=hashlib.sha256(excerpt).hexdigest()))
     return observations
+
+
+def cancellation_time_evidence(texts, publisher_inventory, url):
+    """Only a single explicit meeting field identifies cancellation occurrence.
+
+    Campaign endpoints and discovery/publication/registration dates remain
+    retained mentions. They cannot prove a different event occurrence later.
+    """
+    texts=list(dict.fromkeys(core.clean(text) for text in texts if core.clean(text)))
+    raw=texts[0] if len(texts)==1 else ''
+    days=sorted(calendar_dates(raw))
+    if re.search(r'推广',raw):role='promotion_window'
+    elif re.search(r'报名|征集',raw):role='registration_window'
+    elif re.search(r'发布|更新|上架',raw):role='publication_time'
+    elif publisher_inventory and len(date_parts(raw))>1:role='discovery_window'
+    elif (re.match(r'^(?:活动|直播|举办)时间[：:]',raw) and len(days)==1 and len(date_parts(raw))==1
+          and not re.search(r'待定|暂定|拟定|原定|改期|延期|计划|预计',raw)):
+        role='actual_occurrence'
+    else:role='unknown'
+    return dict(schema=CANCELLATION_TIME_SCHEMA,role=role,texts=texts,publisher_inventory=publisher_inventory,
+                url=url,occurrence=days if role=='actual_occurrence' else [])
+
+
+def verified_cancellation_occurrence(metadata):
+    """Recheck immutable evidence roles; legacy bare date arrays are unknown."""
+    proof=metadata.get('time_evidence')
+    if (not isinstance(proof,dict) or proof.get('schema')!=CANCELLATION_TIME_SCHEMA
+            or not isinstance(proof.get('texts'),list) or not all(isinstance(v,str) for v in proof['texts'])
+            or not isinstance(proof.get('publisher_inventory'),bool) or not safe_url(proof.get('url'),inventory=True)):
+        return []
+    checked=cancellation_time_evidence(proof['texts'],proof['publisher_inventory'],proof['url'])
+    return checked['occurrence'] if checked==proof else []
 
 
 def date_text(text):
@@ -364,14 +398,15 @@ def fetch(url, source, deadline, metrics, inventory=False):
     return rs.bounded_fetch(request, url, source, deadline, metrics, max_bytes=1000000)
 
 
-def check_history(source, requested, final, evidence):
+def check_history(source, requested, final, evidence, connection=None):
     """Check both direct endpoints and the stored canonical occurrence.
 
     A newly discovered alias has no requested-URL history. It must still agree
     with the directly verified canonical history before cache reuse, bindings
     or admission. Failed checks never mutate this append-only evidence.
     """
-    with core.db() as db:
+    manager=nullcontext(connection) if connection is not None else core.db()
+    with manager as db:
         histories = []
         for alias in dict.fromkeys((requested, final)):
             row = db.execute('SELECT canonical_url,evidence FROM eefocus_identity_bindings WHERE source_id=? AND alias_url=? ORDER BY rowid DESC LIMIT 1',
@@ -409,6 +444,24 @@ def check_history(source, requested, final, evidence):
                 raise c.SourceError('historical_occurrence_conflict')
         if prior.get('organizers') and evidence['organizers'] and prior['organizers'] != evidence['organizers']:
             raise c.SourceError('historical_organizer_conflict')
+
+
+def revalidate_admission_history(connection,source,item,binding_ids):
+    """Recheck current direct history under ingestion's writer lock, before writes.
+
+    Collector CLI runs have a process flock. Alternate writers or delayed
+    verified items still cannot roll back a newer occurrence. No fetch occurs.
+    """
+    from . import safety
+    safety.assert_schema(connection)
+    if (not isinstance(binding_ids,list) or len(binding_ids)>safety.limits()['bindings']
+            or not all(isinstance(value,str) for value in binding_ids)):
+        raise safety.Integrity('bounded exact admission binding IDs required')
+    for binding_id in binding_ids:
+        row=connection.execute('SELECT * FROM eefocus_identity_bindings WHERE binding_id=?',(binding_id,)).fetchone()
+        if not row or row['source_id']!=source['id'] or row['canonical_url']!=item['url']:
+            raise safety.Integrity('admission history binding/source/canonical mismatch')
+        check_history(source,row['alias_url'],item['url'],json.loads(row['evidence']),connection=connection)
 
 
 def enrich(source, items, metrics, deadline):

@@ -475,8 +475,9 @@ def anchor(c, source, item, event_id, raw_id):
         for old in observations:
             observation=dict(old)
             if c.execute('SELECT 1 FROM safety_observation_targets WHERE observation_id=? AND event_id=?',(old['observation_id'],event_id)).fetchone():continue
-            captured=json.loads(old['occurrence'])
+            captured=eefocus.verified_cancellation_occurrence(json.loads(old['metadata']))
             if not captured or not days:raise SafetyError('pending target occurrence unknown; admission rolled back')
+            if captured!=json.loads(old['occurrence']):raise Integrity('retained cancellation occurrence contradicts evidence roles')
             result='applicable' if captured==days else 'not_applicable'
             operation=digest(old['observation_id']+'|'+binding_id+'|'+event_id)
             if c.execute('SELECT 1 FROM safety_target_adjudications WHERE adjudication_id=?',(operation,)).fetchone():continue
