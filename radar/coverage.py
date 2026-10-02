@@ -33,6 +33,7 @@ def finalize(metrics, status, error=''):
     if metrics.get('mode') not in ('city_pages','page_inventory'):blockers.append('当前采集模式不声明全量覆盖')
     if error:blockers.append(error)
     if metrics.get('truncated') or metrics.get('next_cursor'):blockers.append('仍有未完成的列表工作')
+    if metrics.get('continuation_unavailable'):blockers.append('已观察到后续分页，但缺少可用的续页参数')
     if metrics.get('parser_unaccounted'):blockers.append('可见条目与解析量不符，需检查适配器')
     if metrics.get('detail_failed'):blockers.append('详情读取失败，待后续重试')
     if metrics.get('detail_deferred'):blockers.append('详情工作仍待处理或处于退避期')
@@ -48,13 +49,14 @@ def finalize(metrics, status, error=''):
 def sample_projection(metrics, status):
     fields=(*OBSERVATION_FIELDS,'page_urls','source_total','rejected','mode','sampled_at','attempt_started_at',
         'counters_available','complete_scope','source_total_basis','source_total_observed','source_total_gap',
-        'source_total_comparable','source_total_reconciled','truncated','next_cursor')
+        'source_total_comparable','source_total_reconciled','truncated','next_cursor','continuation_unavailable')
     return {**{key:metrics.get(key) for key in fields},'status':status}
 
 
 def previous_sample(previous, health):
     """Keep a dated readable sample; legacy provenance is explicitly limited."""
     prior=previous.get('last_good')
+    if 'last_good' in previous and not isinstance(prior,dict):return None
     candidate=prior if isinstance(prior,dict) else previous
     if candidate.get('counters_available') is False:return None
     if candidate.get('visible') is None and candidate.get('admitted') is None:return None
@@ -380,6 +382,8 @@ def collect_report(source, previous=None):
                 if kind=='devevents':
                     metrics['source_total_comparable']=metrics.get('source_total_comparable',True) and _developer_inventory(soup)[3]
                 nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx','devevents','elecfans_webinar','shenzhenware_events') else (None,None)
+                if kind=='devevents' and soup.select_one('button.moreButton') and not nxt:
+                    metrics['continuation_unavailable']=True;metrics['truncated']=True
                 if kind=='szhzfw':nxt=monthly_queue.pop(0) if monthly_queue else None
                 if kind=='wordpress_events':
                     try:
