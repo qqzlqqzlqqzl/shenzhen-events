@@ -22,7 +22,7 @@ globalThis.RadarEventWorkflows=(()=>{
  function compare(){
   if(!authenticated)return;const epoch=authEpoch;
   const box=document.querySelector('#compare-body');box.replaceChildren();const list=[...selected.values()];
-  for(const e of list){const article=node('article','','compare-item');article.append(node('h3',e.title));for(const [label,value] of [['时间',RadarUI.fullTime(e)],['参加方式',e.attendance_label||'待确认'],['地点',e.location||'未注明'],['费用',costText(e)||'费用未注明'],['主办',e.organizer||'未注明']]){const p=node('p','');p.append(node('b',label+'：'),node('span',value));article.append(p)}
+  for(const e of list){const article=node('article','','compare-item');article.append(node('h3',e.title));for(const [label,value] of [['时间',RadarUI.fullTime(e)],['参加方式',e.attendance_label||'待确认'],['地点',e.location||'未注明'],['费用',costText(e)],[organizerLabel(e),e.organizer]]){if(!value)continue;const p=node('p','');p.append(node('b',label+'：'),node('span',value));article.append(p)}
    const url=safeOriginal(e.url);if(url){const a=node('a','查看原文 ↗');a.href=url;a.target='_blank';a.rel='noopener noreferrer';article.append(a)}const open=node('button','查看完整详情');open.type='button';open.onclick=()=>{if(!authenticated||epoch!==authEpoch)return;document.querySelector('#compare-dialog').close();if(!records.has(e.id))records.set(e.id,e);openDetail(e.id)};article.append(open);box.append(article)}
   for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const result=overlap(list[i],list[j]);box.append(node('p',`第 ${i+1} 与 ${j+1} 项：`+(result===null?'时间信息不足，无法判定冲突':result?'活动时段重叠，请自行取舍':'明确时段不重叠；未计入通勤时间'),'compare-conflict'))}
   document.querySelector('#compare-dialog').showModal();document.querySelector('#close-compare').focus();

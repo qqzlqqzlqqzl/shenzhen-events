@@ -143,6 +143,18 @@ def _detail_fingerprint(e):
     return hashlib.sha256((e.get('title','')+'|'+e.get('summary','')).encode()).hexdigest()
 
 
+def _detail_observation(payload):
+    """Legacy whole-event payloads and malformed envelopes are safe misses."""
+    try:value=json.loads(payload)
+    except (ValueError,TypeError):return None
+    if not isinstance(value,dict) or value.get('kind')!='detail_observation' or type(value.get('version')) is not int or value.get('version')!=1:return None
+    if not all(isinstance(value.get(k),dict) for k in ('structured','metadata')):return None
+    if not isinstance(value['structured'].get('details',{}),dict):return None
+    for fields in (value['structured'],value['metadata']):
+        if any(key in fields and not isinstance(fields[key],str) for key in ('cost_text','organizer','location','start_at','end_at') if fields.get(key) is not None):return None
+    return value
+
+
 def enrich_details(source, items, metrics):
     """A persistent rotating queue, not the first eight entries on every run."""
     if not items:return items
@@ -154,11 +166,10 @@ def enrich_details(source, items, metrics):
         cache={r['url']:dict(r) for r in db.execute('SELECT * FROM detail_cache WHERE source_id=?',(source['id'],))}
     for e in items:
         key=canonical(e['url']);e['url']=key;old=cache.get(key);fp=_detail_fingerprint(e)
-        if old and old['fingerprint']==fp and old['next_attempt']>core.stamp():
+        observation=_detail_observation(old['payload']) if old and old['payload'] else None
+        if old and old['fingerprint']==fp and old['next_attempt']>core.stamp() and (not old['payload'] or observation):
             if old['payload']:
-                cached=json.loads(old['payload']);fresh_details=e.get('details') or {}
-                e={**e,**cached,'details':{**fresh_details,**(cached.get('details') or {})}}
-                if fresh_details.get('attendance'):e['details']['attendance']=fresh_details['attendance']
+                e=details.merge(e,observation['structured'],observation['metadata'])
                 metrics['detail_cached']+=1
             elif not e.get('start_at'):metrics['detail_deferred']+=1
             out.append(e);continue
@@ -173,14 +184,11 @@ def enrich_details(source, items, metrics):
             html,soup,url=c.fetch(e['url'],max_bytes=1000000,proxy=source.get('proxy'))
             meta=details.extract(soup,url)
             values=c.jsonld(soup,url) or microdata_detail(soup,url)
+            chosen=None
             if values:
                 chosen=next((v for v in values if canonical(v['url'])==e['url']),values[0] if len(values)==1 else None)
-                if chosen:
-                    chosen['url']=e['url'];chosen['published_at']=e.get('published_at','');out[idx]=details.merge(e,chosen,meta)
-            else:
-                out[idx]=details.merge(e,{},meta)
-                if not e.get('summary') and meta.get('detail_text'):out[idx]['summary']=core.clean(meta['detail_text'])[:3500]
-            payload=json.dumps(out[idx],ensure_ascii=False)
+            out[idx]=details.merge(e,chosen or {},meta)
+            payload=json.dumps({'kind':'detail_observation','version':1,'structured':chosen or {},'metadata':meta},ensure_ascii=False)
             if out[idx].get('start_at'):metrics['detail_resolved']+=1;status='ok'
         except c.SourceError as exc:
             status='blocked' if isinstance(exc,c.Blocked) else 'error';metrics['detail_failed']+=1

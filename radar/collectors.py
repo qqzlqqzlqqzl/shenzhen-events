@@ -47,6 +47,24 @@ def skeleton(title,url,summary='',location='',**kw):return {'title':title,'url':
 
 def jsonld(soup,url):
     out=[]
+    def names(value):
+        if isinstance(value,list):return ' / '.join(dict.fromkeys(n for v in value if (n:=names(v))))
+        if isinstance(value,dict):return clean(value.get('name'))
+        return clean(value) if isinstance(value,str) else ''
+    def prices(value):
+        from decimal import Decimal, InvalidOperation
+        values=[]
+        for offer in value if isinstance(value,list) else [value]:
+            if not isinstance(offer,dict):continue
+            currency=str(offer.get('priceCurrency') or 'CNY')
+            for field in ('price','lowPrice','highPrice'):
+                raw=offer.get(field)
+                if raw is None or isinstance(raw,bool):continue
+                try:amount=Decimal(str(raw))
+                except InvalidOperation:continue
+                if amount.is_finite() and amount>=0:values.append((currency,amount))
+            values.extend(prices(offer.get('offers',[])))
+        return values
     def walk(x):
         if isinstance(x,list):
             for a in x:walk(a)
@@ -60,11 +78,16 @@ def jsonld(soup,url):
                 if isinstance(loc,dict):
                     addr=loc.get('address',{});addr=' '.join(str(v) for k,v in addr.items() if k!='@type' and isinstance(v,str)) if isinstance(addr,dict) else str(addr)
                     loc=clean(str(loc.get('name',''))+' '+addr)
-                org=x.get('organizer',{});org=org.get('name','') if isinstance(org,dict) else str(org)
-                offers=x.get('offers',{});offers=offers[0] if isinstance(offers,list) and offers else offers;cost='费用未注明'
-                if isinstance(offers,dict) and offers.get('price') is not None:cost='免费' if str(offers['price']) in ('0','0.0','0.00') else str(offers.get('priceCurrency','CNY'))+' '+str(offers['price'])
+                org=names(x.get('organizer',{}));offer_prices=sorted(set(prices(x.get('offers',[]))))
+                cost=' / '.join('免费' if amount==0 else currency+' '+format(amount.normalize(),'f') for currency,amount in offer_prices)
+                if not cost:cost='免费' if x.get('isAccessibleForFree') is True else '收费（价格未注明）' if x.get('isAccessibleForFree') is False else '费用未注明'
+                if x.get('isAccessibleForFree') is False and cost=='免费':cost='收费（含免费选项，价格未注明）'
+                mode=str(x.get('eventAttendanceMode','')).rsplit('/',1)[-1]
+                attendance={'OnlineEventAttendanceMode':'online','MixedEventAttendanceMode':'hybrid','OfflineEventAttendanceMode':'offline'}.get(mode)
+                detail={'attendance':attendance} if attendance else {}
+                if org:detail['organizer_role']='organizer'
                 event_type=next((t for t in normalized_types if t in EVENT_TYPES and t!='Event'),'Event')
-                out.append(skeleton(x['name'],x.get('url') or url,text(BeautifulSoup(x.get('description',''),'html.parser')),str(loc),start_at=iso(x.get('startDate')),end_at=iso(x.get('endDate')),organizer=org,city=locality,cost_text=cost,all_day=len(str(x.get('startDate','')))==10,status='cancelled' if 'Cancelled' in str(x.get('eventStatus','')) else 'scheduled',event_type=event_type))
+                out.append(skeleton(x['name'],x.get('url') or url,text(BeautifulSoup(x.get('description',''),'html.parser')),str(loc),start_at=iso(x.get('startDate')),end_at=iso(x.get('endDate')),organizer=org,city=locality,cost_text=cost,all_day=len(str(x.get('startDate','')))==10,status='cancelled' if 'Cancelled' in str(x.get('eventStatus','')) else 'scheduled',event_type=event_type,details=detail))
             for v in x.values():
                 if isinstance(v,(dict,list)):walk(v)
     for script in soup.select('script[type="application/ld+json"]'):
@@ -77,8 +100,11 @@ def lianpu(soup,url):
     for a in soup.select('article'):
         title=a.select_one('h3 a[href]');times=a.select('time[datetime]')
         if not title or not times:continue
-        ps=a.select('p');loc=text(ps[-1]) if ps else '';money=re.search(r'(￥\s*\d[\d.,]*(?:\s*-\s*￥\s*[\d.,]+)?|免费)',text(a))
-        out.append(skeleton(text(title),urljoin(url,title['href']),text(ps[0]) if len(ps)>1 else '',loc,start_at=iso(times[0]['datetime']),end_at=iso(times[1]['datetime']) if len(times)>1 else None,organizer=' / '.join(text(x) for x in a.select('a[href^="/org/"]')),cost_text=money[0] if money else '费用未注明'))
+        ps=a.select('p');loc=text(ps[-1]) if ps else ''
+        # Admission is a standalone fee badge, never a title or gift slogan.
+        fees=[text(n) for n in a.select('span') if not n.find_parent(['h3','p']) and not n.select('span') and re.fullmatch(r'(?:[￥¥]\s*\d[\d.,]*(?:\s*[-–]\s*[￥¥]?\s*[\d.,]+)?|免费)',text(n))]
+        money=' / '.join(sorted(set(fees)))
+        out.append(skeleton(text(title),urljoin(url,title['href']),text(ps[0]) if len(ps)>1 else '',loc,start_at=iso(times[0]['datetime']),end_at=iso(times[1]['datetime']) if len(times)>1 else None,organizer=' / '.join(text(x) for x in a.select('a[href^="/org/"]')),cost_text=money or '费用未注明'))
     return out
 
 def bendibao(soup,url):

@@ -75,7 +75,7 @@ def test_global_hybrid_and_online_admission_is_not_shenzhen_venue(isolated,monke
 
 def test_cached_detail_cannot_erase_fresh_attendance(isolated):
  e={'title':'混合活动','url':'https://example.com/hybrid','start_at':core.iso(core.now()+timedelta(days=5)),'details':{'attendance':'hybrid','organizer_role':'publisher'}}
- payload={**e,'details':{'organizer':'真实主办','organizer_role':'organizer'}}
+ payload={'kind':'detail_observation','version':1,'structured':{'organizer':'真实主办','details':{'organizer_role':'organizer'}},'metadata':{}}
  fp=coverage._detail_fingerprint(e)
  with core.db() as c:c.execute('INSERT INTO detail_cache VALUES(?,?,?,?,?,?,?)',('a',e['url'],fp,json.dumps(payload),'ok',core.stamp(),core.iso(core.now()+timedelta(hours=4))))
  metrics={k:0 for k in ['detail_cached','detail_deferred','detail_attempted','detail_resolved','detail_failed']}
