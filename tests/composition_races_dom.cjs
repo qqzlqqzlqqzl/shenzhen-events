@@ -44,7 +44,7 @@ async function fixture({signedIn=true,query='?view=all'}={}){
  } catch(error) {w.probe.showLogin();await sleep(15);dom.window.close();throw error}
  const choose=(n=2)=>{for(let i=0;i<n;i++)$('[data-compare="'+i+'"]').click()};
  const mutate=async(id='0',signal='interested')=>{await w.probe.openDetail(id);$('[data-feedback-signal="'+signal+'"]').click();await until(()=>!w.probe.feedbackSaving.size&&!!w.probe.undo,'feedback settlement')};
- return {w,$,errors,calls,state,rows,choose,mutate,holdNextEvent(){let release;state.deferEvent=({id,data})=>{state.deferEvent=null;return new Promise(resolve=>release=()=>resolve(reply(data)))};return {get pending(){return !!release},release(){release()}}},async settle(){await until(()=>!w.probe.busy&&!w.probe.feedbackSaving.size,'idle');await sleep(15)},async close(){w.probe.showLogin();await sleep(15);assert.deepEqual(errors,[]);dom.window.close()}};
+ return {w,$,errors,calls,state,rows,choose,mutate,holdNextEvent(){let release,reject;state.deferEvent=({id,data})=>{state.deferEvent=null;return new Promise((resolve,fail)=>{release=()=>resolve(reply(data));reject=fail})};return {get pending(){return !!release},release(){release()},fail(){reject(new Error('synthetic older point read failed'))}}},async settle(){await until(()=>!w.probe.busy&&!w.probe.feedbackSaving.size,'idle');await sleep(15)},async close(){w.probe.showLogin();await sleep(15);assert.deepEqual(errors,[]);dom.window.close()}};
 }
 test('older async comparison cannot reopen a dialog after a newer comparison was closed',async()=>{
  const r=await fixture();try{
@@ -89,5 +89,20 @@ test('comparison point read preserves confirmed personal revision and the fresh 
   held.release();await until(()=>r.$('#compare-dialog').open,'comparison finished');
   const current=r.w.probe.records.get('0');assert.equal(current.favorite,false);assert.equal(current.revision,1);
   assert.equal(current.planning_eligible,false);assert.equal(current.safety.warning,'Synthetic current cancellation');
+ }finally{await r.close()}
+});
+
+test('fresh comparison point read cannot roll back a confirmed favorite and revision',async()=>{
+ const r=await fixture();try{
+  r.choose();const held=r.holdNextEvent();r.$('#compare-open').click();await until(()=>held.pending,'comparison read held');
+  r.$('[data-save="0"]').click();await until(()=>r.rows.get('0').favorite===false&&r.w.probe.records.get('0').favorite===false&&r.w.probe.records.get('0').revision===1,'favorite confirmed');
+  held.release();await until(()=>r.$('#compare-dialog').open,'comparison completed');assert.equal(r.w.probe.records.get('0').favorite,false,'comparison point read must preserve confirmed personal state');assert.equal(r.w.probe.records.get('0').revision,1);
+ }finally{await r.close()}
+});
+test('older detail failure cannot clear the successful newer detail URL',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextEvent(),older=r.w.probe.openDetail('0');await until(()=>held.pending,'old detail read held');
+  await r.w.probe.openDetail('1');assert.equal(new URL(r.w.location.href).searchParams.get('event'),'1');assert.equal(r.$('#detail').open,true);
+  held.fail();await older;await sleep(20);assert.equal(new URL(r.w.location.href).searchParams.get('event'),'1','obsolete failure must not remove newer detail history');assert.match(r.$('#detail-title').textContent,/候选 1/);
  }finally{await r.close()}
 });

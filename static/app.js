@@ -346,7 +346,7 @@ async function openDetail(id,push=true){
     reconcilePersonalRead(e);
     records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
     if(!$('#detail').open)$('#detail').showModal();positionFeedbackUndo();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
-  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch){toast(e.message);writeURL('replace');detailId=null}}
+  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===detailTicket){toast(e.message);writeURL('replace');detailId=null}}
 }
 function closeDetail(updateHistory=true){
   detailTicket++;const had=detailId;detailId=null;if($('#detail').open)$('#detail').close();positionFeedbackUndo();document.body.classList.remove('modal-open');
