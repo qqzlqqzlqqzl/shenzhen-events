@@ -276,15 +276,23 @@ def blob(c, body, fmt='html'):
 
 
 def retain(capture, html, final, trace):
-    if len(html.encode()) > limits()['inventory_bytes']:
+    from .collectors import ResponseText
+    captured = isinstance(html, ResponseText)
+    raw = html.response_bytes if captured else html.encode()
+    provenance = dict(final_url=final, trace=trace)
+    if captured:
+        if not isinstance(raw, bytes) or raw.decode(html.response_encoding, 'replace') != html:
+            raise Integrity('response bytes and decoded evidence disagree')
+        provenance['response_entity'] = dict(version=1, encoding=html.response_encoding, errors='replace')
+    if len(raw) > limits()['inventory_bytes']:
         raise Capacity('complete capture exceeds retained inventory bound')
     with core.db() as c:
         c.execute('BEGIN IMMEDIATE')
         run=c.execute('SELECT * FROM safety_capture_runs WHERE capture_id=?',(capture.id,)).fetchone()
         if not run or run['capture_state']!='acquiring' or run['owner']!=capture.owner or run['revision']!=capture.revision:
             raise Conflict('only the live acquiring owner may retain its accepted response')
-        key = blob(c,html)
-        return transition(c,capture,'captured',response_digest=key,provenance=encoded(dict(final_url=final,trace=trace)))
+        key = blob(c,raw)
+        return transition(c,capture,'captured',response_digest=key,provenance=encoded(provenance))
 
 
 def known_failure(capture, exc, metrics=None):
@@ -377,7 +385,20 @@ def finalize(capture):
         if run['revision']!=capture.revision or run['owner']!=capture.owner:raise Conflict('capture ownership/revision changed')
         stored=c.execute('SELECT * FROM safety_evidence_blobs WHERE digest=?',(run['response_digest'],)).fetchone()
         if not stored or digest(bytes(stored['body']))!=run['response_digest']:raise Integrity('capture bytes corrupt or absent')
-        html=bytes(stored['body']).decode('utf-8');provenance=json.loads(run['provenance'])
+        provenance=json.loads(run['provenance'])
+        response_entity=provenance.get('response_entity')
+        if response_entity is None:
+            # Legacy captures and explicit offline fixtures retained UTF-8 text.
+            # Preserve their immutable bytes; do not claim original HTTP bytes.
+            html=bytes(stored['body']).decode('utf-8')
+        else:
+            if (not isinstance(response_entity,dict) or response_entity.get('version')!=1
+                    or not isinstance(response_entity.get('encoding'),str)
+                    or response_entity.get('errors')!='replace'):
+                raise Integrity('capture response decoding metadata invalid')
+            try:html=bytes(stored['body']).decode(response_entity['encoding'],'replace')
+            except (LookupError,TypeError,ValueError) as exc:
+                raise Integrity('capture response encoding unavailable') from exc
         receipt=dict(version=1,capture_id=capture.id,observations_new=0,observations_replayed=0,guards_created=0,guards_changed=0,
                      unlinked_observations=0,ambiguous_targets=0,safety_update_failed=False)
         try:

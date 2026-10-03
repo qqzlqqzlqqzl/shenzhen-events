@@ -14,7 +14,14 @@ archive are reference evidence; the implementation retains #86's reviewed fixes.
 Before inventory I/O, a short `BEGIN IMMEDIATE` transaction commits a capacity
 reservation and availability fence. A separate CAS issues start permission to
 one owner. Exactly retained response bytes and transport provenance move the
-capture to `captured`. Parsing those bytes commits observations, direct targets,
+capture to `captured`. The transport now carries original bounded HTTP entity
+bytes together with the charset/decode policy. `response_digest` and
+`original_bytes` cover those retained entity bytes; transfer/content decompression
+has already occurred in Requests, so these are not compressed wire bytes. Replay
+uses the retained charset policy without rewriting the bytes. Legacy captures
+without decoding metadata keep their original stored UTF-8 text representation;
+they are not retroactively certified as original HTTP entity captures. Parsing
+those bytes commits observations, direct targets,
 guards, target dispositions and the final receipt in one transaction. Only after
 that commit can optional details and ordinary admission execute. Every worker
 EEFocus result requires the receipt; an unverified listing creates no event.

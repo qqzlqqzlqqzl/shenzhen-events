@@ -8,6 +8,21 @@ from .core import clean, iso, date_range, canon_url, now, db, stamp, EVENT_TYPES
 class SourceError(Exception): pass
 class Blocked(SourceError): pass
 
+class ResponseText(str):
+    """Decoded HTML paired with the original bounded HTTP entity bytes.
+
+    Requests has already decoded transfer/content encodings in iter_content;
+    these are entity bytes, not TLS/compressed wire bytes. Keep charset decoding
+    separate so a retained capture is replayable without a lossy re-encoding.
+    """
+    __slots__ = ('response_bytes', 'response_encoding')
+
+    def __new__(cls, body, encoding):
+        value = super().__new__(cls, body.decode(encoding, 'replace'))
+        value.response_bytes = body
+        value.response_encoding = encoding
+        return value
+
 def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None, include_pagination=False,
           url_policy=None, request_observer=None, include_trace=False):
     """No login scraping. Bounded time/size; public-only redirect validation."""
@@ -43,7 +58,8 @@ def fetch(url, *, trusted_local=False, max_bytes=1600000, proxy=None, include_pa
                 for chunk in r.iter_content(16384):
                     buf.extend(chunk)
                     if len(buf)>max_bytes:raise SourceError('页面超过采集大小限制')
-                r.close();html=bytes(buf).decode(r.encoding if r.encoding and r.encoding.lower()!='iso-8859-1' else 'utf-8','replace')
+                r.close();encoding=r.encoding if r.encoding and r.encoding.lower()!='iso-8859-1' else 'utf-8'
+                html=ResponseText(bytes(buf),encoding) if include_trace else bytes(buf).decode(encoding,'replace')
             except requests.RequestException as e:raise SourceError(('HTTP '+str(e.response.status_code)) if getattr(e,'response',None) is not None else type(e).__name__)
             finally:
                 if r is not None:r.close()
