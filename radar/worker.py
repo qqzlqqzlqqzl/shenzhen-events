@@ -70,8 +70,11 @@ def collect_source(source):
             # Keep current-attempt accounting and the immutable finalized receipt.
             # Previous samples remain dated/nonrecursive last_good evidence only.
             try:
+                capture_id=((result.get('safety_receipt') or {}).get('capture_id') if result is not None
+                            else getattr(exc,'_radar_safety_capture_id',None))
                 with db() as c:
-                    capture=c.execute('SELECT * FROM safety_capture_runs WHERE source_id=? AND started_at>=? ORDER BY rowid DESC LIMIT 1',(source['id'],started)).fetchone()
+                    capture=c.execute('SELECT * FROM safety_capture_runs WHERE capture_id=? AND source_id=?',
+                                      (capture_id,source['id'])).fetchone() if capture_id else None
                 if capture and capture['capture_state']=='safety_finalized':
                     cov['safety']=json.loads(capture['receipt']);cov['safety_update_failed']=False
                 else:cov['safety_update_failed']=True

@@ -206,3 +206,8 @@ safety schema; old binaries cannot be made safe by additive tables alone. That
 operational rollout has not been performed. This work uses isolated temporary
 databases and test servers only; no production DB/auth, deployment, merge, source
 registration or issue closure is authorized or performed.
+
+
+### Attempt-owned failure receipts
+
+A report that fails after safety finalization carries its own capture identity across the exception boundary. The worker reads that exact capture ID and source ID, or the exact receipt already returned by the same report. A later same-source capture must never supply another attempt's receipt. If no identity exists or that capture has not finalized, the attempt remains a safety-update failure; unknown observation/request counters remain null and prior last-good evidence stays separate.

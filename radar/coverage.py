@@ -332,8 +332,21 @@ def rss_page(source, html, metrics):
 
 
 def collect_report(source, previous=None):
+    capture_context = {}
+    try:
+        return _collect_report(source, previous, capture_context)
+    except Exception as exc:
+        # Carry this attempt's opaque identity across an optional-stage crash.
+        # Never recover a receipt by looking up another attempt's latest time.
+        exc._radar_safety_capture_id = capture_context.get('capture_id')
+        raise
+
+
+def _collect_report(source, previous, capture_context):
     from . import safety
     safety_capture = safety.begin_capture(source) if source['kind']==eefocus.KIND else None
+    if safety_capture is not None:
+        capture_context['capture_id'] = safety_capture.id
     safety_receipt = None
     started=time.monotonic();previous=previous or {};kind=source['kind']
     if kind==eefocus.KIND:
