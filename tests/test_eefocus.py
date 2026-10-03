@@ -136,7 +136,14 @@ def run(monkeypatch, pages, **overrides):
     calls, responses = transport(monkeypatch, pages)
     result = worker.collect_source({**DESIGN['source'], **overrides})
     health, metrics = report()
-    assert metrics['admitted'] == result['count']
+    if metrics['counters_available']:
+        assert metrics['admitted'] == result['count']
+    else:
+        # The combined coverage contract distinguishes unknown observations
+        # from the worker's known zero successful ingests.
+        assert metrics['admitted'] is None and result['count'] == 0
+        assert metrics['pages_visited'] is None and metrics['sampled_at'] is None
+        assert metrics['complete_scope'] is False
     assert metrics.get('http_requests_attempted', 0) == len(calls)
     assert counts()['raw_items'] == counts()['event_sources']
     assert all(url.startswith(ee.ORIGIN + '/') for url in calls)
@@ -333,7 +340,19 @@ def test_reviewed_matrix(case, monkeypatch):
     if 'report' in expected:
         oracle = expected['report']
         assert result['status'] == oracle['status']
-        subset(metrics, oracle['coverage_subset'])
+        expected_coverage = copy.deepcopy(oracle['coverage_subset'])
+        if number in (21, 22, 23):
+            # Preserve the original fixture oracle bytes; adapt only the
+            # explicitly superseded unknown-observation representation.
+            assert metrics['counters_available'] is False
+            for key in coverage.OBSERVATION_FIELDS:
+                if key in expected_coverage:
+                    assert expected_coverage[key] == 0
+                    expected_coverage[key] = None
+            assert expected_coverage['rejected'] == {}
+            expected_coverage['rejected'] = None
+            assert metrics['sampled_at'] is None and result['count'] == 0
+        subset(metrics, expected_coverage)
         if oracle.get('error_nonempty'):
             assert report()[0]['failure_count'] == 1
     if 'database_counts' in expected:
@@ -419,7 +438,8 @@ def test_inventory_failure_preserves_stored_state(monkeypatch, failure):
         db.execute("UPDATE source_health SET raw_count=7,last_success='2026-10-01',failure_count=2")
     failed, metrics, _ = run(monkeypatch, {ee.LIST_URL: failure})
     health, _ = report()
-    assert failed['count'] == failed['changed'] == 0 and metrics['pages_visited'] == 0
+    assert failed['count'] == failed['changed'] == 0 and metrics['pages_visited'] is None
+    assert metrics['counters_available'] is False and metrics['sampled_at'] is None
     assert health['raw_count'] == 7 and health['last_success'] == '2026-10-01'
     assert health['failure_count'] == 3
     assert stored() == before and personal.update(eid, {})['favorite'] is True

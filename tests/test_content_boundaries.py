@@ -61,6 +61,7 @@ def test_port_validation_at_normalization_and_ics(port, valid):
     assert (normalized is not None)==valid
     # A historical row bypasses new ingestion validation; keep its dates/text.
     legacy={**event(url),'id':'same-id','last_seen':'2026-10-02T20:00:00+08:00',
+            'status':'scheduled','planning_eligible':True,'safety_epoch':0,
             'sources':[{'name':'来源 <strong>原文</strong>','url':url}]}
     result=Calendar.from_ical(make_calendar([legacy])).walk('VEVENT')
     assert len(result)==1
@@ -93,6 +94,7 @@ def test_rejected_new_ports_write_no_events_or_raw_items(tmp_path, monkeypatch):
 def test_literal_api_and_export_roundtrip_preserves_attribution_and_escaping():
     normalized=core.normalize_event({**event(),'summary':PLAIN[0]+'\r\nX-FIXTURE:second'})
     normalized.update(id='stable-id',last_seen='2026-10-02T20:00:00+08:00',
+                      planning_eligible=True,safety_epoch=0,
                       sources=[{'name':'来源 <strong>原文</strong>', 'url':normalized['url']}])
     with patch.object(api,'require',lambda _:{}), patch.object(api,'events',lambda **_: [normalized]):
         wire=json.loads(json.dumps(api.event_detail('stable-id', None)))
@@ -102,3 +104,18 @@ def test_literal_api_and_export_roundtrip_preserves_attribution_and_escaping():
     assert normalized['summary'] in str(items[0]['DESCRIPTION'])
     assert normalized['organizer']==wire['organizer']
     assert normalized['sources'][0]['name'] in str(items[0]['DESCRIPTION'])
+
+
+@pytest.mark.parametrize('projection', [
+    {}, {'planning_eligible': True}, {'safety_epoch': 0},
+    {'planning_eligible': False, 'safety_epoch': 0},
+])
+def test_legacy_content_fixture_cannot_bypass_missing_or_vetoed_safety(projection):
+    legacy = {**event(), 'id': 'unverified', 'status': 'scheduled', **projection}
+    assert Calendar.from_ical(make_calendar([legacy])).walk('VEVENT') == []
+
+
+def test_legacy_content_fixture_positive_control_has_complete_safety_projection():
+    legacy = {**event(), 'id': 'verified', 'status': 'scheduled',
+              'planning_eligible': True, 'safety_epoch': 0}
+    assert len(Calendar.from_ical(make_calendar([legacy])).walk('VEVENT')) == 1

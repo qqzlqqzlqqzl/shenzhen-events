@@ -63,6 +63,10 @@ def collect_source(source):
         if isinstance(exc,safety.SafetyError):
             cov['safety_update_failed']=True;cov['safety_error']=exc.code
         if source.get('kind')=='eefocus_events':
+            if result is None:
+                # No complete report survived the exception; request counters
+                # cannot be inferred from the separately committed safety receipt.
+                cov.update(requests_attempted=None,http_requests_attempted=None)
             # Keep current-attempt accounting and the immutable finalized receipt.
             # Previous samples remain dated/nonrecursive last_good evidence only.
             try:
