@@ -293,6 +293,14 @@ function paintFeedback(id){const e=records.get(id);if(!e)return;const summary=fe
   }
 }
 function personalFields(result){return Object.fromEntries(Object.entries(result).filter(([key])=>['favorite','hidden','feedback','feedback_tags','feedback_updated_at','revision','viewed_at'].includes(key)));}
+function reconcilePersonalRead(incoming){
+  const confirmed=records.get(incoming.id);
+  // Point reads may complete after a confirmed personal write. Preserve only
+  // newer personal fields; the response's fresh safety projection stays intact.
+  if(confirmed&&Number(confirmed.revision)>Number(incoming.revision||0))Object.assign(incoming,personalFields(confirmed));
+  if(confirmed?.viewed_at&&(!incoming.viewed_at||confirmed.viewed_at>incoming.viewed_at))incoming.viewed_at=confirmed.viewed_at;
+  return incoming;
+}
 function syncPersonalSnapshots(id,result){
   if(listSnapshot)listSnapshot.facets=null;if(calendarSnapshot)calendarSnapshot.facets=null;updateFacetCounts(null);
   for(const snapshot of [listSnapshot,calendarSnapshot]){
@@ -335,6 +343,7 @@ function renderDetail(e){
 async function openDetail(id,push=true){
   if(!authenticated)return;if(push||!detailId)RadarEventWorkflows.beginDetail(id);const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
   try{invalidatePlanning();const e=await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
+    reconcilePersonalRead(e);
     records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
     if(!$('#detail').open)$('#detail').showModal();positionFeedbackUndo();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch){toast(e.message);writeURL('replace');detailId=null}}
