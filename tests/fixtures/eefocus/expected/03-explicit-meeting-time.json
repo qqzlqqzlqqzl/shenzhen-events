@@ -1,0 +1,110 @@
+{
+  "stage": "enriched_event",
+  "item_subset": {
+    "title": "Keysight 合成现场技术会",
+    "url": "https://www.eefocus.com/event/980001.html",
+    "summary": "本条为原创合成资料，仅用于验证活动采集边界、时间证据和重复导入。具体活动信息以此测试输入的明确字段为准，不对应真实报名。",
+    "location": "深圳市南山区合成会议室",
+    "start_at": "2026-10-22T09:00:00+08:00",
+    "end_at": "2026-10-22T17:30:00+08:00",
+    "all_day": false,
+    "city": "深圳",
+    "organizer": "合成测试机构",
+    "cost_text": "",
+    "event_type": "Event",
+    "status": "scheduled",
+    "details": {
+      "publisher": "与非网",
+      "source_event_id": "980001",
+      "evidence_url": "https://www.eefocus.com/event/980001.html",
+      "attendance": "offline",
+      "date_evidence": "活动时间：2026年10月22日 09:00–17:30",
+      "source_status": "报名中",
+      "time_evidence": [
+        {
+          "field": "list_promotion_window",
+          "text": "推广期：2026年9月20日—10月22日",
+          "url": "https://www.eefocus.com/event/"
+        },
+        {
+          "field": "detail_meeting_time",
+          "text": "活动时间：2026年10月22日 09:00–17:30",
+          "url": "https://www.eefocus.com/event/980001.html"
+        }
+      ],
+      "checked_at": "2026-10-02T11:00:00+08:00",
+      "review_notes": "已按详情明确举办时间定为10月22日09:00–17:30；推广期未用作活动持续时间。",
+      "timezone_status": "venue_local"
+    }
+  },
+  "upcoming_included": true,
+  "duration_minutes": 510,
+  "precondition": {
+    "unresolved_semantic_reasons": [
+      "actual_meeting_time_missing"
+    ],
+    "manual_review_hold": false,
+    "attendance_conflict": false,
+    "time_conflict": false,
+    "cancelled": false
+  },
+  "only_clearable_review_reason": "actual_meeting_time_missing",
+  "must_preserve": [
+    "details.time_evidence entry with field=list_promotion_window"
+  ],
+  "must_replace": {
+    "details.date_evidence": "活动时间：2026年10月22日 09:00–17:30"
+  },
+  "must_remove_note": "推广期不是实际举办日期；等待明确的活动时间证据。",
+  "additional_guard_cases": [
+    {
+      "before": {
+        "status": "needs_review",
+        "details": {
+          "review_hold": true,
+          "review_notes": "人工保留：确认受邀资格前不展示"
+        }
+      },
+      "after_time_resolution": {
+        "status": "needs_review",
+        "details": {
+          "review_hold": true,
+          "review_notes": "人工保留：确认受邀资格前不展示"
+        }
+      }
+    },
+    {
+      "before": {
+        "status": "needs_review",
+        "details": {
+          "attendance": "unknown",
+          "review_notes": "参加方式冲突尚未确认"
+        }
+      },
+      "after_time_resolution": {
+        "status": "needs_review",
+        "details": {
+          "attendance": "unknown",
+          "review_notes": "参加方式冲突尚未确认"
+        }
+      }
+    },
+    {
+      "before": {
+        "status": "cancelled",
+        "details": {
+          "source_status": "已取消"
+        }
+      },
+      "after_time_resolution": {
+        "status": "cancelled",
+        "details": {
+          "source_status": "已取消"
+        }
+      }
+    }
+  ],
+  "required_code_changes": [
+    "R3 evidence-aware date refinement and review-reason resolution"
+  ]
+}

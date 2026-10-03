@@ -12,7 +12,7 @@ from .core import TZ, now, canon_url, clean
 def make_calendar(rows):
     cal=Calendar();cal.add('prodid','-//Shenzhen Events Radar//ZH-CN//');cal.add('version','2.0');cal.add('x-wr-calname','深圳活动雷达');cal.add('x-wr-timezone','Asia/Shanghai')
     for row in rows:
-        if not row.get('start_at'):continue
+        if not row.get('start_at') or row.get('planning_eligible') is not True or row.get('status')!='scheduled' or 'safety_epoch' not in row:continue
         start=datetime.fromisoformat(row['start_at']);end=datetime.fromisoformat(row['end_at']) if row.get('end_at') else None
         event=Event();event.add('uid',row['id']+'@shenzhen-events');event.add('summary',row['title']);event.add('dtstamp',datetime.fromisoformat(row.get('last_seen') or now().isoformat()));event.add('last-modified',datetime.fromisoformat(row.get('last_seen') or now().isoformat()))
         if row.get('all_day'):

@@ -1,0 +1,9 @@
+{
+  "stage": "parse",
+  "items": [],
+  "visible": 1,
+  "excluded": {
+    "非活动推广": 1
+  },
+  "upcoming_included": false
+}

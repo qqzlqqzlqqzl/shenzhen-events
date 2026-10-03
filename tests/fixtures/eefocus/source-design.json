@@ -1,0 +1,25 @@
+{
+  "status": "PROPOSED_SOURCE_CONFIG_NOT_INSTALLED",
+  "fixed_now": "2026-10-02T11:00:00+08:00",
+  "source": {
+    "id": "eefocus-events-synthetic",
+    "name": "EEFocus synthetic design fixture",
+    "kind": "eefocus_events",
+    "url": "https://www.eefocus.com/event/",
+    "interval_hours": 12,
+    "priority": 15,
+    "coverage_mode": "single_page",
+    "max_pages": 1,
+    "max_entries": 20,
+    "max_seconds": 10,
+    "request_delay": 0,
+    "detail_budget": 8,
+    "enrich_dated": true,
+    "allow_online": true,
+    "scope": "national"
+  },
+  "note": "eefocus_events is a proposed kind absent from current KINDS. All URLs are lookup identifiers in stubs; never fetch them. Request delay zero is only for isolated synthetic tests.",
+  "identity_admission_policy": "Require evidence-derived current canonical identity for positive admission. HTTP200, numeric route, head canonical, caller boolean, or title alone are insufficient.",
+  "identity_policy_status": "proposed required code behavior, not a currently supported config key",
+  "fixture_only_safety_policy": "Exact historical source-alias association can support a conservative persisted eligibility veto on current cancellation evidence; it cannot support positive admission or authoritative cancellation."
+}

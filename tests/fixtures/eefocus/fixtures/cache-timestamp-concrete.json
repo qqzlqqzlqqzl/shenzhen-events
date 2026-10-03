@@ -1,0 +1,116 @@
+{
+  "old_listing_item": {
+    "title": "合成缓存复查研讨会",
+    "url": "https://www.eefocus.com/event/980030.html",
+    "summary": "这是一场原创合成技术交流活动，说明用于验证来源身份、时间证据以及人工保留状态，不对应真实报名。",
+    "location": "线上",
+    "start_at": "2026-10-23T14:00:00+08:00",
+    "end_at": "2026-10-23T15:00:00+08:00",
+    "all_day": false,
+    "city": "线上",
+    "organizer": "",
+    "cost_text": "",
+    "event_type": "ConferenceEvent",
+    "status": "scheduled",
+    "published_at": "2026-09-30",
+    "details": {
+      "publisher": "与非网",
+      "source_event_id": "980030",
+      "attendance": "online",
+      "source_status": "报名中",
+      "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+      "time_evidence": [
+        {
+          "field": "detail_meeting_time",
+          "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+          "url": "https://www.eefocus.com/event/980030.html"
+        }
+      ],
+      "timezone_status": "source_explicit",
+      "checked_at": "2026-10-01T11:00:00+08:00"
+    }
+  },
+  "new_listing_item": {
+    "title": "合成缓存复查研讨会",
+    "url": "https://www.eefocus.com/event/980030.html",
+    "summary": "这是一场原创合成技术交流活动，说明用于验证来源身份、时间证据以及人工保留状态，不对应真实报名。",
+    "location": "线上",
+    "start_at": "2026-10-23T14:00:00+08:00",
+    "end_at": "2026-10-23T15:00:00+08:00",
+    "all_day": false,
+    "city": "线上",
+    "organizer": "",
+    "cost_text": "",
+    "event_type": "ConferenceEvent",
+    "status": "scheduled",
+    "published_at": "2026-09-30",
+    "details": {
+      "publisher": "与非网",
+      "source_event_id": "980030",
+      "attendance": "online",
+      "source_status": "报名中",
+      "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+      "time_evidence": [
+        {
+          "field": "detail_meeting_time",
+          "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+          "url": "https://www.eefocus.com/event/980030.html"
+        }
+      ],
+      "timezone_status": "source_explicit",
+      "checked_at": "2026-10-02T11:00:00+08:00"
+    }
+  },
+  "prior_raw_payload": {
+    "title": "合成缓存复查研讨会",
+    "url": "https://www.eefocus.com/event/980030.html",
+    "summary": "这是一场原创合成技术交流活动，说明用于验证来源身份、时间证据以及人工保留状态，不对应真实报名。",
+    "location": "线上",
+    "start_at": "2026-10-23T14:00:00+08:00",
+    "end_at": "2026-10-23T15:00:00+08:00",
+    "all_day": false,
+    "city": "线上",
+    "organizer": "合成测试机构",
+    "cost_text": "",
+    "event_type": "ConferenceEvent",
+    "status": "scheduled",
+    "published_at": "2026-09-30",
+    "details": {
+      "publisher": "与非网",
+      "source_event_id": "980030",
+      "attendance": "online",
+      "source_status": "报名中",
+      "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+      "time_evidence": [
+        {
+          "field": "detail_meeting_time",
+          "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+          "url": "https://www.eefocus.com/event/980030.html"
+        }
+      ],
+      "timezone_status": "source_explicit",
+      "checked_at": "2026-10-01T11:00:00+08:00",
+      "organizer_evidence": "合成测试机构"
+    }
+  },
+  "cache_row": {
+    "source_id": "eefocus-events-synthetic",
+    "url": "https://www.eefocus.com/event/980030.html",
+    "fingerprint": "f0a72f986a6e32aea82aefdb70bf3a669ada6b7255cae38e84e00d25d48c750b",
+    "payload": "{\"patch\": {\"organizer\": \"合成测试机构\", \"details\": {\"organizer_evidence\": \"合成测试机构\", \"checked_at\": \"2026-10-01T11:00:00+08:00\"}}}",
+    "status": "ok",
+    "checked_at": "2026-10-01T11:00:00+08:00",
+    "next_attempt": "2026-10-03T11:00:00+08:00"
+  },
+  "identity_cache": {
+    "fixture_only_proposed_identity_cache": true,
+    "source_id": "eefocus-events-synthetic",
+    "alias_url": "https://www.eefocus.com/event/980030.html",
+    "canonical_url": "https://www.eefocus.com/event/980030.html",
+    "state": "verified",
+    "verified_at": "2026-10-02T10:00:00+08:00",
+    "expires_at": "2026-10-03T10:00:00+08:00",
+    "redirect_chain_validated": true,
+    "content_identity_validated": true
+  }
+}

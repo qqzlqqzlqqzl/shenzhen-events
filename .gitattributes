@@ -1,0 +1,2 @@
+tests/fixtures/eefocus/** -text
+tests/fixtures/eefocus-live/** -text

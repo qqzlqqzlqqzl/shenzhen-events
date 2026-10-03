@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse, fcntl, json, os, time
 from datetime import timedelta
 import requests
-from . import core, geocode, coverage, jobs
+from . import core, geocode, coverage, jobs, safety
 from .collectors import collect, SourceError, Blocked
 from .core import ROOT, config, db, init, ingest, now, stamp, VERSION
 
@@ -31,8 +31,13 @@ def collect_source(source):
     try:
         result=coverage.collect_report(source,previous)
         cov=result['coverage'];cov['attempt_started_at']=started;status=result['status']
+        if source.get('kind')=='eefocus_events' and not result.get('safety_receipt'):
+            raise safety.SafetyError('collection missing committed safety receipt')
         for e in result['items']:
             changes+=int(ingest(source,e));ingested+=1
+        if source.get('kind')=='eefocus_events':
+            from . import eefocus
+            eefocus.bind_stored(source)
         if cov.get('parser_unaccounted'):
             cov['reasons'].append('可见条目与解析量不符，需检查适配器')
             if status=='ok':status='partial'
@@ -55,6 +60,18 @@ def collect_source(source):
         cov['attempt_started_at']=started;cov['error']=type(exc).__name__;cov['truncated']=True
         msg='采集任务异常：'+type(exc).__name__;cov['reasons'].append(msg)
         count=ingested;success=h['last_success'];fails=h['failure_count']+1;persisted_sample=False
+        if isinstance(exc,safety.SafetyError):
+            cov['safety_update_failed']=True;cov['safety_error']=exc.code
+        if source.get('kind')=='eefocus_events':
+            # Keep current-attempt accounting and the immutable finalized receipt.
+            # Previous samples remain dated/nonrecursive last_good evidence only.
+            try:
+                with db() as c:
+                    capture=c.execute('SELECT * FROM safety_capture_runs WHERE source_id=? AND started_at>=? ORDER BY rowid DESC LIMIT 1',(source['id'],started)).fetchone()
+                if capture and capture['capture_state']=='safety_finalized':
+                    cov['safety']=json.loads(capture['receipt']);cov['safety_update_failed']=False
+                else:cov['safety_update_failed']=True
+            except Exception:cov['safety_update_failed']=True
     status=coverage.finalize(cov,status,result.get('error','') if result is not None else cov.get('error',''))
     cov['last_good']=coverage.sample_projection(cov,status) if persisted_sample else prior
     next_at=core.iso(now()+timedelta(hours=min(48,source['interval_hours']*2**min(fails,4))))
@@ -64,9 +81,12 @@ def collect_source(source):
         c.execute('UPDATE source_health SET status=?,message=?,last_attempt=?,last_success=?,raw_count=?,event_count=?,failure_count=?,next_attempt=?,coverage=? WHERE id=?',
             (status,msg,started,success,count if persisted_sample else h['raw_count'],ec,fails,next_at,json.dumps(cov,ensure_ascii=False),source['id']))
     row={'source':source['id'],'status':status,'count':count,'changed':changes,'message':msg}
+    row.update({k:v for k,v in cov.get('safety',{}).items() if k in ('observations_new','observations_replayed','guards_created','guards_changed','active_guards','unlinked_observations','ambiguous_targets')})
+    if cov.get('safety_update_failed'):row['safety_update_failed']=True
     log('source',status,row,started);return row
 
 def collect_all(force=False,only=None):
+    safety.replay_ready()
     retention()
     if sum(p.stat().st_size for p in (ROOT/'data').glob('*') if p.is_file())>256*1024*1024:
         log('collect','storage_paused',{'message':'活动数据达到256MB上限，暂停新增采集，已有页面保持可用'});return
@@ -86,6 +106,7 @@ def collect_all(force=False,only=None):
     log('collect','ok',{'sources_checked':len(result),'changed':sum(x['changed'] for x in result),'aliases_merged':len(merged),'districts_updated':geo.get('updated',0),'sources_deferred':deferred})
 
 def retry_one():
+    safety.replay_ready()
     jobs.recover()
     if sum(p.stat().st_size for p in (ROOT/'data').glob('*') if p.is_file())>256*1024*1024:
         with db() as c:c.execute("UPDATE source_jobs SET state='failed',updated_at=?,message='数据达到存储上限，已暂停本次抓取' WHERE state='queued'",(stamp(),))
@@ -156,15 +177,22 @@ def backfill_types(limit=48):
     if config().get('analysis_enabled') is not True:return 0
     if limit<=0:return 0
     with db() as c:rows=[dict(x) for x in c.execute("SELECT id,title,summary,location,topics FROM events WHERE event_type_state='pending' AND ai_state='done' AND status='scheduled' ORDER BY COALESCE(start_at,'9999'),id LIMIT ?",(limit,))]
+    with db() as c:
+        c.execute('BEGIN')
+        for row in rows:row['_safety_expected']=safety.ai_expectation(c,event_id=row['id'])
+    rows=[row for row in rows if not row['_safety_expected']['blocked']]
     processed=0;paused=False
     for start in range(0,len(rows),12):
         batch=rows[start:start+12]
         results=type_batch(batch)
         if results is None:paused=True;break
         valid={r['id'] for r in batch}
+        expected={r['id']:r['_safety_expected'] for r in batch}
         with db() as c:
+            c.execute('BEGIN IMMEDIATE')
             for result in results:
                 if not isinstance(result,dict) or result.get('id') not in valid:continue
+                if safety.ai_expectation(c,event_id=result['id'])!=expected[result['id']]:continue
                 typ=result.get('event_type') if result.get('event_type') in core.EVENT_TYPES else 'Event'
                 before=c.total_changes
                 c.execute("UPDATE events SET event_type=?,event_type_state='ai' WHERE id=? AND event_type_state='pending'",(typ,result['id']))
@@ -176,6 +204,10 @@ def backfill_types(limit=48):
 def analyze(limit=48):
     if config().get('analysis_enabled') is not True:return 0
     with db() as c:rows=[dict(x) for x in c.execute("SELECT r.* FROM raw_items r WHERE r.analysis_state='pending' AND EXISTS (SELECT 1 FROM event_sources es WHERE es.raw_id=r.id) ORDER BY CASE WHEN r.source_id IN ('lianpu','techevent','wechat-chaihuo','sogou-discovery') THEN 0 ELSE 1 END,r.id LIMIT ?",(limit,))]
+    with db() as c:
+        c.execute('BEGIN')
+        for row in rows:row['_safety_expected']=safety.ai_expectation(c,raw_id=row['id'])
+    rows=[row for row in rows if not row['_safety_expected']['blocked']]
     sources={s['id']:s for s in json.loads((ROOT/'sources.json').read_text())};processed=0;failed=False
     for start in range(0,len(rows),6):
         batch=rows[start:start+6]
@@ -187,6 +219,8 @@ def analyze(limit=48):
             if not isinstance(result,dict) or result.get('id') not in byid:continue
             r=byid[result['id']];payload=json.loads(r['payload'])
             with db() as c:
+                c.execute('BEGIN IMMEDIATE')
+                if safety.ai_expectation(c,raw_id=r['id'])!=r['_safety_expected']:continue
                 link=c.execute('SELECT e.id,e.origin_priority,e.ai_state,e.event_type,e.event_type_state FROM events e JOIN event_sources es ON e.id=es.event_id WHERE es.raw_id=?',(r['id'],)).fetchone()
                 if not link:continue
                 # Preserve an authoritative source's completed classification.
@@ -216,8 +250,13 @@ def analyze(limit=48):
 def retention():
     cutoff=(now()-timedelta(days=45)).isoformat()
     with db() as c:
-        c.execute("DELETE FROM events WHERE COALESCE(end_at,start_at)<? AND id NOT IN (SELECT event_id FROM preferences WHERE favorite=1 OR feedback<>'' OR feedback_tags<>'[]')",(cutoff,))
-        c.execute('DELETE FROM raw_items WHERE collected_at<? AND id NOT IN (SELECT raw_id FROM event_sources)',(cutoff,))
+        c.execute('BEGIN IMMEDIATE')
+        safety.assert_schema(c)
+        candidates=c.execute("SELECT id,details FROM events WHERE COALESCE(end_at,start_at)<? AND id NOT IN (SELECT event_id FROM preferences WHERE favorite=1 OR feedback<>'' OR feedback_tags<>'[]')",(cutoff,)).fetchall()
+        for row in candidates:
+            if not safety.protected(c,row['id']) and not json.loads(row['details'] or '{}').get('review_hold'):
+                c.execute('DELETE FROM events WHERE id=?',(row['id'],))
+        c.execute('DELETE FROM raw_items WHERE collected_at<? AND id NOT IN (SELECT raw_id FROM event_sources) AND id NOT IN (SELECT raw_id FROM eefocus_target_anchors)',(cutoff,))
         c.execute("UPDATE raw_items SET analysis_state='archived' WHERE analysis_state='pending' AND id NOT IN (SELECT raw_id FROM event_sources)")
         c.execute('DELETE FROM detail_cache WHERE checked_at<?',(cutoff,))
         c.execute("DELETE FROM source_jobs WHERE state NOT IN ('queued','running') AND updated_at<?",(cutoff,))

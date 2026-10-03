@@ -1,0 +1,64 @@
+{
+  "stage": "collect",
+  "report": {
+    "status": "partial",
+    "error": "",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 2,
+      "extracted": 2,
+      "unique": 2,
+      "admitted": 1,
+      "rejected": {},
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "detail_attempted": 2,
+      "detail_resolved": 1,
+      "detail_failed": 1,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "requests_attempted": 3
+    }
+  },
+  "assertions": [
+    "detail_resolved currently means successful parsed patch, not necessarily resolved meeting date",
+    "This SourceError timeout is distinct from the hard Deadline exception",
+    "The successful undated record has enough genuine summary content and a verified self-identity; it is admitted for review only"
+  ],
+  "identity_accounting": {
+    "identity_verified": 1,
+    "identity_pending": 1
+  },
+  "required_code_changes": [
+    "R1 verified-identity admission gate"
+  ],
+  "successful_patch": {
+    "organizer": "合成测试机构",
+    "details": {
+      "organizer_evidence": "合成测试机构"
+    }
+  },
+  "successful_item_subset": {
+    "url": "https://www.eefocus.com/event/980011.html",
+    "start_at": null,
+    "end_at": null,
+    "all_day": false,
+    "status": "needs_review",
+    "organizer": "合成测试机构"
+  },
+  "admitted_urls": [
+    "https://www.eefocus.com/event/980011.html"
+  ],
+  "pending_urls": [
+    "https://www.eefocus.com/event/980001.html"
+  ]
+}

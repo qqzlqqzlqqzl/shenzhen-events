@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 import feedparser
 from bs4 import BeautifulSoup
-from . import core, collectors as c, details, official_sources, aggregates, source_fields, recurring_sources
+from . import core, collectors as c, details, official_sources, aggregates, source_fields, recurring_sources, eefocus
 
 
 OBSERVATION_FIELDS=('pages_visited','visible','extracted','unique','shenzhen_candidates','admitted',
@@ -217,7 +217,7 @@ def _recognized_page(source, soup, url, items):
     kind=source['kind']
     if kind=='douban':return any(_douban_card(n,url) for n in soup.select('li.list-entry,.event-item'))
     if kind=='devevents':return _developer_inventory(soup)[2]
-    return bool(items) or kind in ('rss','wordpress_events',*recurring_sources.KINDS)
+    return bool(items) or kind in ('rss','wordpress_events',*recurring_sources.KINDS,eefocus.KIND)
 
 
 def parse_page(source,html,soup,url):
@@ -332,7 +332,12 @@ def rss_page(source, html, metrics):
 
 
 def collect_report(source, previous=None):
+    from . import safety
+    safety_capture = safety.begin_capture(source) if source['kind']==eefocus.KIND else None
+    safety_receipt = None
     started=time.monotonic();previous=previous or {};kind=source['kind']
+    if kind==eefocus.KIND:
+        source={**source,'coverage_mode':'single_page','max_pages':1}
     metrics=fresh_coverage(source,available=True);metrics['counters_available']=False
     rows={};rejects=Counter();seen_pages=set();signatures=set()
     max_pages=max(1,min(300,int(source.get('max_pages',1))));max_entries=max(1,min(5000,int(source.get('max_entries',5000))))
@@ -359,6 +364,19 @@ def collect_report(source, previous=None):
             else:
                 if kind=='wordpress_events':
                     html,soup,final,pagination=c.fetch(url,proxy=source.get('proxy'),include_pagination=True)
+                elif kind==eefocus.KIND:
+                    safety_capture=safety.claim(safety_capture)
+                    try:
+                        html,soup,final,trace=eefocus.fetch(url,source,deadline,metrics,inventory=True)
+                    except c.SourceError as exc:
+                        safety_receipt=safety.known_failure(safety_capture,exc,metrics)
+                        raise
+                    try:
+                        safety_capture=safety.retain(safety_capture,html,final,trace)
+                        safety_receipt=safety.finalize(safety_capture)
+                    except Exception as exc:
+                        safety.mark_unknown(safety_capture,type(exc).__name__)
+                        raise
                 elif kind in recurring_sources.KINDS:
                     html,soup,final=recurring_sources.bounded_fetch(c.fetch,url,source,deadline,metrics)
                 else:html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
@@ -376,6 +394,7 @@ def collect_report(source, previous=None):
                     items,visible,excluded=parse_page(source,module,module_soup,module_final)
                     metrics['source_total']=visible
                     recognized=True
+                elif kind==eefocus.KIND:items,visible,excluded=eefocus.parse(soup,final)
                 else:items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
                 if not (kind=='szhzfw' and urlsplit(url).path==urlsplit(source['url']).path) and kind!='xuanwu_activity':
                     recognized=_recognized_page(source,soup,final,items)
@@ -395,7 +414,9 @@ def collect_report(source, previous=None):
                 if not items and kind=='hdx' and ('login' in final.lower() or ('登录' in c.text(soup) and not soup.select_one('.search-tab-content-list'))):
                     metrics['access_boundary']=url
                     raise c.Blocked('后续分页要求登录；已保留公开可读页，未绕过访问限制')
-                if not items and kind in recurring_sources.KINDS:
+                if not items and kind==eefocus.KIND:
+                    metrics['recognized_empty']=visible==0
+                elif not items and kind in recurring_sources.KINDS:
                     # The source-specific parser has already validated the inventory shape.
                     metrics['recognized_empty']=True
                 elif not items and not recognized:
@@ -447,15 +468,20 @@ def collect_report(source, previous=None):
         metrics['next_cursor']=None
     if not metrics['truncated']:metrics['next_cursor']=None
     items=list(rows.values())[:max_entries];metrics['unique']=len(items)
-    if kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':deadline},items,metrics)
-    if kind in recurring_sources.KINDS and metrics.get('detail_blocked'):
+    if kind==eefocus.KIND:
+        if not safety_receipt:
+            raise safety.SafetyError('mandatory safety receipt absent')
+        metrics['safety']=safety_receipt
+        items=eefocus.enrich(source,items,metrics,deadline)
+    elif kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':deadline},items,metrics)
+    if kind in (*recurring_sources.KINDS,eefocus.KIND) and metrics.get('detail_blocked'):
         error='来源详情限制访问，已退避并保留已读取的列表'
         blocked=True
     admitted=[]
     for e in items:
         mode=core.event_attendance(e);online=mode in ('online','hybrid') and source.get('allow_online',False)
         city='深圳' if online else city_evidence(e,source)
-        if kind in recurring_sources.KINDS and not online and city!='深圳':
+        if kind in (*recurring_sources.KINDS,eefocus.KIND) and not online and city!='深圳':
             rejects['城市尚未确认' if city=='待确认' else '其他城市']+=1;continue
         if city not in ('深圳','待确认'):rejects['其他城市']+=1;continue
         if city=='待确认' and source.get('scope')=='national':
@@ -495,5 +521,7 @@ def collect_report(source, previous=None):
         metrics.update({key:None for key in OBSERVATION_FIELDS})
         metrics.update(source_total=None,rejected=None,page_urls=[],sampled_at=None,truncated=True)
     status=finalize(metrics,status,error)
-    return {'items':admitted,'coverage':metrics,'status':status,'error':error}
+    return {'items':admitted,'coverage':metrics,'status':status,'error':error,
+            'safety_observations_version':1 if kind==eefocus.KIND else None,
+            'safety_receipt':safety_receipt}
 

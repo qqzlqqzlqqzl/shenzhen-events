@@ -1,0 +1,22 @@
+{
+  "stage": "status_authority_design",
+  "cache_reused": false,
+  "expected_event": {
+    "status": "needs_review",
+    "details": {
+      "source_status": "已恢复举办",
+      "review_hold": true,
+      "review_notes": "人工保留：确认参加资格后再展示",
+      "address_precision": "undisclosed"
+    }
+  },
+  "upcoming_included": false,
+  "assertions": [
+    "A generic fresh 报名中 list alone cannot revive a cancelled event",
+    "Here explicit same-event reinstatement supersedes old cancellation, while the independent manual hold remains",
+    "A failed refresh leaves current persisted cancellation/hold unchanged"
+  ],
+  "required_code_changes": [
+    "R4 explicit status evidence authority; no implicit resurrection"
+  ]
+}

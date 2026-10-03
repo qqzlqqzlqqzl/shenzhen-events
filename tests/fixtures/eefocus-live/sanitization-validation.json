@@ -1,0 +1,971 @@
+[
+  {
+    "fixture": "fixtures/inventory.html",
+    "critical_signature_preserved": true,
+    "signature": {
+      "tag_counts": {
+        "main": 0,
+        "article": 0,
+        "h1": 1
+      },
+      "class_counts": {
+        "special-list": 1,
+        "section-list-item-ul": 1,
+        "section-special-item": 20,
+        "item-title": 20,
+        "item-intro": 20,
+        "post-tag": 20,
+        "event-time": 20,
+        "event-location": 15,
+        "event-status": 0,
+        "status": 0,
+        "event-organizer": 0,
+        "main-event": 0,
+        "meeting-time": 0,
+        "current-status": 0,
+        "article-content": 0,
+        "details-section-title": 0,
+        "live-template-box": 0,
+        "live-template-title": 0,
+        "live-template-sponsor-v": 0,
+        "section-action": 0,
+        "sign-btn": 0
+      },
+      "selected_nodes": [
+        {
+          "tag": "div.",
+          "parent": "body.wp-embed-responsive",
+          "text": "首页 行业活动 行业活动 加入交流群 扫码加入获取工程师必备礼包参与热点资讯讨论 全部时间 本周 本月 状态 进行中 已结束 类型 线上活动 线下活动 线下活动 【预约|参会享好礼】报名无「2026是德科技创新技术峰会·深圳站」，转盘赢好礼，先到先得！ 是德科技2026是德科技创新技术峰会·深圳站将于10.22 9:00-17:30在深圳威尼斯英迪格酒店举行，本次活动将首次在华南峰会上完整展示双方能力融合所带来的全新价值，从芯片、器件到系统和网络，Keysight正为客户提供更强大的端到端验证解决方案，诚邀您的参与！ 地点：线下活动 时间：2026/09/20~10/22 立即参与 技术子站 【Arduino开发板试用，火热进行中！】欧时 RS 技术学院 祝贺欧时 RS 入驻四方维创新中心，线上技术学院已上线，学院集：选型指南、解决方案、视频、活动于一体，在这里您可以了解到欧时 RS 为不同行业提供的广泛而优质的产品和可持续解决方案。 时间：2025/05/09~2026/03/31 查看详情 技术子站 2026 DigiKey AIoT应用创意挑战赛 诚邀开发者与创客们，围绕智能传感、边缘推理、低功耗连接、TinyML等方向，打造具备实用价值的AIoT系统。 时间：2026/08/01~10/31 立即参与 技术子站 【限时下载】热门消费产品爆款拆解BOM芯片报告！ 本期报告基于手环、手机、耳机三类热门消费产品的BOM拆解数据，从六大维度展开深度剖析。 时间：2026/05/26~12/31 立即参与 技术子站 【限时下载】汽车产品爆款拆解BOM芯片报告！ 上期爆款拆解BOM报告受到了众多读者的喜欢，这次我们给大家带来了6款汽车相关产品的BOM芯片报告（第2期）。 时间：2026/05/13~12/31 立即参与 技术子站 【限时下载】汽车大灯爆款拆解BOM芯片分析报告！ 报告深度拆解各产品芯片的差异、性能优劣与适用场景，为电子工程师器件选型、竞品对标及方案设计，提供专业、实用的核心参考依据。 时间：2026/04/24~12/31 立即参与 直播 GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案 在本次研讨会中，我们将系统性介绍 Gigabit Multimedia Serial Link (GMSL) 技术，深入解析其如何通过单根同轴或双绞线，实现视频、控制数据、参考时钟及供电的高度集成传输。内容将涵盖 GMSL 的技术演进 (GMSL1/2/3)、关键特性 (PoC、自适应均衡、隧道模式、功能安全等)，并结合人形机器人视觉系统、多摄感知与系统级集成实例，分享 GMSL 在新兴多市场应用中的设计思路与最佳实践。 地点：线上活动 时间：2026/09/01~09/24 查看详情 直播 艾迈斯欧司朗 - CIOE 中国光博会2026展台直击 9月9日-11日，光学解决方案的全球领导者 – 艾迈斯欧司朗，携传感、光源和可视化领域最新产品和技术组合参展, 展示优质的光发射器、光学元件、光传感器等在工业、医疗、可穿戴、和等领域的创新应用。无法到场的朋友，可线上观看展位精彩直播~ 地点：线上活动 时间：2026/08/28~09/09 查看详情 直播 【深圳站 | 在线直播】2026 安富利智慧科技生态圈论坛 本次活动旨在促进技术、产业与生态资源的深度融合，推动AI从创新探索迈向规模化应用，为产业高质量发展注入新动能。期待与您相聚鹏城（深圳），整合资源，共襄盛举，创智慧未来，欢迎扫码预约~ 地点：线上活动 时间：2026/08/15~09/18 查看详情 直播 Edge AI-万物互联边缘算力 | 2026英飞凌消费、计算与通讯创新大会（深圳） 大会将重点聚焦Powering AI-以芯赋能 AI 供电、Physical AI-芯造具身智能及Edge AI-万物互联边缘算力三大核心方向，系统呈现英飞凌在电源管理、感知、计算、连接与安全领域的前沿技术与创新成果，并通过主论坛与应用分论坛的联动形式，分享从基础技术到场景落地的全链路解决方案。本场活动我们将聚焦应用论坛：Edge AI-万物互联边缘算力。 地点：线上活动 时间：2026/09/01~09/08 查看详情 板卡试用 【免费试用】Arduino UNO Q (2G+16G eMMC) 与非网联合欧时RS x Arduino 给工程师朋友们送福利啦—Arduino UNO Q（2G+16G eMMC），免费试用上线（设计原理图+数据手册见附件）。 公司： RS Group 时间：2026/09/08~09/23 查看详情 线下活动 【参会有礼】让AI创新触手可及：基于Arduino UNO Q的原型开发与端侧AI教学应用 地点：线上活动 时间：2026/09/23 14:00~16:30 查看详情 论坛活动 英飞凌「超能工具改造师」 来体验英飞凌「超能工具改造师」微信小游戏！化身工具改造师，动手改装锂电手电钻、角磨机等多款电动工具。通过更换 CoolGaN 氮化镓器件、升级智能 MCU 芯片，解决工具发烫、笨重、续航差等痛点。 地点：线上活动 时间：2026/09/01~09/30 查看详情 论坛活动 【样品免费申请】英飞凌&威健4D毫米波卫星雷达一站式参考方案 与非网联合英飞凌&威健又来给工程师朋友们送福利啦！！！英飞凌与威健联合推出基于CTRX8191F(4T4R)与CTRX8188F(8T8R) MMIC的4D毫米波卫星雷达一站式参考方案。填写表单即可参与转盘抽奖，有机会获得小米口袋照片打印机等好礼，还有机会被选中免费试用样品。 地点：线上活动 时间：2026/08/28~09/30 查看详情 技术子站 【技术周活动】2026 贸泽电子技术创新论坛——智能机器人 智慧化浪潮正推动机器人技术进入全新发展阶段，作为引领产业变革的核心驱动力，机器人不仅在工业领域持续深化应用，更广泛赋能服务、医疗、家居等多元场景，重塑人机协作的未来图景。 为此，我们特别举办本届机器人技术创新峰会，聚焦行业突破性技术与系统化解决方案，携手全球顶尖专家、企业领袖与创新团队，共同探讨以下关键领域：环境感知与传感技术如何为机器人构建高精度多维感知能力；人工智能与机器视觉在复杂场景中的识别、分析与决策应用；语音识别与人机交互技术的自然化、智能化发展；高精度电机驱动与控制技术如何提升机器人的运动性能与响应速度；支持机器人智能运行的算力与硬件平台（包括FPGA、CPU、GPU及ASIC等关键技术）；以及高效电池与能源管理系统对机器人续航与可靠性的核心作用。 公司： 贸泽 时间：2026/08/12~09/18 查看详情 线下活动 【参会有礼】恩智浦创新技术峰会-上海站-0915 9月15日，恩智浦创新技术峰会（上海）即将隆重开幕，为锐意进取的开发者奉上一场精彩的技术盛会！我们诚邀您莅临活动现场，深度体验边缘AI驱动软件定义汽车、机器人与工业创新！ 地点：线上活动 时间：2026/08/17~09/15 查看详情 线下活动 【预约|参会享好礼】报名无「无线短距生态论坛 2026 · 深圳」，转盘赢好礼，先到先得！ 无线短距生态论坛 2026将于8.17 9:00-16:00在深圳威尼斯英迪格酒店1楼大宴会厅举行，本次活动由是德科技主办，Wi-Fi 联盟、WAA 联盟与粤港澳标准创新联盟、无线专家研习社联合协办，围绕无线短距产业趋势、Wi-Fi 8 技术演进以及从芯片到系统级的测试与验证技术展开深入交流，诚邀您的参与！ 地点：线下活动 时间：2026/08/17~08/27 查看详情 技术子站 2026物联网技术论坛 为助力从业者把握物联网技术和市场最新动态，促进生态链企业交流合作，由与非网主办的第五届“物联网技术论坛”将于2026年9月23日在线上举行。届时，来自物联网领域的专家学者、技术大咖、投资机构等将齐聚一堂，为物联网产业的发展献计献策。 公司： 泰凌微电子 / 瑞萨电子 / 辰达半导体 / 华普微 HOPERF 时间：2026/08/10~09/23 查看详情 直播 【直播有礼】感知网络新范式：ISAC 通感一体化标准化、场景仿真与工程验证网络研讨会 直播简介：5G-A 全面商用落地，6G 技术体系加速构建，通感一体化 ISAC作为下一代无线网络核心技术，打破通信与雷达感知硬件、频谱资源壁垒，成为低空经济、L4 自动驾驶、智慧工业、智慧城市的核心底座。2025 年 3GPP Release 19 正式落地 ISAC 标准化规范，TR 38.901 新增专属通感信道模型，统一了目标散射、多径传播、RCS 雷达截面、多普勒运动等仿真评估标准，为 I 地点：线上活动 时间：2026/07/30~08/20 查看详情 线下活动 【预约参会】“加速创新 智领未来”2026 Siemens EDA Forum报名开启 2026 Siemens EDA Forum将于8.13 8:30-17:00在上海浦东嘉里大酒店举行，上午主论坛演讲+下午七大分论坛深度剖析， 聚焦 IC 设计、验证、制造、先进封装及系统等七大核心环节，探讨软件定义、AI 驱动和芯片赋能的趋势，分享尖端技术、解决行业挑战、推动创新，诚邀您的参与！ 地点：线上活动 时间：2026/07/21~08/13 查看详情 正在努力加载... 登录即可解锁 海量技术文章 设计资源下载 产业链客户资源 写文章/发需求 立即登录 创作中心 去发布 发文章 发方案 发课程 活动合作 去合作 全流程、跨平台的事件营销，助力企业吸聚目标人群 板卡试用 更多 【免费试用】Arduino UNO Q (2G+16G eMMC) 产品数量 5个 立即申请 英飞凌CoolSiC™ MOSFET 1200V G2系列产品免费试用申请 产品数量 10个 立即申请 【云上实验室抢先体验版】FRDM-MCXN947人脸识别DEMO 产品数量 20个 立即申请",
+          "attrs": {
+            "id": "app"
+          }
+        },
+        {
+          "tag": "h1.",
+          "parent": "div.title-left",
+          "text": "行业活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "线下活动",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【预约|参会享好礼】报名无「2026是德科技创新技术峰会·深圳站」，转盘赢好礼，先到先得！",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2091127.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "是德科技2026是德科技创新技术峰会·深圳站将于10.22 9:00-17:30在深圳威尼斯英迪格酒店举行，本次活动将首次在华南峰会上完整展示双方能力融合所带来的全新价值，从芯片、器件到系统和网络，Keysight正为客户提供更强大的端到端验证解决方案，诚邀您的参与！",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线下活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/09/20~10/22",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "技术子站",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【Arduino开发板试用，火热进行中！】欧时 RS 技术学院",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/rspro/"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "祝贺欧时 RS 入驻四方维创新中心，线上技术学院已上线，学院集：选型指南、解决方案、视频、活动于一体，在这里您可以了解到欧时 RS 为不同行业提供的广泛而优质的产品和可持续解决方案。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2025/05/09~2026/03/31",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "技术子站",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "2026 DigiKey AIoT应用创意挑战赛",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/digikey_aiot_2026/"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "诚邀开发者与创客们，围绕智能传感、边缘推理、低功耗连接、TinyML等方向，打造具备实用价值的AIoT系统。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/08/01~10/31",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "技术子站",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【限时下载】热门消费产品爆款拆解BOM芯片报告！",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2020908.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "本期报告基于手环、手机、耳机三类热门消费产品的BOM拆解数据，从六大维度展开深度剖析。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/05/26~12/31",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "技术子站",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【限时下载】汽车产品爆款拆解BOM芯片报告！",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2012709.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "上期爆款拆解BOM报告受到了众多读者的喜欢，这次我们给大家带来了6款汽车相关产品的BOM芯片报告（第2期）。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/05/13~12/31",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "技术子站",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【限时下载】汽车大灯爆款拆解BOM芯片分析报告！",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/1998117.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "报告深度拆解各产品芯片的差异、性能优劣与适用场景，为电子工程师器件选型、竞品对标及方案设计，提供专业、实用的核心参考依据。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/04/24~12/31",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "直播",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2093134.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "在本次研讨会中，我们将系统性介绍 Gigabit Multimedia Serial Link (GMSL) 技术，深入解析其如何通过单根同轴或双绞线，实现视频、控制数据、参考时钟及供电的高度集成传输。内容将涵盖 GMSL 的技术演进 (GMSL1/2/3)、关键特性 (PoC、自适应均衡、隧道模式、功能安全等)，并结合人形机器人视觉系统、多摄感知与系统级集成实例，分享 GMSL 在新兴多市场应用中的设计思路与最佳实践。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/09/01~09/24",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "直播",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "艾迈斯欧司朗 - CIOE 中国光博会2026展台直击",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2090774.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "9月9日-11日，光学解决方案的全球领导者 – 艾迈斯欧司朗，携传感、光源和可视化领域最新产品和技术组合参展, 展示优质的光发射器、光学元件、光传感器等在工业、医疗、可穿戴、和等领域的创新应用。无法到场的朋友，可线上观看展位精彩直播~",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/08/28~09/09",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "直播",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【深圳站 | 在线直播】2026 安富利智慧科技生态圈论坛",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2090749.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "本次活动旨在促进技术、产业与生态资源的深度融合，推动AI从创新探索迈向规模化应用，为产业高质量发展注入新动能。期待与您相聚鹏城（深圳），整合资源，共襄盛举，创智慧未来，欢迎扫码预约~",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/08/15~09/18",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "直播",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "Edge AI-万物互联边缘算力 | 2026英飞凌消费、计算与通讯创新大会（深圳）",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2089922.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "大会将重点聚焦Powering AI-以芯赋能 AI 供电、Physical AI-芯造具身智能及Edge AI-万物互联边缘算力三大核心方向，系统呈现英飞凌在电源管理、感知、计算、连接与安全领域的前沿技术与创新成果，并通过主论坛与应用分论坛的联动形式，分享从基础技术到场景落地的全链路解决方案。本场活动我们将聚焦应用论坛：Edge AI-万物互联边缘算力。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/09/01~09/08",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "板卡试用",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【免费试用】Arduino UNO Q (2G+16G eMMC)",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2083274.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "与非网联合欧时RS x Arduino 给工程师朋友们送福利啦—Arduino UNO Q（2G+16G eMMC），免费试用上线（设计原理图+数据手册见附件）。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "公司： RS Group",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/09/08~09/23",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "线下活动",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【参会有礼】让AI创新触手可及：基于Arduino UNO Q的原型开发与端侧AI教学应用",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2082468.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/09/23 14:00~16:30",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "论坛活动",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "英飞凌「超能工具改造师」",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/infineon_powertool_h5/"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "来体验英飞凌「超能工具改造师」微信小游戏！化身工具改造师，动手改装锂电手电钻、角磨机等多款电动工具。通过更换 CoolGaN 氮化镓器件、升级智能 MCU 芯片，解决工具发烫、笨重、续航差等痛点。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/09/01~09/30",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "论坛活动",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【样品免费申请】英飞凌&威健4D毫米波卫星雷达一站式参考方案",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2077145.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "与非网联合英飞凌&威健又来给工程师朋友们送福利啦！！！英飞凌与威健联合推出基于CTRX8191F(4T4R)与CTRX8188F(8T8R) MMIC的4D毫米波卫星雷达一站式参考方案。填写表单即可参与转盘抽奖，有机会获得小米口袋照片打印机等好礼，还有机会被选中免费试用样品。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/08/28~09/30",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "技术子站",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【技术周活动】2026 贸泽电子技术创新论坛——智能机器人",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/mouser_robotics/"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "智慧化浪潮正推动机器人技术进入全新发展阶段，作为引领产业变革的核心驱动力，机器人不仅在工业领域持续深化应用，更广泛赋能服务、医疗、家居等多元场景，重塑人机协作的未来图景。 为此，我们特别举办本届机器人技术创新峰会，聚焦行业突破性技术与系统化解决方案，携手全球顶尖专家、企业领袖与创新团队，共同探讨以下关键领域：环境感知与传感技术如何为机器人构建高精度多维感知能力；人工智能与机器视觉在复杂场景中的识别、分析与决策应用；语音识别与人机交互技术的自然化、智能化发展；高精度电机驱动与控制技术如何提升机器人的运动性能与响应速度；支持机器人智能运行的算力与硬件平台（包括FPGA、CPU、GPU及ASIC等关键技术）；以及高效电池与能源管理系统对机器人续航与可靠性的核心作用。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "公司： 贸泽",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/08/12~09/18",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "线下活动",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【参会有礼】恩智浦创新技术峰会-上海站-0915",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2072308.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "9月15日，恩智浦创新技术峰会（上海）即将隆重开幕，为锐意进取的开发者奉上一场精彩的技术盛会！我们诚邀您莅临活动现场，深度体验边缘AI驱动软件定义汽车、机器人与工业创新！",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/08/17~09/15",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "线下活动",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【预约|参会享好礼】报名无「无线短距生态论坛 2026 · 深圳」，转盘赢好礼，先到先得！",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2070311.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "无线短距生态论坛 2026将于8.17 9:00-16:00在深圳威尼斯英迪格酒店1楼大宴会厅举行，本次活动由是德科技主办，Wi-Fi 联盟、WAA 联盟与粤港澳标准创新联盟、无线专家研习社联合协办，围绕无线短距产业趋势、Wi-Fi 8 技术演进以及从芯片到系统级的测试与验证技术展开深入交流，诚邀您的参与！",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线下活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/08/17~08/27",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "技术子站",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "2026物联网技术论坛",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/iot2026/"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "为助力从业者把握物联网技术和市场最新动态，促进生态链企业交流合作，由与非网主办的第五届“物联网技术论坛”将于2026年9月23日在线上举行。届时，来自物联网领域的专家学者、技术大咖、投资机构等将齐聚一堂，为物联网产业的发展献计献策。",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "公司： 泰凌微电子 / 瑞萨电子 / 辰达半导体 / 华普微 HOPERF",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/08/10~09/23",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "直播",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【直播有礼】感知网络新范式：ISAC 通感一体化标准化、场景仿真与工程验证网络研讨会",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2061494.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "直播简介：5G-A 全面商用落地，6G 技术体系加速构建，通感一体化 ISAC作为下一代无线网络核心技术，打破通信与雷达感知硬件、频谱资源壁垒，成为低空经济、L4 自动驾驶、智慧工业、智慧城市的核心底座。2025 年 3GPP Release 19 正式落地 ISAC 标准化规范，TR 38.901 新增专属通感信道模型，统一了目标散射、多径传播、RCS 雷达截面、多普勒运动等仿真评估标准，为 I",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/07/30~08/20",
+          "attrs": {}
+        },
+        {
+          "tag": "span.post-tag",
+          "parent": "a.",
+          "text": "线下活动",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title",
+          "parent": "div.",
+          "text": "【预约参会】“加速创新 智领未来”2026 Siemens EDA Forum报名开启",
+          "attrs": {
+            "href": "https://www.eefocus.com/event/2054263.html"
+          }
+        },
+        {
+          "tag": "p.item-intro",
+          "parent": "div.",
+          "text": "2026 Siemens EDA Forum将于8.13 8:30-17:00在上海浦东嘉里大酒店举行，上午主论坛演讲+下午七大分论坛深度剖析， 聚焦 IC 设计、验证、制造、先进封装及系统等七大核心环节，探讨软件定义、AI 驱动和芯片赋能的趋势，分享尖端技术、解决行业挑战、推动创新，诚邀您的参与！",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-location",
+          "parent": "div.",
+          "text": "地点：线上活动",
+          "attrs": {}
+        },
+        {
+          "tag": "span.event-time",
+          "parent": "div.",
+          "text": "时间：2026/07/21~08/13",
+          "attrs": {}
+        }
+      ]
+    }
+  },
+  {
+    "fixture": "fixtures/dated.html",
+    "critical_signature_preserved": true,
+    "signature": {
+      "tag_counts": {
+        "main": 0,
+        "article": 0,
+        "h1": 0
+      },
+      "class_counts": {
+        "special-list": 0,
+        "section-list-item-ul": 0,
+        "section-special-item": 0,
+        "item-title": 0,
+        "item-intro": 0,
+        "post-tag": 0,
+        "event-time": 0,
+        "event-location": 0,
+        "event-status": 0,
+        "status": 0,
+        "event-organizer": 0,
+        "main-event": 0,
+        "meeting-time": 0,
+        "current-status": 0,
+        "article-content": 0,
+        "details-section-title": 0,
+        "live-template-box": 0,
+        "live-template-title": 0,
+        "live-template-sponsor-v": 0,
+        "section-action": 0,
+        "sign-btn": 0
+      },
+      "selected_nodes": []
+    }
+  },
+  {
+    "fixture": "fixtures/alias.html",
+    "critical_signature_preserved": true,
+    "signature": {
+      "tag_counts": {
+        "main": 0,
+        "article": 0,
+        "h1": 0
+      },
+      "class_counts": {
+        "special-list": 0,
+        "section-list-item-ul": 0,
+        "section-special-item": 0,
+        "item-title": 0,
+        "item-intro": 0,
+        "post-tag": 0,
+        "event-time": 0,
+        "event-location": 0,
+        "event-status": 0,
+        "status": 0,
+        "event-organizer": 0,
+        "main-event": 0,
+        "meeting-time": 0,
+        "current-status": 0,
+        "article-content": 0,
+        "details-section-title": 0,
+        "live-template-box": 0,
+        "live-template-title": 0,
+        "live-template-sponsor-v": 0,
+        "section-action": 0,
+        "sign-btn": 0
+      },
+      "selected_nodes": []
+    }
+  },
+  {
+    "fixture": "fixtures/live_final.html",
+    "critical_signature_preserved": true,
+    "signature": {
+      "tag_counts": {
+        "main": 0,
+        "article": 0,
+        "h1": 1
+      },
+      "class_counts": {
+        "special-list": 0,
+        "section-list-item-ul": 0,
+        "section-special-item": 0,
+        "item-title": 7,
+        "item-intro": 0,
+        "post-tag": 0,
+        "event-time": 0,
+        "event-location": 0,
+        "event-status": 0,
+        "status": 0,
+        "event-organizer": 0,
+        "main-event": 0,
+        "meeting-time": 0,
+        "current-status": 0,
+        "article-content": 1,
+        "details-section-title": 1,
+        "live-template-box": 2,
+        "live-template-title": 5,
+        "live-template-sponsor-v": 2,
+        "section-action": 1,
+        "sign-btn": 1
+      },
+      "selected_nodes": [
+        {
+          "tag": "div.",
+          "parent": "body.wp-embed-responsive",
+          "text": "首页 直播 GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案 1 评论 分享 复制链接 新浪微博 微信/QQ扫码 看回放 相关直播 20个细节，读懂当下人形机器人真实能力 看回放 PSOC™ Control C3助力人形机器人应用高速发展 看回放 2026 贸泽技术创新论坛——智能机器人（收官日） 看回放 【深圳站 | 在线直播】2026 安富利智慧科技生态圈论坛 看回放 2026 贸泽技术创新论坛——智能机器人（第三日） 看回放 2026 贸泽技术创新论坛——智能机器人（次日场） 看回放 2026 贸泽技术创新论坛——智能机器人（首日场） 看回放 边缘Physical AI：FPGA赋能工业机器人与运动控制 看回放 【7月2日 | 慕尼黑电子展】DEMO秀直播 看回放 【7月2日 | 慕尼黑电子展】高层对话直播SHOW 看回放 直播介绍 相关推荐 电子产业图谱 申请入驻 产业图谱 GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案 原创 08/20 14:38 作者：Arrow 艾睿电子 3.3万 加入交流群 扫码加入获取工程师必备礼包参与热点资讯讨论 随着人形机器人、工业自动化及智能基础设施对多摄像头、高带宽、低延迟与高可靠性连接的需求不断提升，传统视频与传感器互连方式正面临严峻挑战。 在本次研讨会中，我们将系统性介绍 Gigabit Multimedia Serial Link (GMSL) 技术，深入解析其如何通过单根同轴或双绞线，实现视频、控制数据、参考时钟及供电的高度集成传输。内容将涵盖 GMSL 的技术演进 (GMSL1/2/3)、关键特性 (PoC、自适应均衡、隧道模式、功能安全等)，并结合人形机器人视觉系统、多摄感知与系统级集成实例，分享 GMSL 在新兴多市场应用中的设计思路与最佳实践。 直播看点 系统性介绍 GMSL 技术，深入解析通过单根同轴或双绞线，实现视频、控制数据、参考时钟及供电的高度集成传输 人形机器人视觉系统、多摄感知与系统级集成实例分析，分享 GMSL 在新兴多市场应用中的设计思路与最佳实践 应用领域 工业自动化，人形机器人，智能视觉监测 嘉宾介绍 Pengxiang Jing ADI 系统软件设计工程师 主要负责视觉传感及串行通信系统的技术支持和应用 直播礼品 主办方 艾睿电子 (纽约证券交易所代码: ARW) 为数十万家领先的制造商和服务供应商提供和设计制造技术方案。2025 年的全球销售收入达到 310 亿美元。艾睿电子致力推动科技发展，产品服务覆盖各大行业和市场领域。欢迎访问公司官网 arrow.com，了解更多信息。 Analog Devices, Inc. (NASDAQ: ADI) 是全球领先的半导体公司，致力于在现实世界与数字世界之间架起桥梁，以实现智能边缘领域的突破性创新。ADI 提供结合模拟、数字和软件技术的解决方案，推动数字化工厂、汽车和数字医疗等领域的持续发展，应对气候变化挑战，并建立人与世界万物的可靠互联。ADI 公司 2025 财年收入超过 110 亿美元，全球员工约 2.4 万人。ADI 助力创新者不断超越一切可能。更多信息，请访问 www.analog.com/cn。 来源: 与非网，作者: Arrow 艾睿电子，原文链接: https://www.eefocus.com/live/2072182.html 原创声明：本文为与非网原创内容，著作权归与非网所有。未经与非网书面授权，不得以任何方式加以使用。 转载合作 人工客服（售后/吐槽/合作/交友） 人形机器人 视觉AI 多传感器 人工智能 相关推荐 英飞凌人形机器人解决方案 方案 英飞凌 2298 08/24 09:01 纳芯微电子人型机器人解决方案 方案 纳芯微电子 1867 08/19 08:55 人形机器人手部模块硬件解析与静电浪涌防护方案 方案 上海雷卯电子 4176 05/25 15:58 20个细节，读懂当下人形机器人真实能力 直播 IT有得聊 3840 09/07 14:23 PSOC™ Control C3助力人形机器人应用高速发展 直播 英飞凌 3.9万 2025/03/05 高性能视觉 AI 系统 方案 瑞萨电子 1110 2024/07/18 虹科方案丨小型线性伺服器作为人形机器人手部关节的动力来源 方案 虹科 1271 2023/10/23 电子产业图谱 查看更多 Arrow 艾睿电子 艾睿电子为数以十万家领先的技术制造商和服务商驱动创新，致力于发展可帮助提升商业价值及改善生活的科技解决方案。2023 年销售额为 330 亿美元。请浏览官网 www.arrow.cn TA的热门作品 GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案 工厂自动化：加速边缘 AI 与机器视觉，实现智能自动化 工厂自动化：构建智能运动控制与软件定义工厂 从 8 位到 32 位：PIC32CM PL10 如何实现 5V 系统性能跃迁? 未来工厂：搭载人工智能的边缘传感器设计 查看更多",
+          "attrs": {
+            "id": "app"
+          }
+        },
+        {
+          "tag": "a.sign-btn.appt-button-trigger",
+          "parent": "div.action-right",
+          "text": "看回放",
+          "attrs": {
+            "data-href": "https://www.eefocus.com/live/2072182/watch"
+          }
+        },
+        {
+          "tag": "h1.title",
+          "parent": "div.details-section-title",
+          "text": "GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案",
+          "attrs": {}
+        },
+        {
+          "tag": "div.live-template-title",
+          "parent": "div.live-template-box",
+          "text": "直播看点",
+          "attrs": {}
+        },
+        {
+          "tag": "div.live-template-title",
+          "parent": "div.live-template-box",
+          "text": "应用领域",
+          "attrs": {}
+        },
+        {
+          "tag": "div.live-template-title",
+          "parent": "div.live-template-box",
+          "text": "嘉宾介绍",
+          "attrs": {}
+        },
+        {
+          "tag": "div.live-template-title",
+          "parent": "div.live-template-box",
+          "text": "直播礼品",
+          "attrs": {}
+        },
+        {
+          "tag": "div.live-template-title",
+          "parent": "div.live-template-box",
+          "text": "主办方",
+          "attrs": {}
+        },
+        {
+          "tag": "a.item-title.eefocus-jump",
+          "parent": "li.",
+          "text": "英飞凌人形机器人解决方案",
+          "attrs": {
+            "href": "https://www.eefocus.com/circuit/2045771.html"
+          }
+        },
+        {
+          "tag": "a.item-title.eefocus-jump",
+          "parent": "li.",
+          "text": "纳芯微电子人型机器人解决方案",
+          "attrs": {
+            "href": "https://www.eefocus.com/circuit/2047139.html"
+          }
+        },
+        {
+          "tag": "a.item-title.eefocus-jump",
+          "parent": "li.",
+          "text": "人形机器人手部模块硬件解析与静电浪涌防护方案",
+          "attrs": {
+            "href": "https://www.eefocus.com/circuit/2016540.html"
+          }
+        },
+        {
+          "tag": "a.item-title.eefocus-jump",
+          "parent": "li.",
+          "text": "20个细节，读懂当下人形机器人真实能力",
+          "attrs": {
+            "href": "https://www.eefocus.com/live/2082405.html"
+          }
+        },
+        {
+          "tag": "a.item-title.eefocus-jump",
+          "parent": "li.",
+          "text": "PSOC™ Control C3助力人形机器人应用高速发展",
+          "attrs": {
+            "href": "https://www.eefocus.com/live/1805781.html"
+          }
+        },
+        {
+          "tag": "a.item-title.eefocus-jump",
+          "parent": "li.",
+          "text": "高性能视觉 AI 系统",
+          "attrs": {
+            "href": "https://www.eefocus.com/circuit/1723869.html"
+          }
+        },
+        {
+          "tag": "a.item-title.eefocus-jump",
+          "parent": "li.",
+          "text": "虹科方案丨小型线性伺服器作为人形机器人手部关节的动力来源",
+          "attrs": {
+            "href": "https://www.eefocus.com/circuit/1630021.html"
+          }
+        },
+        {
+          "tag": "div.",
+          "parent": "div.container",
+          "text": "",
+          "attrs": {
+            "id": "modal-form-container"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "fixture": "fixtures/clocked.html",
+    "critical_signature_preserved": true,
+    "signature": {
+      "tag_counts": {
+        "main": 0,
+        "article": 0,
+        "h1": 0
+      },
+      "class_counts": {
+        "special-list": 0,
+        "section-list-item-ul": 0,
+        "section-special-item": 0,
+        "item-title": 0,
+        "item-intro": 0,
+        "post-tag": 0,
+        "event-time": 0,
+        "event-location": 0,
+        "event-status": 0,
+        "status": 0,
+        "event-organizer": 0,
+        "main-event": 0,
+        "meeting-time": 0,
+        "current-status": 0,
+        "article-content": 0,
+        "details-section-title": 0,
+        "live-template-box": 0,
+        "live-template-title": 0,
+        "live-template-sponsor-v": 0,
+        "section-action": 0,
+        "sign-btn": 0
+      },
+      "selected_nodes": [
+        {
+          "tag": "div.",
+          "parent": "body.",
+          "text": "",
+          "attrs": {
+            "id": "app"
+          }
+        },
+        {
+          "tag": "div.",
+          "parent": "body.",
+          "text": "",
+          "attrs": {
+            "id": "modal-form-container"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "fixture": "fixtures/old_dated.html",
+    "critical_signature_preserved": true,
+    "signature": {
+      "tag_counts": {
+        "main": 0,
+        "article": 0,
+        "h1": 0
+      },
+      "class_counts": {
+        "special-list": 0,
+        "section-list-item-ul": 0,
+        "section-special-item": 0,
+        "item-title": 0,
+        "item-intro": 0,
+        "post-tag": 0,
+        "event-time": 0,
+        "event-location": 0,
+        "event-status": 0,
+        "status": 0,
+        "event-organizer": 0,
+        "main-event": 0,
+        "meeting-time": 0,
+        "current-status": 0,
+        "article-content": 0,
+        "details-section-title": 0,
+        "live-template-box": 0,
+        "live-template-title": 0,
+        "live-template-sponsor-v": 0,
+        "section-action": 0,
+        "sign-btn": 0
+      },
+      "selected_nodes": []
+    }
+  }
+]

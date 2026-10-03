@@ -1,0 +1,28 @@
+{
+  "verification_id": "historical-verify-980102",
+  "source_id": "eefocus-events-synthetic",
+  "recorded_at": "2026-09-20T10:00:00+08:00",
+  "event_id": "event-synthetic-980102",
+  "list_body_file": "fixtures/redirect-list.html",
+  "requested_url": "https://www.eefocus.com/event/980002.html",
+  "responses": [
+    {
+      "url": "https://www.eefocus.com/event/980002.html",
+      "status": 302,
+      "location": "https://www.eefocus.com/live/980102.html"
+    },
+    {
+      "url": "https://www.eefocus.com/live/980102.html",
+      "status": 200,
+      "body_file": "fixtures/redirect-live-detail.html"
+    }
+  ],
+  "shared_main_heading": "合成线上电路研讨会",
+  "shared_meeting_date": "2026年10月23日",
+  "shared_meeting_clock": "14:00–15:00",
+  "note": "Synthetic stored historical evidence, not a network capture",
+  "body_sha256": {
+    "fixtures/redirect-list.html": "9959c6cef2cbc7eb483dae67801f6ead8f499f51b5fc836d988d39ccab1f5938",
+    "fixtures/redirect-live-detail.html": "b43c47d0c5c2912a44676b4deb7dbd76ded9a7c4cb28df469e45b7f699d465d9"
+  }
+}

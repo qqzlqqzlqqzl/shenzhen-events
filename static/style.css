@@ -184,3 +184,5 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 .bottom-overlays>.compare-bar,.bottom-overlays>.undo-bar{position:static;left:auto;transform:none;pointer-events:auto}
 .bottom-overlays>.compare-bar{width:min(780px,100%)}
 .bottom-overlays>.undo-bar{width:max-content;max-width:100%;margin-bottom:2px;flex-wrap:wrap}
+
+#calendar[data-safety-verified="false"] {opacity:.65;}

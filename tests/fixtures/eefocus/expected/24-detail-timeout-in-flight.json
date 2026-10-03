@@ -1,0 +1,49 @@
+{
+  "stage": "collect",
+  "report": {
+    "status": "partial",
+    "error": "",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 3,
+      "extracted": 3,
+      "unique": 3,
+      "admitted": 0,
+      "rejected": {},
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": true,
+      "next_cursor": null,
+      "detail_attempted": 1,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 2,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "requests_attempted": 2
+    }
+  },
+  "accounting_semantics": {
+    "detail_in_flight_deadline": 1,
+    "note": "fixture-only derived count; not an existing coverage field"
+  },
+  "assertions": [
+    "Add a deadline reason",
+    "No remaining detail requests",
+    "No success cache for the interrupted detail",
+    "Preserve all three parsed leads without making them upcoming"
+  ],
+  "identity_accounting": {
+    "identity_verified": 0,
+    "identity_pending": 3
+  },
+  "required_code_changes": [
+    "R1 verified-identity admission gate"
+  ]
+}

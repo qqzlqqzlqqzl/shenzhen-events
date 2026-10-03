@@ -1,0 +1,51 @@
+{
+  "stage": "enriched_event",
+  "item_subset": {
+    "url": "https://www.eefocus.com/live/980102.html",
+    "start_at": "2026-10-23T14:00:00+08:00",
+    "end_at": "2026-10-23T15:00:00+08:00",
+    "all_day": false,
+    "status": "scheduled",
+    "location": "线上",
+    "details": {
+      "attendance": "online",
+      "source_event_id": "980102",
+      "evidence_url": "https://www.eefocus.com/live/980102.html",
+      "timezone_status": "source_explicit",
+      "date_evidence": "直播时间：2026年10月23日 14:00–15:00 北京时间"
+    },
+    "city": "线上"
+  },
+  "semantic_identity": {
+    "canonical_url": "https://www.eefocus.com/live/980102.html",
+    "observed_aliases": [
+      "https://www.eefocus.com/event/980002.html",
+      "https://www.eefocus.com/live/980102.html"
+    ],
+    "list_post_id": "980002",
+    "final_numeric_id": "980102",
+    "alias_evidence": "same-origin bounded 302 trace plus identical detail title"
+  },
+  "upcoming_included": true,
+  "geocode_attempted": false,
+  "before_item_subset": {
+    "start_at": "2026-10-23T00:00:00+08:00",
+    "end_at": "2026-10-24T00:00:00+08:00",
+    "all_day": true,
+    "city": "线上",
+    "details": {
+      "attendance": "online",
+      "timezone_status": "unconfirmed"
+    }
+  },
+  "merge_rule": {
+    "requires": "A single consistent actual live time with explicit 北京时间; verified same event identity; no manual hold/cancellation/unrelated uncertainty",
+    "permits": "Replace the display-only date range with exact +08:00 clock, all_day=false, timezone_status=source_explicit",
+    "forbids": "Changing city to 深圳 or attendance to offline to satisfy current generic merge condition"
+  },
+  "required_code_changes": [
+    "R2 verified redirect identity",
+    "R3 separate online explicit-timezone refinement rule"
+  ],
+  "must_preserve_raw_list_time_evidence": true
+}

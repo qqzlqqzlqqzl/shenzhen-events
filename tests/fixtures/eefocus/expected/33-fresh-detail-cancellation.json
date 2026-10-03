@@ -1,0 +1,19 @@
+{
+  "stage": "merge_and_ingest_design",
+  "item_subset": {
+    "status": "cancelled",
+    "details": {
+      "source_status": "已取消",
+      "attendance": "online"
+    }
+  },
+  "upcoming_included": false,
+  "assertions": [
+    "Retain both listing-open and detail-cancelled evidence with locations/observation times",
+    "Freshness is evidence observation, not proof of source publication time; explicit current cancellation is stronger than a generic listing-open label",
+    "Current merge_detail ignores patch.status=cancelled and prefers listing source_status, so this is a required behavior change"
+  ],
+  "required_code_changes": [
+    "R4 explicit status-authority and cancellation merge rules"
+  ]
+}

@@ -22,7 +22,8 @@ def client(tmp_path, monkeypatch):
 @pytest.mark.parametrize('period', ['saved', 'feedback', 'history', 'review', 'past', 'upcoming'])
 def test_explicit_range_is_validated_and_forwarded_in_every_scope(client, monkeypatch, period):
     calls = []
-    monkeypatch.setattr(api, 'events', lambda **kw: calls.append(kw) or [])
+    snapshot=core.EventRows();snapshot.safety_epoch=0
+    monkeypatch.setattr(api, 'events', lambda **kw: calls.append(kw) or snapshot)
     for start, end in [('', '2026-10-02'), ('2026-10-01', ''), ('bad', '2026-10-02'),
                        ('2026-02-30', '2026-03-03'), ('2026-10-02', '2026-10-01'),
                        ('2026-10-01', '2026-10-01'), ('2026-01-01', '2026-04-05')]:

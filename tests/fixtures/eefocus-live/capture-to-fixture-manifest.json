@@ -1,0 +1,82 @@
+[
+  {
+    "original_capture": "inventory.html",
+    "original_bytes": 147231,
+    "original_sha256": "7723f5ff44c0a0c0a64be0096d5f28ee69aa14884781a7eb13741df81992a801",
+    "sanitized_fixture": "fixtures/inventory.html",
+    "sanitized_bytes": 101015,
+    "sanitized_sha256": "5d3707a9808c53ae009f79876e5d08c8eb2e736e155894ef836fd8f0a0525670",
+    "sanitization_counts": {
+      "removed_meta": 6,
+      "removed_link": 6,
+      "removed_script": 21,
+      "removed_comments": 6,
+      "removed_noscript": 1,
+      "removed_attributes": 817
+    }
+  },
+  {
+    "original_capture": "dated.html",
+    "original_bytes": 394,
+    "original_sha256": "1b4d9950b88002c735aaa8fdfa37edaf70a918b2a3fd181692d191a71b226aec",
+    "sanitized_fixture": "fixtures/dated.html",
+    "sanitized_bytes": 286,
+    "sanitized_sha256": "99353904ff4fc50fd9b6fb170128479f9921e2059406a5472c50046b3bd72633",
+    "sanitization_counts": {
+      "removed_meta": 2
+    }
+  },
+  {
+    "original_capture": "alias.html",
+    "original_bytes": 410,
+    "original_sha256": "890bee5adcde9746105ba3803a7f425c43646e99d296a36a615aa9717622bfd5",
+    "sanitized_fixture": "fixtures/alias.html",
+    "sanitized_bytes": 298,
+    "sanitized_sha256": "945353dccefced02398b7b69ea95edb3b73a98b013aa05a081027e687a720b0d",
+    "sanitization_counts": {
+      "removed_meta": 2
+    }
+  },
+  {
+    "original_capture": "live_final.html",
+    "original_bytes": 149420,
+    "original_sha256": "d09dfab77c0f3ece5c29ceed026eb1a4142f3619fd54fbf5082dee51946ec551",
+    "sanitized_fixture": "fixtures/live_final.html",
+    "sanitized_bytes": 93783,
+    "sanitized_sha256": "3632aa221f44078e35b83ac5fa6c68cbe9131b906dafe477da06932cbf04585d",
+    "sanitization_counts": {
+      "removed_meta": 7,
+      "removed_script": 36,
+      "removed_link": 8,
+      "removed_comments": 6,
+      "removed_noscript": 1,
+      "removed_attributes": 881
+    }
+  },
+  {
+    "original_capture": "clocked.html",
+    "original_bytes": 12819,
+    "original_sha256": "bfc1ff475dffdc29d04ef0e89de324af111dd498421576286e8e9c4c00b38270",
+    "sanitized_fixture": "fixtures/clocked.html",
+    "sanitized_bytes": 6426,
+    "sanitized_sha256": "076c77151489df0254b74b5beff498e5d5f38788c0bf40b2c23ca36c7a4df2d6",
+    "sanitization_counts": {
+      "removed_meta": 6,
+      "removed_link": 4,
+      "removed_script": 13,
+      "removed_attributes": 66,
+      "removed_comments": 2
+    }
+  },
+  {
+    "original_capture": "old_dated.html",
+    "original_bytes": 394,
+    "original_sha256": "31b5ea135a7cd80d1bf32864bafe3013ea02a76370141263cefc12679c016816",
+    "sanitized_fixture": "fixtures/old_dated.html",
+    "sanitized_bytes": 286,
+    "sanitized_sha256": "2b41e6e0231bd816f1e7f366ad05a15d1cfa508d0a7f9271a53ecec00c753b72",
+    "sanitization_counts": {
+      "removed_meta": 2
+    }
+  }
+]

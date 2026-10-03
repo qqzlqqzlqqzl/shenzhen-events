@@ -1,0 +1,48 @@
+{
+  "stage": "identity_gate_design",
+  "identity_verdict": "unverified",
+  "reason_code": "event_anchor_conflict",
+  "admitted": 0,
+  "upcoming_included": false,
+  "report": {
+    "status": "partial",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 1,
+      "extracted": 1,
+      "unique": 1,
+      "admitted": 0,
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "detail_attempted": 1,
+      "detail_resolved": 0,
+      "detail_failed": 1,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "requests_attempted": 2
+    }
+  },
+  "admitted_urls": [],
+  "database_counts": {
+    "raw_items": 0,
+    "events": 0,
+    "event_sources": 0
+  },
+  "identity_success_cache_written": false,
+  "detail_success_patch_cached": false,
+  "alias_history_created": false,
+  "numeric_route_and_http_200_are_sufficient": false,
+  "required_code_changes": [
+    "R1 fail-closed admission",
+    "R2 evidence-derived main-event identity"
+  ]
+}

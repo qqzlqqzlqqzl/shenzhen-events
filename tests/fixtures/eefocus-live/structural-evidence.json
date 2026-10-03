@@ -1,0 +1,545 @@
+{
+  "inventory.html": {
+    "tag_counts": {
+      "main": 0,
+      "article": 0,
+      "h1": 1
+    },
+    "class_counts": {
+      "special-list": 1,
+      "section-list-item-ul": 1,
+      "section-special-item": 20,
+      "event-location": 15,
+      "event-time": 20,
+      "event-organizer": 0,
+      "event-status": 0,
+      "status": 0,
+      "main-event": 0,
+      "meeting-time": 0,
+      "current-status": 0,
+      "details-section-title": 0,
+      "section-content": 0,
+      "section-action": 0,
+      "sign-btn": 0
+    },
+    "headings": [
+      {
+        "tag": "h1.",
+        "text": "行业活动",
+        "ancestors": [
+          "div.title-left",
+          "div.lists-section-title",
+          "div.section-left",
+          "div.section-body",
+          "div.",
+          "div.container",
+          "div.",
+          "body.wp-embed-responsive",
+          "html."
+        ]
+      }
+    ],
+    "list_roots": [
+      {
+        "tag": "div.special-list",
+        "ancestors": [
+          "div.section-left",
+          "div.section-body",
+          "div.",
+          "div.container",
+          "div.",
+          "body.wp-embed-responsive",
+          "html."
+        ],
+        "direct_children": [
+          "ul.section-list-item-ul",
+          "p.load-more-button.more-list"
+        ]
+      }
+    ],
+    "cards": [
+      {
+        "post_id": "2091127",
+        "href": "https://www.eefocus.com/event/2091127.html",
+        "title": "【预约|参会享好礼】报名无「2026是德科技创新技术峰会·深圳站」，转盘赢好礼，先到先得！",
+        "event-time": [
+          "时间：2026/09/20~10/22"
+        ],
+        "event-location": [
+          "地点：线下活动"
+        ],
+        "post-tag": [
+          "线下活动"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "立即参与"
+        ]
+      },
+      {
+        "post_id": "1836091",
+        "href": "https://www.eefocus.com/event/rspro/",
+        "title": "【Arduino开发板试用，火热进行中！】欧时 RS 技术学院",
+        "event-time": [
+          "时间：2025/05/09~2026/03/31"
+        ],
+        "event-location": [],
+        "post-tag": [
+          "技术子站"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2082717",
+        "href": "https://www.eefocus.com/event/digikey_aiot_2026/",
+        "title": "2026 DigiKey AIoT应用创意挑战赛",
+        "event-time": [
+          "时间：2026/08/01~10/31"
+        ],
+        "event-location": [],
+        "post-tag": [
+          "技术子站"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "立即参与"
+        ]
+      },
+      {
+        "post_id": "2020908",
+        "href": "https://www.eefocus.com/event/2020908.html",
+        "title": "【限时下载】热门消费产品爆款拆解BOM芯片报告！",
+        "event-time": [
+          "时间：2026/05/26~12/31"
+        ],
+        "event-location": [],
+        "post-tag": [
+          "技术子站"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "立即参与"
+        ]
+      },
+      {
+        "post_id": "2012709",
+        "href": "https://www.eefocus.com/event/2012709.html",
+        "title": "【限时下载】汽车产品爆款拆解BOM芯片报告！",
+        "event-time": [
+          "时间：2026/05/13~12/31"
+        ],
+        "event-location": [],
+        "post-tag": [
+          "技术子站"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "立即参与"
+        ]
+      },
+      {
+        "post_id": "1998117",
+        "href": "https://www.eefocus.com/event/1998117.html",
+        "title": "【限时下载】汽车大灯爆款拆解BOM芯片分析报告！",
+        "event-time": [
+          "时间：2026/04/24~12/31"
+        ],
+        "event-location": [],
+        "post-tag": [
+          "技术子站"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "立即参与"
+        ]
+      },
+      {
+        "post_id": "2093134",
+        "href": "https://www.eefocus.com/event/2093134.html",
+        "title": "GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案",
+        "event-time": [
+          "时间：2026/09/01~09/24"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "直播"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2090774",
+        "href": "https://www.eefocus.com/event/2090774.html",
+        "title": "艾迈斯欧司朗 - CIOE 中国光博会2026展台直击",
+        "event-time": [
+          "时间：2026/08/28~09/09"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "直播"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2090749",
+        "href": "https://www.eefocus.com/event/2090749.html",
+        "title": "【深圳站 | 在线直播】2026 安富利智慧科技生态圈论坛",
+        "event-time": [
+          "时间：2026/08/15~09/18"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "直播"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2089922",
+        "href": "https://www.eefocus.com/event/2089922.html",
+        "title": "Edge AI-万物互联边缘算力 | 2026英飞凌消费、计算与通讯创新大会（深圳）",
+        "event-time": [
+          "时间：2026/09/01~09/08"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "直播"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2083274",
+        "href": "https://www.eefocus.com/event/2083274.html",
+        "title": "【免费试用】Arduino UNO Q (2G+16G eMMC)",
+        "event-time": [
+          "时间：2026/09/08~09/23"
+        ],
+        "event-location": [
+          "公司： RS Group"
+        ],
+        "post-tag": [
+          "板卡试用"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2082468",
+        "href": "https://www.eefocus.com/event/2082468.html",
+        "title": "【参会有礼】让AI创新触手可及：基于Arduino UNO Q的原型开发与端侧AI教学应用",
+        "event-time": [
+          "时间：2026/09/23 14:00~16:30"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "线下活动"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2082417",
+        "href": "https://www.eefocus.com/event/infineon_powertool_h5/",
+        "title": "英飞凌「超能工具改造师」",
+        "event-time": [
+          "时间：2026/09/01~09/30"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "论坛活动"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2077145",
+        "href": "https://www.eefocus.com/event/2077145.html",
+        "title": "【样品免费申请】英飞凌&威健4D毫米波卫星雷达一站式参考方案",
+        "event-time": [
+          "时间：2026/08/28~09/30"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "论坛活动"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2067720",
+        "href": "https://www.eefocus.com/event/mouser_robotics/",
+        "title": "【技术周活动】2026 贸泽电子技术创新论坛——智能机器人",
+        "event-time": [
+          "时间：2026/08/12~09/18"
+        ],
+        "event-location": [
+          "公司： 贸泽"
+        ],
+        "post-tag": [
+          "技术子站"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2072308",
+        "href": "https://www.eefocus.com/event/2072308.html",
+        "title": "【参会有礼】恩智浦创新技术峰会-上海站-0915",
+        "event-time": [
+          "时间：2026/08/17~09/15"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "线下活动"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2070311",
+        "href": "https://www.eefocus.com/event/2070311.html",
+        "title": "【预约|参会享好礼】报名无「无线短距生态论坛 2026 · 深圳」，转盘赢好礼，先到先得！",
+        "event-time": [
+          "时间：2026/08/17~08/27"
+        ],
+        "event-location": [
+          "地点：线下活动"
+        ],
+        "post-tag": [
+          "线下活动"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2066304",
+        "href": "https://www.eefocus.com/event/iot2026/",
+        "title": "2026物联网技术论坛",
+        "event-time": [
+          "时间：2026/08/10~09/23"
+        ],
+        "event-location": [
+          "公司： 泰凌微电子 / 瑞萨电子 / 辰达半导体 / 华普微 HOPERF"
+        ],
+        "post-tag": [
+          "技术子站"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2061494",
+        "href": "https://www.eefocus.com/event/2061494.html",
+        "title": "【直播有礼】感知网络新范式：ISAC 通感一体化标准化、场景仿真与工程验证网络研讨会",
+        "event-time": [
+          "时间：2026/07/30~08/20"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "直播"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      },
+      {
+        "post_id": "2054263",
+        "href": "https://www.eefocus.com/event/2054263.html",
+        "title": "【预约参会】“加速创新 智领未来”2026 Siemens EDA Forum报名开启",
+        "event-time": [
+          "时间：2026/07/21~08/13"
+        ],
+        "event-location": [
+          "地点：线上活动"
+        ],
+        "post-tag": [
+          "线下活动"
+        ],
+        "event-status": [],
+        "status": [],
+        "act-btn": [
+          "查看详情"
+        ]
+      }
+    ]
+  },
+  "live_final.html": {
+    "tag_counts": {
+      "main": 0,
+      "article": 0,
+      "h1": 1
+    },
+    "class_counts": {
+      "special-list": 0,
+      "section-list-item-ul": 0,
+      "section-special-item": 0,
+      "event-location": 0,
+      "event-time": 0,
+      "event-organizer": 0,
+      "event-status": 0,
+      "status": 0,
+      "main-event": 0,
+      "meeting-time": 0,
+      "current-status": 0,
+      "details-section-title": 1,
+      "section-content": 0,
+      "section-action": 1,
+      "sign-btn": 1
+    },
+    "headings": [
+      {
+        "tag": "h1.title",
+        "text": "GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案",
+        "ancestors": [
+          "div.details-section-title",
+          "div.section-medium",
+          "div.section-body",
+          "div.",
+          "div.container",
+          "div.",
+          "body.wp-embed-responsive",
+          "html."
+        ]
+      }
+    ],
+    "primary_action": [
+      {
+        "tag": "a.sign-btn.appt-button-trigger",
+        "text": "看回放",
+        "attrs": {
+          "class": "sign-btn appt-button-trigger",
+          "data-href": "https://www.eefocus.com/live/2072182/watch"
+        },
+        "ancestors": [
+          "div.action-right",
+          "div.section-action",
+          "div.section-left",
+          "div.video-part.live",
+          "div.",
+          "div.container",
+          "div.",
+          "body.wp-embed-responsive",
+          "html."
+        ]
+      }
+    ],
+    "time_labeled_paragraphs": [],
+    "content_roots": [
+      {
+        "tag": "div.section-body",
+        "ancestors": [
+          "div.",
+          "div.container",
+          "div.",
+          "body.wp-embed-responsive",
+          "html."
+        ],
+        "text_start": "直播介绍 相关推荐 电子产业图谱 申请入驻 产业图谱 GMSL 高速串行链路：赋能人形机器人与多传感器视觉系统的下一代连接方案 原创 08/20 14:38 作者：Arrow 艾睿电子 3.3万 加入交流群 扫码加入获取工程师必备礼包参与热"
+      }
+    ]
+  },
+  "clocked.html": {
+    "tag_counts": {
+      "main": 0,
+      "article": 0,
+      "h1": 0
+    },
+    "class_counts": {
+      "special-list": 0,
+      "section-list-item-ul": 0,
+      "section-special-item": 0,
+      "event-location": 0,
+      "event-time": 0,
+      "event-organizer": 0,
+      "event-status": 0,
+      "status": 0,
+      "main-event": 0,
+      "meeting-time": 0,
+      "current-status": 0,
+      "details-section-title": 0,
+      "section-content": 0,
+      "section-action": 0,
+      "sign-btn": 0
+    },
+    "headings": [],
+    "app_mounts": [
+      {
+        "tag": "div.",
+        "id": "app",
+        "text_length": 0
+      },
+      {
+        "tag": "div.",
+        "id": "modal-form-container",
+        "text_length": 0
+      }
+    ]
+  }
+}

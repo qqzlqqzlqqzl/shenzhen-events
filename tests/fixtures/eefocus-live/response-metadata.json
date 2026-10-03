@@ -1,0 +1,82 @@
+{
+  "metadata_scope": "Selected response status and explicitly captured non-secret fields, not complete raw headers; no cookie/authorization/session headers retained.",
+  "captures": [
+    {
+      "label": "inventory",
+      "requested_url": "https://www.eefocus.com/event/",
+      "started_at": "2026-10-02T10:14:41.243974+00:00",
+      "observed_by": "2026-10-02T10:15:21Z",
+      "status": 200,
+      "final_url": "https://www.eefocus.com/event/",
+      "bytes": 147231,
+      "sha256": "7723f5ff44c0a0c0a64be0096d5f28ee69aa14884781a7eb13741df81992a801",
+      "content_type": "text/html; charset=UTF-8",
+      "note": "Exact completion time and Date/Location headers were not captured; do not infer them."
+    },
+    {
+      "label": "dated",
+      "requested_url": "https://www.eefocus.com/event/2091127.html",
+      "started_at": "2026-10-02T10:16:37.643666+00:00",
+      "status": 302,
+      "location": "https://jsj.top/f/mKLfr9?x_field_1=HD",
+      "final_url": "https://www.eefocus.com/event/2091127.html",
+      "bytes": 394,
+      "sha256": "1b4d9950b88002c735aaa8fdfa37edaf70a918b2a3fd181692d191a71b226aec",
+      "content_type": "text/html; charset=utf-8",
+      "server_date": "Fri, 02 Oct 2026 10:16:44 GMT",
+      "completed_at": "2026-10-02T10:16:44.099480+00:00"
+    },
+    {
+      "label": "alias",
+      "requested_url": "https://www.eefocus.com/event/2093134.html",
+      "started_at": "2026-10-02T10:16:44.100123+00:00",
+      "status": 302,
+      "location": "https://www.eefocus.com/live/2072182.html",
+      "final_url": "https://www.eefocus.com/event/2093134.html",
+      "bytes": 410,
+      "sha256": "890bee5adcde9746105ba3803a7f425c43646e99d296a36a615aa9717622bfd5",
+      "content_type": "text/html; charset=utf-8",
+      "server_date": "Fri, 02 Oct 2026 10:16:49 GMT",
+      "completed_at": "2026-10-02T10:16:49.984835+00:00"
+    },
+    {
+      "label": "clocked",
+      "requested_url": "https://www.eefocus.com/event/2082468.html",
+      "started_at": "2026-10-02T10:16:49.985230+00:00",
+      "status": 200,
+      "location": null,
+      "final_url": "https://www.eefocus.com/event/2082468.html",
+      "bytes": 12819,
+      "sha256": "bfc1ff475dffdc29d04ef0e89de324af111dd498421576286e8e9c4c00b38270",
+      "content_type": "text/html; charset=UTF-8",
+      "server_date": "Fri, 02 Oct 2026 10:16:55 GMT",
+      "completed_at": "2026-10-02T10:16:55.723597+00:00"
+    },
+    {
+      "label": "old_dated",
+      "requested_url": "https://www.eefocus.com/event/2070311.html",
+      "started_at": "2026-10-02T10:16:55.723870+00:00",
+      "status": 302,
+      "location": "https://jsj.top/f/Rj4Nv3?x_field_1=HD",
+      "final_url": "https://www.eefocus.com/event/2070311.html",
+      "bytes": 394,
+      "sha256": "31b5ea135a7cd80d1bf32864bafe3013ea02a76370141263cefc12679c016816",
+      "content_type": "text/html; charset=utf-8",
+      "server_date": "Fri, 02 Oct 2026 10:17:00 GMT",
+      "completed_at": "2026-10-02T10:17:00.982803+00:00"
+    },
+    {
+      "label": "live_final",
+      "requested_url": "https://www.eefocus.com/live/2072182.html",
+      "started_at": "2026-10-02T10:17:23.425755+00:00",
+      "status": 200,
+      "location": null,
+      "final_url": "https://www.eefocus.com/live/2072182.html",
+      "bytes": 149420,
+      "sha256": "d09dfab77c0f3ece5c29ceed026eb1a4142f3619fd54fbf5082dee51946ec551",
+      "content_type": "text/html; charset=UTF-8",
+      "server_date": "Fri, 02 Oct 2026 10:17:30 GMT",
+      "completed_at": "2026-10-02T10:17:31.818963+00:00"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "stage": "stateful_ingest_design",
+  "counts_after_each_run": [
+    {
+      "run": 1,
+      "admitted": 0,
+      "raw_items": 0,
+      "events": 0,
+      "event_sources": 0,
+      "changed": 0
+    },
+    {
+      "run": 2,
+      "admitted": 1,
+      "raw_items": 1,
+      "events": 1,
+      "event_sources": 1,
+      "changed": 1
+    },
+    {
+      "run": 3,
+      "admitted": 1,
+      "raw_items": 1,
+      "events": 1,
+      "event_sources": 1,
+      "changed": 0
+    },
+    {
+      "run": 4,
+      "admitted": 1,
+      "raw_items": 1,
+      "events": 1,
+      "event_sources": 1,
+      "changed": 0
+    }
+  ],
+  "canonical_url": "https://www.eefocus.com/live/980102.html",
+  "event_id_unchanged_after_run_2": true,
+  "expected_preference_after_runs_3_and_4": {
+    "favorite": 1,
+    "hidden": 0,
+    "feedback": "",
+    "feedback_tags": "[]",
+    "revision": 1
+  },
+  "expected_event_after_runs_3_and_4": {
+    "status": "needs_review",
+    "details": {
+      "review_hold": true,
+      "review_notes": "人工保留：确认参加资格后再展示",
+      "address_precision": "undisclosed"
+    }
+  },
+  "assertions": [
+    "Run 1 creates no raw/event/source-link row, so no legacy alias migration is needed",
+    "Run 2 creates exactly one canonical record; provenance aliases are kept in the proposed identity store, not separate event_sources rows",
+    "Runs 3 and 4 use fresh verified alias evidence, identical content, and preserve the actually seeded favorite and review hold",
+    "No unresolved candidate is passed to worker.collect_source for ingest",
+    "No title-only or numeric-ID-only merge"
+  ],
+  "required_code_changes": [
+    "R1 verified-identity admission gate",
+    "R2 durable alias/identity store; expose canonical URL to worker before first ingest"
+  ]
+}

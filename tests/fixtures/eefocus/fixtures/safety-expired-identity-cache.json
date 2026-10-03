@@ -1,0 +1,11 @@
+{
+  "fixture_only_proposed_identity_cache": true,
+  "source_id": "eefocus-events-synthetic",
+  "alias_url": "https://www.eefocus.com/event/980002.html",
+  "canonical_url": "https://www.eefocus.com/live/980102.html",
+  "state": "expired",
+  "verified_at": "2026-09-20T10:00:00+08:00",
+  "expires_at": "2026-09-21T10:00:00+08:00",
+  "redirect_chain_validated": true,
+  "content_identity_validated": true
+}

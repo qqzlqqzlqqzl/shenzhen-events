@@ -1,0 +1,15 @@
+{
+  "id": "cancel-observation-001",
+  "source_id": "eefocus-events-synthetic",
+  "inventory_url": "https://www.eefocus.com/event/",
+  "observed_alias_url": "https://www.eefocus.com/event/980002.html",
+  "card_post_id": "980002",
+  "card_title": "合成线上电路研讨会",
+  "source_status": "已取消",
+  "status_scope": "recognized current inventory event card",
+  "observed_at": "2026-10-02T11:00:00+08:00",
+  "publisher_updated_at": null,
+  "body_file": "fixtures/safety-cancelled-list.html",
+  "retrieval": "current bounded HTTP 200 inventory",
+  "content_digest": "e1b8c249a4a40b83f492e38c5407489cb8483fff9c545d435a2daaff761e4efb"
+}
