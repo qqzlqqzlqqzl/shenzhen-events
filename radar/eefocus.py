@@ -87,6 +87,28 @@ def cancellation_observations(soup, url):
     return observations
 
 
+def single_cancellation_occurrence(raw):
+    """Consume one whole dated meeting field; unparsed suffixes give no proof.
+
+    This positive grammar permits a full date, optional same-day clocks and
+    an explicit local timezone. Compact ranges, alternatives, open ends and
+    explanatory prose are outside that grammar and remain unknown.
+    """
+    clock=r'\d{1,2}:\d{2}'
+    match=re.fullmatch(r'(?:活动|直播|举办)时间[：:]\s*'
+                      r'(?P<date>20\d{2}年\d{1,2}月\d{1,2}日)'
+                      rf'(?:\s*(?P<start>{clock})(?:\s*[–—－~-]\s*(?P<end>{clock}))?)?'
+                      r'(?:\s*北京时间)?',date_text(raw))
+    if not match:return []
+    days=sorted(calendar_dates(match['date']))
+    if len(days)!=1:return []
+    try:
+        clocks=[datetime(2000,1,1,*map(int,match[key].split(':'))) for key in ('start','end') if match[key]]
+    except ValueError:return []
+    if len(clocks)==2 and clocks[1]<=clocks[0]:return []
+    return days
+
+
 def cancellation_time_evidence(texts, publisher_inventory, url):
     """Only a single explicit meeting field identifies cancellation occurrence.
 
@@ -95,14 +117,12 @@ def cancellation_time_evidence(texts, publisher_inventory, url):
     """
     texts=list(dict.fromkeys(core.clean(text) for text in texts if core.clean(text)))
     raw=texts[0] if len(texts)==1 else ''
-    days=sorted(calendar_dates(raw))
+    days=single_cancellation_occurrence(raw)
     if re.search(r'推广',raw):role='promotion_window'
     elif re.search(r'报名|征集',raw):role='registration_window'
     elif re.search(r'发布|更新|上架',raw):role='publication_time'
     elif publisher_inventory and len(date_parts(raw))>1:role='discovery_window'
-    elif (re.match(r'^(?:活动|直播|举办)时间[：:]',raw) and len(days)==1 and len(date_parts(raw))==1
-          and not re.search(r'待定|暂定|拟定|原定|改期|延期|计划|预计',raw)):
-        role='actual_occurrence'
+    elif days:role='actual_occurrence'
     else:role='unknown'
     return dict(schema=CANCELLATION_TIME_SCHEMA,role=role,texts=texts,publisher_inventory=publisher_inventory,
                 url=url,occurrence=days if role=='actual_occurrence' else [])

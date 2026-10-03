@@ -52,6 +52,14 @@ legacy untyped date arrays remain unknown and cannot dismiss a pending notice.
 The late-anchor transaction reparses retained role evidence and rolls back the
 whole admission if applicability cannot be established.
 
+Single-occurrence authority requires a complete positive parse of the time
+field: one explicit fully dated meeting, optional valid same-day clock(s), and
+optional Beijing timezone text. The grammar consumes the whole field. Compact
+day ranges, alternatives, open-ended spans, unexplained suffixes and invalid or
+cross-midnight clock ranges remain unknown; a full date at the start does not
+prove that the rest of the field identifies a different occurrence. Previously
+captured typed proof is rechecked with this grammar without rewriting it.
+
 Admission also rereads immutable bindings and current canonical history under
 the ingestion writer lock, before changing raw, canonical or source records.
 A delayed already-verified older occurrence cannot undo a committed forward
@@ -170,6 +178,14 @@ controls through collection, ingestion and API, legacy retained evidence, and
 delayed alternate writers with and without a guard. DOM checks cover delayed
 detail/list/calendar/comparison/export responses and fresh reconnect recovery;
 the isolated real API/browser flow also delays a response across an offline event.
+
+The residual date-authority review packet was independently materialized and
+verified as `libfile_8041067534308191b2ad73c035222dce`, version 0, 282733 bytes,
+SHA-256 `75c0333a7299013a26b52016b31b01ec7d8081e9d4303d461d073a2a79003f54`.
+`tests/test_eefocus_occurrence_field.py` exercises compact/uncertain fields,
+complete same/different date controls and formerly misclassified retained proof
+through capture, worker, SQLite, API and ICS. This bounded repair is local-only
+pending independent review; it does not authorize publication or activation.
 
 Independent implementation acceptance is still required; design approval is not
 implementation approval. Publisher evidence still lacks a passing upcoming-event
