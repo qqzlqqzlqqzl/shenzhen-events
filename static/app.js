@@ -288,7 +288,7 @@ function syncPersonalSnapshots(id,result){
 function syncPersonal(id,result){personalReadRevision++;const current=records.get(id);if(current)Object.assign(current,result);syncPersonalSnapshots(id,result);paintFeedback(id);paintFavorite(id)}
 function positionFeedbackUndo(){
   const bar=$('#undo-bar'),dialog=$('#detail'),inside=dialog.open;
-  const host=inside?dialog:document.body;
+  const host=inside?dialog:$('#bottom-overlays');
   if(bar.parentElement!==host)host.appendChild(bar);
   bar.classList.toggle('in-detail',inside);
 }
