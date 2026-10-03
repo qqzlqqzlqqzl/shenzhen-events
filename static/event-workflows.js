@@ -1,8 +1,8 @@
 /* Decision and review helpers: no automatic RSVP, subscription or network writes. */
 'use strict';
 globalThis.RadarEventWorkflows=(()=>{
- const selected=new Map();let detailOrder=[],returnElement=null,compareGeneration=0;
- function retireComparison(){compareGeneration++;}
+ const selected=new Map();let detailOrder=[],returnElement=null,compareGeneration=0,compareIntentGeneration=0;
+ function retireComparison(){compareGeneration++;compareIntentGeneration++;}
  function overlap(a,b){
   if(a.planning_eligible===false||b.planning_eligible===false||a._safety_pending||b._safety_pending)return null;
   if(a.all_day||b.all_day||!a.start_at||!b.start_at||!a.end_at||!b.end_at)return null;
@@ -23,17 +23,21 @@ globalThis.RadarEventWorkflows=(()=>{
  function toggle(id){if(!authenticated)return;const e=records.get(id);if(!e)return;retireComparison();if(selected.has(id))selected.delete(id);else if(selected.size>=3){toast('最多比较3项，先移除不需要的候选。');return}else selected.set(id,{...e});paint()}
  async function compare(){
   if(!authenticated||selected.size<2)return;const epoch=authEpoch;invalidateSafety();
-  const ticket=compareGeneration,ids=[...selected.keys()];
-  const currentRequest=()=>authenticated&&epoch===authEpoch&&ticket===compareGeneration&&ids.length===selected.size&&ids.every(id=>selected.has(id));
-  for(const id of ids){
-   const prior=selected.get(id);
-   try{
-    const current=await api('event/'+encodeURIComponent(id));if(!currentRequest())return;
-    reconcilePersonalRead(current);selected.set(id,current);records.set(id,current);
-   }catch(error){
-    if(error.name==='AbortError'||!currentRequest())return;
-    prior.safety={...prior.safety,warning:'安全状态未重新核实；仅供历史查阅'};
+  const intent=compareIntentGeneration,ids=[...selected.keys()];let ticket=compareGeneration,restarts=0;
+  const currentIntent=()=>authenticated&&epoch===authEpoch&&intent===compareIntentGeneration&&ids.length===selected.size&&ids.every(id=>selected.has(id));
+  const currentRequest=()=>currentIntent()&&ticket===compareGeneration;
+  for(let index=0;index<ids.length;index++){
+   const id=ids[index],prior=selected.get(id);let current,error;
+   try{current=await api('event/'+encodeURIComponent(id))}catch(problem){error=problem}
+   if(!currentIntent()||error?.name==='AbortError')return;
+   if(ticket!==compareGeneration){
+    // A newer safety epoch invalidates the whole group. Retain only the
+    // still-current explicit intent, then recheck every frozen ID together.
+    if(++restarts>2){toast('活动安全状态连续变化，请重新比较。');return;}
+    ticket=compareGeneration;index=-1;continue;
    }
+   if(error)prior.safety={...prior.safety,warning:'安全状态未重新核实；仅供历史查阅'};
+   else{reconcilePersonalRead(current);selected.set(id,current);records.set(id,current);}
   }
   if(!currentRequest())return;
   const box=document.querySelector('#compare-body');box.replaceChildren();const list=[...selected.values()];
@@ -75,7 +79,7 @@ globalThis.RadarEventWorkflows=(()=>{
    if(document.querySelector('dialog[open]'))return;if(e.key==='/'){e.preventDefault();if(innerWidth<620)beginFilterDraft();document.querySelector('#search').focus()}if(e.key==='?'){e.preventDefault();document.querySelector('#shortcut-dialog').showModal()}
   });
  }
- function invalidateSafety(){retireComparison();for(const e of selected.values()){e._safety_pending=true;e.planning_eligible=false;e.safety={...e.safety,warning:e.safety?.warning||'安全状态待重新核实；暂不可安排'};}for(const button of document.querySelectorAll('#compare-body button'))button.onclick=null;document.querySelector('#compare-body')?.replaceChildren();}
+ function invalidateSafety(preserveComparisonIntent=false){if(preserveComparisonIntent)compareGeneration++;else retireComparison();for(const e of selected.values()){e._safety_pending=true;e.planning_eligible=false;e.safety={...e.safety,warning:e.safety?.warning||'安全状态待重新核实；暂不可安排'};}for(const button of document.querySelectorAll('#compare-body button'))button.onclick=null;document.querySelector('#compare-body')?.replaceChildren();}
  function clear(){
   retireComparison();selected.clear();detailOrder=[];returnElement=null;
   // Remove session-owned content and callbacks before another login can use them.

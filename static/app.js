@@ -5,7 +5,7 @@ let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=fal
 let listSnapshot=null,calendarSnapshot=null,safetyEpoch=null;
 let personalReadRevision=0;
 let connectivityGeneration=0,networkOffline=navigator.onLine===false;
-function invalidatePlanning(clear=false){
+function invalidatePlanning(clear=false,preserveComparisonIntent=false){
   for(const e of records.values()){e._safety_pending=true;e.planning_eligible=false;e.safety={...e.safety,warning:e.safety?.warning||'安全状态待重新核实；暂不可安排或导出'};}
   for(const snapshot of [listSnapshot,calendarSnapshot])for(const e of [...(snapshot?.items||[]),...(snapshot?.excluded?.items||[])]){e._safety_pending=true;e.planning_eligible=false;}
   if(undoFeedback?.record){undoFeedback.record._safety_pending=true;undoFeedback.record.planning_eligible=false;}
@@ -13,13 +13,13 @@ function invalidatePlanning(clear=false){
   if($('#detail').open){const tags=$('#detail-body .card-tags');if(tags&&!tags.querySelector('.safety-warning')){const warning=document.createElement('span');warning.className='tag warn safety-warning';warning.textContent='安全状态待重新核实；暂不可安排或导出';tags.append(warning);}}
   $('#calendar').dataset.safetyVerified='false';
   for(const a of document.querySelectorAll('a[href*=".ics"]')){a.removeAttribute('href');a.setAttribute('aria-disabled','true');}
-  RadarEventWorkflows.invalidateSafety?.();
+  RadarEventWorkflows.invalidateSafety?.(preserveComparisonIntent);
   if(clear){listSnapshot=null;calendarSnapshot=null;calendar?.removeAllEvents();renderLongCalendar([]);renderExcluded(null);updateFacetCounts(null);$('#more').hidden=true;}
 }
 function acceptSafety(data){
   const next=data?.safety_epoch;if(!Number.isInteger(next))return;
   if(safetyEpoch!==null&&next<safetyEpoch){const error=new Error('安全状态已更新，请重新加载');error.code='safety_snapshot_changed';throw error;}
-  if(safetyEpoch!==null&&next!==safetyEpoch)invalidatePlanning(true);
+  if(safetyEpoch!==null&&next!==safetyEpoch)invalidatePlanning(true,true);
   safetyEpoch=next;
 }
 let filterDraft=null;

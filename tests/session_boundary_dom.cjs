@@ -227,3 +227,35 @@ test('pending detail step cannot restore focus or rewrite history after a sessio
   await wait();const before=snapshot(r),query=r.w.location.search,historyState={...r.w.history.state};r.w.releaseStep();await wait();assert.deepEqual(snapshot(r),before);assert.equal(r.w.location.search,query);assert.deepEqual({...r.w.history.state},historyState);assert.equal(r.$('#detail').scrollTop,57);
  }finally{r.close()}
 });
+
+test('continuously changing safety epochs stop comparison with an explicit retry state',async()=>{
+ const r=await ready();try{
+  r.w.RadarEventWorkflows.toggle('0');r.w.RadarEventWorkflows.toggle('1');
+  const original=r.w.fetch;let epoch=0;
+  r.w.fetch=async(url,options)=>{
+   const response=await original(url,options);
+   if(!new URL(url,r.w.location.href).pathname.includes('/event/'))return response;
+   const data=await response.json();return {...response,json:async()=>({...data,safety_epoch:++epoch})};
+  };
+  r.$('#compare-open').click();await wait();await wait();
+  assert.equal(r.state.detailReads,3,'two complete-group restarts are the hard limit');
+  assert.equal(r.$('#compare-dialog').open,false);assert.equal(r.$('#compare-body').textContent,'');
+  assert.match(r.$('#toast').textContent,/安全状态连续变化.*重新比较/);
+  assert.equal(r.w.probe.records.get('0').planning_eligible,false);
+ }finally{r.close()}
+});
+test('clearing selection during epoch revalidation still retires the whole comparison intent',async()=>{
+ const r=await ready();try{
+  r.w.RadarEventWorkflows.toggle('0');r.w.RadarEventWorkflows.toggle('1');r.state.guarded=true;r.state.safetyEpoch=1;
+  const original=r.w.fetch;let pointReads=0,release;
+  r.w.fetch=async(url,options)=>{
+   const response=await original(url,options);
+   if(new URL(url,r.w.location.href).pathname.includes('/event/')&&++pointReads===2)return await new Promise(resolve=>release=()=>resolve(response));
+   return response;
+  };
+  r.$('#compare-open').click();for(let i=0;i<20&&!release;i++)await wait();assert.equal(typeof release,'function');
+  r.$('#compare-clear').click();release();await wait();await wait();
+  assert.equal(r.w.RadarEventWorkflows.has('0'),false);assert.equal(r.w.RadarEventWorkflows.has('1'),false);
+  assert.equal(r.$('#compare-dialog').open,false);assert.equal(r.$('#compare-body').textContent,'');assert.equal(pointReads,2);
+ }finally{r.close()}
+});
