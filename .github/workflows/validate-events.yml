@@ -75,7 +75,7 @@ jobs:
       - name: Desktop and mobile browser regressions
         shell: bash
         run: |
-          timeout --signal=TERM --kill-after=10s 900s bash scripts/run_browser_matrix.sh
+          timeout --signal=TERM --kill-after=10s 900s xvfb-run -a bash scripts/run_browser_matrix.sh
       - name: Retain logs and screenshots
         if: always() && steps.prepare_artifacts.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
