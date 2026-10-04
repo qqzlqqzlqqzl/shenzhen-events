@@ -1,8 +1,24 @@
 """Computed contrast and real keyboard focus, using the isolated API harness."""
-import json,tempfile,shutil
+import json,tempfile,struct,zlib,subprocess,base64,hashlib
+from urllib.parse import urlsplit
 from pathlib import Path
 from review_harness import Harness
 from playwright.sync_api import expect
+
+def rendered_chinese_fonts(fonts,text):
+    points=[ord(c) for c in text if '\u4e00'<=c<='\u9fff'];proof=[]
+    installed=subprocess.run(['fc-list','--format=%{postscriptname}\t%{family}\t%{file}\t%{index}\n'],check=True,capture_output=True,text=True,timeout=10).stdout.splitlines()
+    faces=[row.split('\t') for row in installed]
+    for font in fonts:
+        if font['isCustomFont'] or font['glyphCount']<=0:continue
+        matches={(row[2],row[3]) for row in faces if len(row)==4 and font['postScriptName'] in [v.strip() for v in row[0].split(',')] and font['familyName'] in [v.strip() for v in row[1].split(',')]}
+        assert len(matches)==1,(font,matches)
+        file,index=matches.pop()
+        charset=subprocess.run(['fc-query','-i',index,'--format=%{charset}',file],check=True,capture_output=True,text=True,timeout=10).stdout
+        ranges=[tuple(int(v,16) for v in token.split('-')) for token in charset.split()]
+        covers=all(any(r[0]<=cp<=r[-1] for r in ranges) for cp in points)
+        proof.append({'family':font['familyName'],'postscript_name':font['postScriptName'],'glyphs':font['glyphCount'],'font_file':Path(file).name,'font_index':index,'covers_chinese_codepoints':covers})
+    return sum(f['glyphs'] for f in proof if f['covers_chinese_codepoints'])>=len(points)>0,proof
 
 CONTRAST=r'''(element,pseudo=null)=>{
  const parse=c=>c.match(/[\d.]+/g).map(Number);
@@ -70,13 +86,14 @@ try:
     h.report['computed_contrasts']=ratios
     # Use Chromium's native tabs zoom API in a temporary test-only extension.
     # Verify zoom, DPR and CSS viewport; never emulate deviceScaleFactor.
-    profile=Path(tempfile.mkdtemp(prefix='radar-native-zoom-'))
+    profile=Path(tempfile.mkdtemp(prefix='radar-native-zoom-'));browser=None
     try:
         extension=profile/'extension';extension.mkdir()
         (extension/'manifest.json').write_text(json.dumps({'manifest_version':3,'name':'Isolated native zoom regression','version':'1.0','permissions':['tabs'],'background':{'service_worker':'worker.js'}}))
         (extension/'worker.js').write_text('globalThis.nativeZoom=async(url)=>{const tabs=await chrome.tabs.query({});const tab=tabs.find(t=>t.url===url);if(!tab)throw new Error("fixture tab not found");await chrome.tabs.setZoom(tab.id,2);return await chrome.tabs.getZoom(tab.id)};')
-        browser=h.browser.browser_type.launch_persistent_context(str(profile/'browser'),executable_path=h.browser.browser_type.executable_path,headless=True,no_viewport=True,ignore_default_args=['--disable-extensions'],args=['--window-size=1280,1000','--disable-extensions-except='+str(extension),'--load-extension='+str(extension)])
-        browser.add_cookies(h.ctx.cookies());zp=browser.pages[0] if browser.pages else browser.new_page();zp.goto(h.base+'/events/?view=all');zp.locator('.event-card').first.wait_for()
+        browser=h.browser.browser_type.launch_persistent_context(str(profile/'browser'),executable_path=h.browser.browser_type.executable_path,headless=False,no_viewport=True,locale='zh-CN',ignore_default_args=['--disable-extensions'],args=['--window-size=1280,1000','--disable-extensions-except='+str(extension),'--load-extension='+str(extension)])
+        browser.route(lambda url:urlsplit(url).netloc!=urlsplit(h.base).netloc,lambda r:r.abort())
+        browser.add_cookies(h.ctx.cookies());zp=browser.new_page();zp.goto(h.base+'/events/?view=all');zp.locator('.event-card').first.wait_for();zp.bring_to_front()
         try:
             worker=browser.service_workers[0] if browser.service_workers else browser.wait_for_event('serviceworker',timeout=10000)
             native=worker.evaluate('(url)=>nativeZoom(url)',zp.url);zp.wait_for_timeout(200)
@@ -85,12 +102,40 @@ try:
         actual=zp.evaluate('({dpr:devicePixelRatio,width:innerWidth,outer:outerWidth,overflow:document.documentElement.scrollWidth>innerWidth})')
         supported=native==2 and abs(actual['dpr']-2)<.05 and actual['width']<=actual['outer']/1.9
         h.report['native_zoom']={'supported':supported,'requested_percent':200,'reported_zoom':native,'observed':actual,'method':'chrome.tabs.setZoom/getZoom; deviceScaleFactor not used'}
-        if supported:
-            h.check('native_200_no_overflow',not actual['overflow']);zp.locator('[data-open]').first.click();expect(zp.locator('#detail')).to_be_visible()
-            h.check('native_200_detail_no_overflow',zp.locator('#detail').evaluate('(e)=>e.scrollWidth<=e.clientWidth'))
-            expect(zp.locator('.detail-title')).to_contain_text('审阅活动')
-            h.report['native_zoom']['visual_capture']='Headless native-zoom capture was blank; numeric zoom and rendered DOM geometry were verified. Mobile screenshots are retained at 100% zoom.'
-        browser.close()
-    finally:shutil.rmtree(profile,ignore_errors=True)
+        h.check('native_200_supported',supported)
+        h.check('native_200_no_overflow',not actual['overflow']);zp.locator('[data-open]').first.click();expect(zp.locator('#detail')).to_be_visible()
+        h.check('native_200_detail_no_overflow',zp.locator('#detail').evaluate('(e)=>e.scrollWidth<=e.clientWidth'))
+        heading=zp.locator('.detail-title');expect(heading).to_contain_text('审阅活动')
+        heading.scroll_into_view_if_needed();zp.evaluate('document.fonts.ready');zp.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+        session=browser.new_cdp_session(zp);session.send('DOM.enable');session.send('CSS.enable')
+        root=session.send('DOM.getDocument')['root']['nodeId'];node=session.send('DOM.querySelector',{'nodeId':root,'selector':'.detail-title'})['nodeId']
+        fonts=session.send('CSS.getPlatformFontsForNode',{'nodeId':node})['fonts']
+        h.report['native_zoom'].update(rendered_fonts=fonts,physical_android_ios=False,visual_capture='headed Chromium/Xvfb Page.captureScreenshot fromSurface=false native-200.png')
+        (h.out/'native-metrics.json').write_text(json.dumps(h.report['native_zoom'],ensure_ascii=False,indent=2))
+        zp.screenshot(path=str(h.out/'native-200-playwright.png'))
+        session.send('Page.bringToFront');zp.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+        shot=base64.b64decode(session.send('Page.captureScreenshot',{'format':'png','fromSurface':False,'captureBeyondViewport':False})['data'])
+        (h.out/'native-200.png').write_bytes(shot);offset=8;compressed=b''
+        while offset<len(shot):
+            size=struct.unpack('>I',shot[offset:offset+4])[0];kind=shot[offset+4:offset+8]
+            if kind==b'IDAT':compressed+=shot[offset+8:offset+8+size]
+            offset+=size+12
+        print('Native rendered fonts:',json.dumps(fonts,ensure_ascii=False),flush=True)
+        chinese_ok,font_proof=rendered_chinese_fonts(fonts,heading.inner_text())
+        (h.out/'native-font-coverage.json').write_text(json.dumps(font_proof,ensure_ascii=False,indent=2))
+        h.check('native_200_actual_cjk_glyphs',chinese_ok)
+        h.check('native_200_western_font_rejected',any(f['family']=='DejaVu Sans' and not f['covers_chinese_codepoints'] for f in font_proof))
+        h.check('native_200_visual_capture_not_blank',len(set(zlib.decompress(compressed)))>8)
+        stable_before=heading.evaluate('e=>e.getBoundingClientRect().toJSON()');zp.wait_for_timeout(300)
+        stable_after=heading.evaluate('e=>e.getBoundingClientRect().toJSON()');second=base64.b64decode(session.send('Page.captureScreenshot',{'format':'png','fromSurface':False,'captureBeyondViewport':False})['data'])
+        (h.out/'native-200-after300ms.png').write_bytes(second)
+        (h.out/'native-stability.json').write_text(json.dumps({'wait_ms':300,'before':stable_before,'after':stable_after,'before_sha256':hashlib.sha256(shot).hexdigest(),'after_sha256':hashlib.sha256(second).hexdigest()},indent=2))
+        h.check('native_200_capture_stable_300ms',stable_before==stable_after and shot==second)
+        h.check('native_200_capture_keeps_real_zoom',worker.evaluate('(url)=>chrome.tabs.query({}).then(t=>chrome.tabs.getZoom(t.find(x=>x.url===url).id))',zp.url)==2 and zp.evaluate('devicePixelRatio')==2)
+        close=zp.locator('#close-detail');close.scroll_into_view_if_needed();close.click(trial=True);close.focus();expect(close).to_be_focused()
+        h.check('native_200_close_reachable',close.evaluate('e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth}'))
+    finally:
+        if browser:browser.close()
+        # Retain the isolated fixture profile outside uploaded artifacts; no pruning.
 except Exception as exc:h.report['errors'].append(str(exc));raise
 finally:h.close()
