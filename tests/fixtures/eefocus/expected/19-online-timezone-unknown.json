@@ -1,0 +1,14 @@
+{
+  "stage": "parse",
+  "item_subset": {
+    "start_at": "2026-10-30T00:00:00+08:00",
+    "end_at": "2026-10-31T00:00:00+08:00",
+    "all_day": true,
+    "details": {
+      "attendance": "online",
+      "timezone_status": "unconfirmed",
+      "review_notes": "原文有14:00–15:00但没有时区；日期粒度仅供展示，请核对开播时间。"
+    }
+  },
+  "forbidden_exact_start": "2026-10-30T14:00:00+08:00"
+}

@@ -16,7 +16,8 @@ def api_fixture(route):
         return
     rows = [dict(id=str(i), title=state['version'] + ' synthetic event ' + str(i),
                  start_at='2026-10-05T10:00:00+08:00', end_at='2026-10-05T12:00:00+08:00',
-                 status='scheduled', favorite=state['version'] == 'A',
+                 status='scheduled', stored_status='scheduled',planning_eligible=True,safety_epoch=0,
+                 safety=dict(available=True,guard_count=0,warning=''),favorite=state['version'] == 'A',
                  feedback='interested' if state['version'] == 'A' else 'not_interested',
                  feedback_tags=[], revision=1 if state['version'] == 'A' else 2,
                  event_type='MusicEvent', event_type_label='音乐', topics=['文化艺术'],
@@ -121,6 +122,7 @@ try:
             for i in range(2):
                 p.locator('[data-compare]').nth(i).click()
             p.locator('#compare-open').click()
+            p.locator('#compare-body button').first.wait_for()
             p.evaluate("window.staleCompare=document.querySelector('#compare-body button');window.staleAction=staleCompare.onclick")
             boundary(kind)
             fresh(kind)
@@ -135,6 +137,8 @@ try:
                         if source == 'public':
                             p.locator('.title-button').first.click()
                         selector = '#copy-ics' if source == 'private' else '.detail-utilities button'
+                        # Point details mount after their fresh API revalidation.
+                        p.locator(selector).first.wait_for(state='visible')
                         p.evaluate("selector=>{window.staleCopy=document.querySelector(selector);window.staleCopyAction=staleCopy.onclick}", selector)
                         p.locator(selector).first.click()
                         assert p.evaluate('copyWrites.length') == 1

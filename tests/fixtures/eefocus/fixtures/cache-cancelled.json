@@ -1,0 +1,9 @@
+{
+  "source_id": "eefocus-events-synthetic",
+  "url": "https://www.eefocus.com/event/980009.html",
+  "fingerprint": "fixture-harness-must-compute-from-old-list-record",
+  "payload": "{\"patch\": {\"start_at\": \"2026-11-11T09:00:00+08:00\", \"end_at\": \"2026-11-11T10:00:00+08:00\", \"all_day\": false, \"status\": \"scheduled\", \"details\": {\"attendance\": \"offline\", \"checked_at\": \"2026-10-01T10:00:00+08:00\"}}}",
+  "status": "ok",
+  "checked_at": "2026-10-01T10:00:00+08:00",
+  "next_attempt": "2026-10-03T10:00:00+08:00"
+}

@@ -1,0 +1,13 @@
+{
+  "stage": "parse",
+  "item_subset": {
+    "start_at": "2026-10-10T00:00:00+08:00",
+    "end_at": "2026-10-11T00:00:00+08:00",
+    "all_day": true,
+    "status": "scheduled"
+  },
+  "assertions": [
+    "all_day is date-granularity storage, not evidence that a workshop lasts 24 hours",
+    "No invented 09:00 or 17:00 clock"
+  ]
+}

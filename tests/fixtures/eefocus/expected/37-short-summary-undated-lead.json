@@ -1,0 +1,35 @@
+{
+  "stage": "parse_enrich_collect_design",
+  "parse_item_subset": {
+    "start_at": null,
+    "end_at": null,
+    "all_day": false,
+    "detail_candidate": true
+  },
+  "admitted_item_subset": {
+    "start_at": null,
+    "end_at": null,
+    "all_day": false,
+    "status": "needs_review",
+    "summary": "技术交流，日期待确认。"
+  },
+  "admitted": 1,
+  "upcoming_included": false,
+  "assertions": [
+    "Summary is less than 40 characters; explicit event semantics justify detail_candidate",
+    "Retain detail_candidate until existing information gate; remove it from admitted event afterward",
+    "Without identity resolution, admitted must remain zero regardless of detail_candidate",
+    "No summary padding or invented year to bypass admission"
+  ],
+  "required_code_changes": [
+    "R1 identity gate plus candidate signal sequencing",
+    "R2 evidence-derived identity verdict; caller boolean is not proof"
+  ],
+  "identity_evidence_required": [
+    "bounded same-origin route/response",
+    "matching main-event heading",
+    "explicit main-event semantics",
+    "matching yearless actual-meeting fragment",
+    "no conflicting event-specific anchors"
+  ]
+}

@@ -1,0 +1,1450 @@
+{
+  "format_version": 3,
+  "artifact_status": "DESIGN_LEVEL_SYNTHETIC_EXPECTATIONS_NOT_EXECUTABLE_ADAPTER_TESTS",
+  "generated_on": "2026-10-02",
+  "fixed_now": "2026-10-02T11:00:00+08:00",
+  "primary_list_selector": ".special-list > .section-list-item-ul > .section-special-item",
+  "card_fields": [
+    ".item-title",
+    ".item-intro",
+    ".post-tag",
+    ".event-time",
+    ".event-location",
+    "data-post-id"
+  ],
+  "case_count": 64,
+  "cases": [
+    {
+      "id": "01-main-inventory",
+      "purpose": "20-card denominator; reject non-events and exact duplicates; ignore sidebar; pagination unverified",
+      "inputs": {
+        "list_html": "fixtures/inventory-20-main-cards.html",
+        "source_overrides": {
+          "detail_budget": 0
+        },
+        "identity_cache": []
+      },
+      "expected": "expected/01-main-inventory.json",
+      "notes": [
+        "Exclusion labels are proposed strings, not an existing enum",
+        "coverage.duplicates is 0 because exact duplicates are accounted for in parse exclusions",
+        "detail_budget=0 leaves all 12 eligible detail lookups deferred",
+        "V2 deliberately defers admission instead of promising a later migration. A useful candidate may be extracted but not admitted."
+      ]
+    },
+    {
+      "id": "02-promotion-is-not-duration",
+      "purpose": "Do not convert promotion window to an all-day multiweek event",
+      "inputs": {
+        "list_html": "fixtures/promotion-list.html"
+      },
+      "expected": "expected/02-promotion-is-not-duration.json",
+      "notes": []
+    },
+    {
+      "id": "03-explicit-meeting-time",
+      "purpose": "Use actual meeting duration after detail enrichment",
+      "inputs": {
+        "list_html": "fixtures/promotion-list.html",
+        "detail_html": "fixtures/promotion-detail-actual-meeting.html"
+      },
+      "expected": "expected/03-explicit-meeting-time.json",
+      "notes": [
+        "Date/time facts are supplied by the parent design; all prose and markup are original synthetic text",
+        "Current merge_detail cannot fill a null base start with this patch without needs_review; source-specific behavior is an implementation decision"
+      ]
+    },
+    {
+      "id": "04-same-origin-event-to-live",
+      "purpose": "Canonical identity for approved numeric event→live redirects",
+      "inputs": {
+        "list_html": "fixtures/redirect-list.html",
+        "detail_html": "fixtures/redirect-live-detail.html",
+        "transport": {
+          "requested_url": "https://www.eefocus.com/event/980002.html",
+          "redirect_chain": [
+            {
+              "status": 302,
+              "location": "/live/980102.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/live/980102.html"
+        }
+      },
+      "expected": "expected/04-same-origin-event-to-live.json",
+      "notes": [
+        "Alias evidence is fixture-side semantics; no alias_urls field is asserted to exist",
+        "A page canonical tag alone is not redirect evidence; do not merge merely by title or numeric ID"
+      ]
+    },
+    {
+      "id": "05-ended-livestream",
+      "purpose": "Exclude this card from event candidates and upcoming",
+      "inputs": {
+        "list_html": "fixtures/ended-list.html"
+      },
+      "expected": "expected/05-ended-livestream.json",
+      "notes": [
+        "Ended/replay labels win over a future-looking or still-open promotional date"
+      ]
+    },
+    {
+      "id": "06-replay",
+      "purpose": "Exclude this card from event candidates and upcoming",
+      "inputs": {
+        "list_html": "fixtures/replay-list.html"
+      },
+      "expected": "expected/06-replay.json",
+      "notes": [
+        "Ended/replay labels win over a future-looking or still-open promotional date"
+      ]
+    },
+    {
+      "id": "07-board-trial",
+      "purpose": "Exclude this card from event candidates and upcoming",
+      "inputs": {
+        "list_html": "fixtures/board-trial-list.html"
+      },
+      "expected": "expected/07-board-trial.json",
+      "notes": [
+        "Ended/replay labels win over a future-looking or still-open promotional date"
+      ]
+    },
+    {
+      "id": "08-download",
+      "purpose": "Exclude this card from event candidates and upcoming",
+      "inputs": {
+        "list_html": "fixtures/download-list.html"
+      },
+      "expected": "expected/08-download.json",
+      "notes": [
+        "Ended/replay labels win over a future-looking or still-open promotional date"
+      ]
+    },
+    {
+      "id": "09-giveaway",
+      "purpose": "Exclude this card from event candidates and upcoming",
+      "inputs": {
+        "list_html": "fixtures/giveaway-list.html"
+      },
+      "expected": "expected/09-giveaway.json",
+      "notes": [
+        "Ended/replay labels win over a future-looking or still-open promotional date"
+      ]
+    },
+    {
+      "id": "10-conflicting-attendance-badges",
+      "purpose": "Conflicting online/offline badges are not proof of hybrid participation",
+      "inputs": {
+        "list_html": "fixtures/attendance-conflict-list.html"
+      },
+      "expected": "expected/10-conflicting-attendance-badges.json",
+      "notes": []
+    },
+    {
+      "id": "11-explicit-hybrid",
+      "purpose": "Explicit simultaneous live plus a physical venue supports hybrid",
+      "inputs": {
+        "list_html": "fixtures/hybrid-list.html"
+      },
+      "expected": "expected/11-explicit-hybrid.json",
+      "notes": []
+    },
+    {
+      "id": "12-cancellation-beats-cache",
+      "purpose": "A fresh cancellation must not be resurrected by a stale detail cache",
+      "inputs": {
+        "list_html": "fixtures/cancelled-list.html",
+        "cache_row": "fixtures/cache-cancelled.json",
+        "cache_fingerprint_relationship": "old source_status is 报名中; fresh source_status is 已取消"
+      },
+      "expected": "expected/12-cancellation-beats-cache.json",
+      "notes": []
+    },
+    {
+      "id": "13-reschedule-beats-cache",
+      "purpose": "Changed listing date invalidates a matching-title stale detail patch",
+      "inputs": {
+        "list_html": "fixtures/rescheduled-list.html",
+        "old_detail_patch": {
+          "start_at": "2026-11-10T09:00:00+08:00",
+          "end_at": "2026-11-10T10:00:00+08:00",
+          "all_day": false
+        }
+      },
+      "expected": "expected/13-reschedule-beats-cache.json",
+      "notes": []
+    },
+    {
+      "id": "14-clock-conflict",
+      "purpose": "Conflicting fresh detail clocks produce review status",
+      "inputs": {
+        "list_html": "fixtures/clock-conflict-list.html",
+        "detail_html": "fixtures/clock-conflict-detail.html"
+      },
+      "expected": "expected/14-clock-conflict.json",
+      "notes": []
+    },
+    {
+      "id": "15-yearless-date",
+      "purpose": "Keep missing, invalid or yearless actual meeting dates unknown",
+      "inputs": {
+        "list_html": "fixtures/15-yearless-date.html",
+        "fetch_time": "2026-10-02T11:00:00+08:00",
+        "article_publication": "2026-10-01"
+      },
+      "expected": "expected/15-yearless-date.json",
+      "notes": []
+    },
+    {
+      "id": "16-invalid-calendar-date",
+      "purpose": "Keep missing, invalid or yearless actual meeting dates unknown",
+      "inputs": {
+        "list_html": "fixtures/16-invalid-calendar-date.html",
+        "fetch_time": "2026-10-02T11:00:00+08:00",
+        "article_publication": "2026-10-01"
+      },
+      "expected": "expected/16-invalid-calendar-date.json",
+      "notes": []
+    },
+    {
+      "id": "17-date-not-announced",
+      "purpose": "Keep missing, invalid or yearless actual meeting dates unknown",
+      "inputs": {
+        "list_html": "fixtures/17-date-not-announced.html",
+        "fetch_time": "2026-10-02T11:00:00+08:00",
+        "article_publication": "2026-10-01"
+      },
+      "expected": "expected/17-date-not-announced.json",
+      "notes": []
+    },
+    {
+      "id": "18-date-only-exclusive-end",
+      "purpose": "One explicit day means one exclusive date boundary",
+      "inputs": {
+        "list_html": "fixtures/single-date-list.html"
+      },
+      "expected": "expected/18-date-only-exclusive-end.json",
+      "notes": []
+    },
+    {
+      "id": "19-online-timezone-unknown",
+      "purpose": "Unspecified online timezone cannot be presented as a verified exact Shanghai instant",
+      "inputs": {
+        "list_html": "fixtures/online-timezone-unknown-list.html"
+      },
+      "expected": "expected/19-online-timezone-unknown.json",
+      "notes": [
+        "The display-only date policy follows existing webinar adapter conventions; exact clock requires explicit timezone evidence"
+      ]
+    },
+    {
+      "id": "20-recognized-empty",
+      "purpose": "Recognized inventory shell plus explicit empty signal is a valid zero observation",
+      "inputs": {
+        "list_html": "fixtures/recognized-empty.html",
+        "empty_signal_origin": "synthetic design marker, not a verified EEFocus selector"
+      },
+      "expected": "expected/20-recognized-empty.json",
+      "notes": [
+        "Expected single_page status is partial even when recognized_empty=true; do not assert empty or ok",
+        "Production acceptance needs an observed trustworthy empty-state marker"
+      ]
+    },
+    {
+      "id": "21-challenge-not-empty",
+      "purpose": "Challenge response is blocked, never an empty inventory",
+      "inputs": {
+        "list_html": "fixtures/challenge.html",
+        "http_status": 200
+      },
+      "expected": "expected/21-challenge-not-empty.json",
+      "notes": []
+    },
+    {
+      "id": "22-structure-drift-not-empty",
+      "purpose": "HTTP success without recognized inventory is a parser error",
+      "inputs": {
+        "list_html": "fixtures/structure-drift.html",
+        "http_status": 200
+      },
+      "expected": "expected/22-structure-drift-not-empty.json",
+      "notes": []
+    },
+    {
+      "id": "23-list-timeout",
+      "purpose": "Listing request times out before a verified inventory",
+      "inputs": {
+        "transport_exception": "Deadline raised after request is started",
+        "responses": []
+      },
+      "expected": "expected/23-list-timeout.json",
+      "notes": []
+    },
+    {
+      "id": "24-detail-timeout-in-flight",
+      "purpose": "Retain parsed list; distinguish an in-flight deadline from deferred requests",
+      "inputs": {
+        "list_html": "fixtures/three-detail-candidates.html",
+        "source_overrides": {
+          "detail_budget": 3
+        },
+        "transport_sequence": [
+          "list success",
+          "first detail Deadline after bounded_fetch increments requests_attempted"
+        ],
+        "identity_cache": []
+      },
+      "expected": "expected/24-detail-timeout-in-flight.json",
+      "notes": [
+        "These counts match current enrich_details Deadline branch: attempted timeout is not also detail_failed or detail_deferred",
+        "A future change to count timeout as failed requires a deliberate contract update, not an accidental double count"
+      ]
+    },
+    {
+      "id": "25-detail-budget-expired-before-request",
+      "purpose": "Deadline encountered before a detail attempt leaves every candidate deferred",
+      "inputs": {
+        "list_html": "fixtures/three-detail-candidates.html",
+        "source_overrides": {
+          "detail_budget": 3
+        },
+        "transport_sequence": [
+          "list success",
+          "deadline before first detail request"
+        ],
+        "identity_cache": []
+      },
+      "expected": "expected/25-detail-budget-expired-before-request.json",
+      "notes": [
+        "Current outer-loop deadline break leaves truncated unchanged; partial is still required via detail_deferred and single_page",
+        "A deadline raised from pause() sets truncated=true; specify the exact injection point in executable tests"
+      ]
+    },
+    {
+      "id": "26-detail-http-failure",
+      "purpose": "One normal detail timeout plus one success is not a failed list run",
+      "inputs": {
+        "list_html": "fixtures/two-detail-candidates.html",
+        "source_overrides": {
+          "detail_budget": 2
+        },
+        "transport_sequence": [
+          "list success",
+          "detail SourceError(ReadTimeout)",
+          "detail success with recognized body but no year"
+        ],
+        "identity_cache": [],
+        "response_script": [
+          {
+            "request_url": "https://www.eefocus.com/event/",
+            "response_html": "fixtures/two-detail-candidates.html",
+            "final_url": "https://www.eefocus.com/event/"
+          },
+          {
+            "request_url": "https://www.eefocus.com/event/980001.html",
+            "exception_type": "collectors.SourceError",
+            "exception_message": "ReadTimeout"
+          },
+          {
+            "request_url": "https://www.eefocus.com/event/980011.html",
+            "response_html": "fixtures/detail-success-undated.html",
+            "final_url": "https://www.eefocus.com/event/980011.html",
+            "redirect_chain": [],
+            "identity_check": "same title and numeric event route, same origin throughout"
+          }
+        ]
+      },
+      "expected": "expected/26-detail-http-failure.json",
+      "notes": []
+    },
+    {
+      "id": "27-detail-challenge-stop",
+      "purpose": "A detail challenge stops further requests and preserves public listing coverage",
+      "inputs": {
+        "list_html": "fixtures/three-detail-candidates.html",
+        "detail_html": "fixtures/challenge.html",
+        "transport_sequence": [
+          "list success",
+          "first detail Blocked"
+        ],
+        "identity_cache": []
+      },
+      "expected": "expected/27-detail-challenge-stop.json",
+      "notes": []
+    },
+    {
+      "id": "28-repeat-ingest-alias",
+      "purpose": "No-detail first → identity resolution → repeated aliases with real favorite and manual-hold seeds",
+      "inputs": {
+        "transcript": "fixtures/repeat-ingest-transcript.json"
+      },
+      "expected": "expected/28-repeat-ingest-alias.json",
+      "notes": [
+        "The v1 claim of canonical-before-first-ingest is now made achievable by deferred admission. No migration is promised."
+      ]
+    },
+    {
+      "id": "29-unsafe-or-unproven-alias",
+      "purpose": "Reject redirect/identity claims outside proven same-origin numeric routes",
+      "inputs": {
+        "transports": [
+          {
+            "requested_url": "https://www.eefocus.com/event/980002.html",
+            "final_url": "https://untrusted.example/live/980102.html"
+          },
+          {
+            "requested_url": "https://www.eefocus.com/event/980002.html",
+            "final_url": "https://www.eefocus.com.evil.example/live/980102.html"
+          },
+          {
+            "requested_url": "https://www.eefocus.com/event/980002.html",
+            "final_url": "https://www.eefocus.com/article/980102/"
+          },
+          {
+            "requested_url": "https://www.eefocus.com/event/980002.html",
+            "final_url": "https://www.eefocus.com/live/not-numeric/"
+          },
+          {
+            "requested_url": "https://www.eefocus.com/event/980002.html",
+            "final_url": "http://127.0.0.1/live/980102.html"
+          }
+        ]
+      },
+      "expected": "expected/29-unsafe-or-unproven-alias.json",
+      "notes": []
+    },
+    {
+      "id": "30-cache-timestamp-only-repeat",
+      "purpose": "Observation timestamp changes should not refetch detail or reset content analysis",
+      "inputs": {
+        "state": "fixtures/cache-timestamp-concrete.json"
+      },
+      "expected": "expected/30-cache-timestamp-only-repeat.json",
+      "notes": []
+    },
+    {
+      "id": "31-cancelled-undated-normalization-gap",
+      "purpose": "Cancellation evidence must survive even when no actual meeting date can be proven",
+      "inputs": {
+        "list_html": "fixtures/cancelled-undated-list.html"
+      },
+      "expected": "expected/31-cancelled-undated-normalization-gap.json",
+      "notes": []
+    },
+    {
+      "id": "32-both-aliases-one-inventory",
+      "purpose": "Two visible aliases resolve to one canonical event before ingestion",
+      "inputs": {
+        "list_html": "fixtures/both-aliases-one-inventory.html",
+        "initial_database": "empty isolated test database",
+        "identity_cache": [],
+        "responses": [
+          {
+            "requested_url": "https://www.eefocus.com/event/980002.html",
+            "redirect_chain": [
+              {
+                "from": "https://www.eefocus.com/event/980002.html",
+                "status": 302,
+                "location": "https://www.eefocus.com/live/980102.html"
+              }
+            ],
+            "final_url": "https://www.eefocus.com/live/980102.html",
+            "payload": {
+              "title": "合成线上电路研讨会",
+              "url": "https://www.eefocus.com/live/980102.html",
+              "summary": "这是一场原创合成技术交流活动，说明用于验证来源身份、时间证据以及人工保留状态，不对应真实报名。",
+              "location": "线上",
+              "start_at": "2026-10-23T14:00:00+08:00",
+              "end_at": "2026-10-23T15:00:00+08:00",
+              "all_day": false,
+              "city": "线上",
+              "organizer": "",
+              "cost_text": "",
+              "event_type": "ConferenceEvent",
+              "status": "scheduled",
+              "published_at": "2026-09-30",
+              "details": {
+                "publisher": "与非网",
+                "source_event_id": "980102",
+                "attendance": "online",
+                "source_status": "报名中",
+                "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+                "time_evidence": [
+                  {
+                    "field": "detail_meeting_time",
+                    "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+                    "url": "https://www.eefocus.com/live/980102.html"
+                  }
+                ],
+                "timezone_status": "source_explicit",
+                "checked_at": "2026-10-02T11:00:00+08:00"
+              }
+            }
+          },
+          {
+            "requested_url": "https://www.eefocus.com/live/980102.html",
+            "redirect_chain": [],
+            "final_url": "https://www.eefocus.com/live/980102.html",
+            "payload": {
+              "title": "合成线上电路研讨会",
+              "url": "https://www.eefocus.com/live/980102.html",
+              "summary": "这是一场原创合成技术交流活动，说明用于验证来源身份、时间证据以及人工保留状态，不对应真实报名。",
+              "location": "线上",
+              "start_at": "2026-10-23T14:00:00+08:00",
+              "end_at": "2026-10-23T15:00:00+08:00",
+              "all_day": false,
+              "city": "线上",
+              "organizer": "",
+              "cost_text": "",
+              "event_type": "ConferenceEvent",
+              "status": "scheduled",
+              "published_at": "2026-09-30",
+              "details": {
+                "publisher": "与非网",
+                "source_event_id": "980102",
+                "attendance": "online",
+                "source_status": "报名中",
+                "date_evidence": "直播时间：2026年10月23日14:00–15:00 北京时间",
+                "time_evidence": [
+                  {
+                    "field": "detail_meeting_time",
+                    "text": "直播时间：2026年10月23日14:00–15:00 北京时间",
+                    "url": "https://www.eefocus.com/live/980102.html"
+                  }
+                ],
+                "timezone_status": "source_explicit",
+                "checked_at": "2026-10-02T11:00:00+08:00"
+              }
+            }
+          }
+        ]
+      },
+      "expected": "expected/32-both-aliases-one-inventory.json",
+      "notes": []
+    },
+    {
+      "id": "33-fresh-detail-cancellation",
+      "purpose": "Current authoritative detail cancellation outranks an unchanged open listing",
+      "inputs": {
+        "base_item": {
+          "title": "合成当前取消通知",
+          "url": "https://www.eefocus.com/event/980033.html",
+          "summary": "原定线上技术研讨会现已取消，此为原创合成状态测试。",
+          "location": "线上",
+          "city": "线上",
+          "start_at": "2026-11-11T09:00:00+08:00",
+          "end_at": "2026-11-11T10:00:00+08:00",
+          "all_day": false,
+          "status": "scheduled",
+          "details": {
+            "attendance": "online",
+            "source_status": "报名中",
+            "checked_at": "2026-10-02T11:00:00+08:00"
+          }
+        },
+        "detail_patch": {
+          "status": "cancelled",
+          "details": {
+            "source_status": "已取消",
+            "checked_at": "2026-10-02T11:00:00+08:00",
+            "review_notes": "主办方当前详情明确取消"
+          }
+        },
+        "evidence_authority": {
+          "list": "broad inventory availability label",
+          "detail": "same event current organizer cancellation notice",
+          "detail_fetch": "successful current fetch, not an old cache"
+        },
+        "identity_cache": {
+          "fixture_only_proposed_identity_cache": true,
+          "source_id": "eefocus-events-synthetic",
+          "alias_url": "https://www.eefocus.com/event/980033.html",
+          "canonical_url": "https://www.eefocus.com/event/980033.html",
+          "state": "verified",
+          "verified_at": "2026-10-02T10:00:00+08:00",
+          "expires_at": "2026-10-03T10:00:00+08:00",
+          "redirect_chain_validated": true,
+          "content_identity_validated": true
+        }
+      },
+      "expected": "expected/33-fresh-detail-cancellation.json",
+      "notes": []
+    },
+    {
+      "id": "34-detail-cancellation-with-manual-hold",
+      "purpose": "Cancellation suppresses upcoming while retaining a real manual hold and held fields",
+      "inputs": {
+        "base_item": {
+          "title": "合成当前取消通知",
+          "url": "https://www.eefocus.com/event/980033.html",
+          "summary": "原定线上技术研讨会现已取消，此为原创合成状态测试。",
+          "location": "线上",
+          "city": "线上",
+          "start_at": "2026-11-11T09:00:00+08:00",
+          "end_at": "2026-11-11T10:00:00+08:00",
+          "all_day": false,
+          "status": "scheduled",
+          "details": {
+            "attendance": "online",
+            "source_status": "报名中",
+            "checked_at": "2026-10-02T11:00:00+08:00"
+          }
+        },
+        "detail_patch": {
+          "status": "cancelled",
+          "details": {
+            "source_status": "已取消",
+            "checked_at": "2026-10-02T11:00:00+08:00",
+            "review_notes": "主办方当前详情明确取消"
+          }
+        },
+        "prior_event": {
+          "status": "needs_review",
+          "details": {
+            "attendance": "online",
+            "source_status": "报名中",
+            "review_hold": true,
+            "review_notes": "人工保留：确认参加资格后再展示",
+            "address_precision": "undisclosed"
+          }
+        },
+        "prior_preference": {
+          "favorite": 1,
+          "hidden": 0
+        },
+        "identity_cache": {
+          "fixture_only_proposed_identity_cache": true,
+          "source_id": "eefocus-events-synthetic",
+          "alias_url": "https://www.eefocus.com/event/980033.html",
+          "canonical_url": "https://www.eefocus.com/event/980033.html",
+          "state": "verified",
+          "verified_at": "2026-10-02T10:00:00+08:00",
+          "expires_at": "2026-10-03T10:00:00+08:00",
+          "redirect_chain_validated": true,
+          "content_identity_validated": true
+        }
+      },
+      "expected": "expected/34-detail-cancellation-with-manual-hold.json",
+      "notes": []
+    },
+    {
+      "id": "35-stale-cancellation-is-not-fresh-authority",
+      "purpose": "A stale cancelled cache cannot override current explicit reinstatement evidence",
+      "inputs": {
+        "prior_detail_cache_patch": {
+          "status": "cancelled",
+          "details": {
+            "source_status": "已取消",
+            "checked_at": "2026-09-20T11:00:00+08:00",
+            "review_notes": "主办方当前详情明确取消"
+          }
+        },
+        "cache_checked_at": "2026-09-20T11:00:00+08:00",
+        "cache_next_attempt": "2026-09-21T11:00:00+08:00",
+        "fresh_list_item": {
+          "title": "合成当前取消通知",
+          "url": "https://www.eefocus.com/event/980033.html",
+          "summary": "原定线上技术研讨会现已取消，此为原创合成状态测试。",
+          "location": "线上",
+          "city": "线上",
+          "start_at": "2026-11-11T09:00:00+08:00",
+          "end_at": "2026-11-11T10:00:00+08:00",
+          "all_day": false,
+          "status": "scheduled",
+          "details": {
+            "attendance": "online",
+            "source_status": "报名中",
+            "checked_at": "2026-10-02T11:00:00+08:00"
+          }
+        },
+        "fresh_detail": {
+          "status": "scheduled",
+          "text": "原取消安排现已恢复，活动于2026年11月11日09:00–10:00北京时间举行。"
+        },
+        "prior_event": {
+          "status": "needs_review",
+          "details": {
+            "review_hold": true,
+            "review_notes": "人工保留：确认参加资格后再展示",
+            "address_precision": "undisclosed"
+          }
+        }
+      },
+      "expected": "expected/35-stale-cancellation-is-not-fresh-authority.json",
+      "notes": []
+    },
+    {
+      "id": "36-nonempty-all-excluded",
+      "purpose": "Visible inventory with zero event candidates is not an empty publisher inventory",
+      "inputs": {
+        "list_html": "fixtures/all-excluded-inventory.html"
+      },
+      "expected": "expected/36-nonempty-all-excluded.json",
+      "notes": []
+    },
+    {
+      "id": "37-short-summary-undated-lead",
+      "purpose": "A real undated event candidate must carry detail_candidate through the information gate",
+      "inputs": {
+        "list_html": "fixtures/short-summary-undated.html",
+        "summary": "技术交流，日期待确认。",
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980037.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980037.html",
+              "status": 200,
+              "body_file": "fixtures/short-summary-undated-detail-v3.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/event/980037.html",
+          "bounded_complete": true
+        },
+        "identity_comparison": {
+          "list_title": "合成年份待定线上讨论",
+          "detail_h1": "合成年份待定线上讨论",
+          "list_meeting_text": "举办时间：10月28日，年份待确认",
+          "detail_meeting_text": "举办时间：10月28日，年份待确认",
+          "scope": "main event body; no year inferred",
+          "event_kind": "technical discussion event"
+        }
+      },
+      "expected": "expected/37-short-summary-undated-lead.json",
+      "notes": [
+        "V3 replaces identity_verified input flag with concrete HTTP response/body and independently checkable main-event title and date-fragment consistency. A yearless fragment can corroborate identity without establishing a schedulable date."
+      ]
+    },
+    {
+      "id": "38-expired-alias-cache",
+      "purpose": "Stale or failed alias evidence cannot authorize new canonical admission",
+      "inputs": {
+        "list_url": "https://www.eefocus.com/event/980002.html",
+        "identity_cache": {
+          "fixture_only_proposed_identity_cache": true,
+          "source_id": "eefocus-events-synthetic",
+          "alias_url": "https://www.eefocus.com/event/980002.html",
+          "canonical_url": "https://www.eefocus.com/live/980102.html",
+          "state": "expired",
+          "verified_at": "2026-09-20T10:00:00+08:00",
+          "expires_at": "2026-09-21T10:00:00+08:00",
+          "redirect_chain_validated": true,
+          "content_identity_validated": true
+        },
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "prior_database": {
+          "raw_items": 1,
+          "events": 1,
+          "event_sources": 1,
+          "event_url": "https://www.eefocus.com/live/980102.html",
+          "event_status": "needs_review",
+          "details": {
+            "review_hold": true,
+            "review_notes": "人工保留：确认参加资格后再展示",
+            "address_precision": "undisclosed"
+          },
+          "favorite": 1
+        }
+      },
+      "expected": "expected/38-expired-alias-cache.json",
+      "notes": []
+    },
+    {
+      "id": "39-failed-alias-cache",
+      "purpose": "Stale or failed alias evidence cannot authorize new canonical admission",
+      "inputs": {
+        "list_url": "https://www.eefocus.com/event/980002.html",
+        "identity_cache": {
+          "fixture_only_proposed_identity_cache": true,
+          "source_id": "eefocus-events-synthetic",
+          "alias_url": "https://www.eefocus.com/event/980002.html",
+          "canonical_url": "https://www.eefocus.com/live/980102.html",
+          "state": "failed",
+          "verified_at": "2026-09-20T10:00:00+08:00",
+          "expires_at": "2026-09-21T10:00:00+08:00",
+          "redirect_chain_validated": false,
+          "content_identity_validated": false,
+          "last_failure_at": "2026-10-02T10:50:00+08:00"
+        },
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "prior_database": {
+          "raw_items": 1,
+          "events": 1,
+          "event_sources": 1,
+          "event_url": "https://www.eefocus.com/live/980102.html",
+          "event_status": "needs_review",
+          "details": {
+            "review_hold": true,
+            "review_notes": "人工保留：确认参加资格后再展示",
+            "address_precision": "undisclosed"
+          },
+          "favorite": 1
+        }
+      },
+      "expected": "expected/39-failed-alias-cache.json",
+      "notes": []
+    },
+    {
+      "id": "40-intermediate-foreign-redirect",
+      "purpose": "Accepted final origin cannot erase an unsafe intermediate hop",
+      "inputs": {
+        "requested_url": "https://www.eefocus.com/event/980002.html",
+        "reported_final_url": "https://www.eefocus.com/live/980102.html",
+        "reported_redirect_chain": [
+          {
+            "from": "https://www.eefocus.com/event/980002.html",
+            "status": 302,
+            "location": "https://untrusted.example/transit/980002"
+          },
+          {
+            "from": "https://untrusted.example/transit/980002",
+            "status": 302,
+            "location": "https://www.eefocus.com/live/980102.html"
+          }
+        ],
+        "detail_title": "合成线上电路研讨会"
+      },
+      "expected": "expected/40-intermediate-foreign-redirect.json",
+      "notes": []
+    },
+    {
+      "id": "41-same-route-unrelated-detail",
+      "purpose": "HTTP 200 and accepted numeric route must not substitute for body identity evidence",
+      "inputs": {
+        "list_html": "fixtures/identity-41-list.html",
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980041.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980041.html",
+              "status": 200,
+              "body_file": "fixtures/identity-41-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/event/980041.html",
+          "bounded_complete": true
+        },
+        "prior_database": {
+          "raw_items": 0,
+          "events": 0,
+          "event_sources": 0
+        }
+      },
+      "expected": "expected/41-same-route-unrelated-detail.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "42-same-route-missing-main-identity",
+      "purpose": "HTTP 200 and accepted numeric route must not substitute for body identity evidence",
+      "inputs": {
+        "list_html": "fixtures/identity-42-list.html",
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980042.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980042.html",
+              "status": 200,
+              "body_file": "fixtures/identity-42-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/event/980042.html",
+          "bounded_complete": true
+        },
+        "prior_database": {
+          "raw_items": 0,
+          "events": 0,
+          "event_sources": 0
+        }
+      },
+      "expected": "expected/42-same-route-missing-main-identity.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "43-same-origin-redirect-unrelated-detail",
+      "purpose": "HTTP 200 and accepted numeric route must not substitute for body identity evidence",
+      "inputs": {
+        "list_html": "fixtures/identity-43-list.html",
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980043.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980043.html",
+              "status": 302,
+              "location": "https://www.eefocus.com/live/980143.html"
+            },
+            {
+              "url": "https://www.eefocus.com/live/980143.html",
+              "status": 200,
+              "body_file": "fixtures/identity-43-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/live/980143.html",
+          "bounded_complete": true
+        },
+        "prior_database": {
+          "raw_items": 0,
+          "events": 0,
+          "event_sources": 0
+        }
+      },
+      "expected": "expected/43-same-origin-redirect-unrelated-detail.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "44-same-title-conflicting-event-anchors",
+      "purpose": "HTTP 200 and accepted numeric route must not substitute for body identity evidence",
+      "inputs": {
+        "list_html": "fixtures/identity-44-list.html",
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980044.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980044.html",
+              "status": 200,
+              "body_file": "fixtures/identity-44-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/event/980044.html",
+          "bounded_complete": true
+        },
+        "prior_database": {
+          "raw_items": 0,
+          "events": 0,
+          "event_sources": 0
+        }
+      },
+      "expected": "expected/44-same-title-conflicting-event-anchors.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "45-same-title-missing-corroboration",
+      "purpose": "HTTP 200 and accepted numeric route must not substitute for body identity evidence",
+      "inputs": {
+        "list_html": "fixtures/identity-45-list.html",
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980045.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980045.html",
+              "status": 200,
+              "body_file": "fixtures/identity-45-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/event/980045.html",
+          "bounded_complete": true
+        },
+        "prior_database": {
+          "raw_items": 0,
+          "events": 0,
+          "event_sources": 0
+        }
+      },
+      "expected": "expected/45-same-title-missing-corroboration.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "46-main-event-match-sidebar-distraction",
+      "purpose": "Use scoped main-event evidence and ignore unrelated sidebar identity/status",
+      "inputs": {
+        "list_html": "fixtures/identity-46-list.html",
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980046.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980046.html",
+              "status": 200,
+              "body_file": "fixtures/identity-46-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/event/980046.html",
+          "bounded_complete": true
+        },
+        "prior_database": {
+          "raw_items": 0,
+          "events": 0,
+          "event_sources": 0
+        }
+      },
+      "expected": "expected/46-main-event-match-sidebar-distraction.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "47-cancelled-expired-cache-failed-refresh",
+      "purpose": "Previously scheduled stored event must leave upcoming after current cancellation despite failed identity refresh",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "identity_cache": "fixtures/safety-expired-identity-cache.json",
+        "list_html": "fixtures/safety-cancelled-list.html",
+        "cancellation_observation": "fixtures/safety-cancellation-observation.json",
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "initial_guard_state": []
+      },
+      "expected": "expected/47-cancelled-expired-cache-failed-refresh.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "48-cancelled-failed-cache-repeat-idempotent",
+      "purpose": "Repeat cancellation with failed cache must not duplicate safety guard or mutate favorites",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "identity_cache": "fixtures/safety-failed-identity-cache.json",
+        "list_html": "fixtures/safety-cancelled-list.html",
+        "cancellation_observation": "fixtures/safety-cancellation-observation.json",
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "initial_guard_state": [
+          "fixtures/safety-active-guard.json"
+        ]
+      },
+      "expected": "expected/48-cancelled-failed-cache-repeat-idempotent.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "49-cancelled-no-historical-target",
+      "purpose": "Never guess cancellation target by title, numeric ID or similarity; quarantine unlinked observation",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-unlinked.json",
+        "identity_cache": null,
+        "list_html": "fixtures/safety-cancelled-list.html",
+        "cancellation_observation": "fixtures/safety-cancellation-observation.json",
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "initial_guard_state": []
+      },
+      "expected": "expected/49-cancelled-no-historical-target.json",
+      "notes": [
+        "Stored canonical live event is not proven associated with event alias. Its eligibility is unchanged; no claim that the unknown cancelled event is safely mapped. Surface unresolved-target diagnostic."
+      ]
+    },
+    {
+      "id": "50-cancelled-ambiguous-history",
+      "purpose": "Conservatively suppress explicit historical target set without merging or claiming cancellation, then require adjudication",
+      "inputs": {
+        "stored_state": "fixtures/safety-ambiguous-history.json",
+        "identity_cache": "fixtures/safety-expired-identity-cache.json",
+        "list_html": "fixtures/safety-cancelled-list.html",
+        "cancellation_observation": "fixtures/safety-cancellation-observation.json",
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "initial_guard_state": []
+      },
+      "expected": "expected/50-cancelled-ambiguous-history.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "51-generic-open-cannot-clear-suppression",
+      "purpose": "A fresh generic open listing and timeout cannot resurrect a cancellation-suppressed event",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "identity_cache": "fixtures/safety-expired-identity-cache.json",
+        "list_html": "fixtures/safety-open-list.html",
+        "cancellation_observation": null,
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "initial_guard_state": [
+          "fixtures/safety-active-guard.json"
+        ]
+      },
+      "expected": "expected/51-generic-open-cannot-clear-suppression.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "52-unrelated-reinstatement-cannot-clear",
+      "purpose": "A same-origin HTTP200 reinstatement for another event cannot clear a historical cancellation guard",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "identity_cache": "fixtures/safety-expired-identity-cache.json",
+        "list_html": "fixtures/safety-cancelled-list.html",
+        "cancellation_observation": "fixtures/safety-cancellation-observation.json",
+        "initial_guard_state": [
+          "fixtures/safety-active-guard.json"
+        ],
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980002.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980002.html",
+              "status": 302,
+              "location": "https://www.eefocus.com/live/980102.html"
+            },
+            {
+              "url": "https://www.eefocus.com/live/980102.html",
+              "status": 200,
+              "body_file": "fixtures/safety-unrelated-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/live/980102.html",
+          "bounded_complete": true
+        }
+      },
+      "expected": "expected/52-unrelated-reinstatement-cannot-clear.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "53-verified-reinstatement-preserves-hold",
+      "purpose": "Verified explicit same-occurrence reinstatement clears only this safety guard; preserve all user state",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-manual-hold.json",
+        "initial_guard_state": [
+          "fixtures/safety-active-guard.json"
+        ],
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980002.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980002.html",
+              "status": 302,
+              "location": "https://www.eefocus.com/live/980102.html"
+            },
+            {
+              "url": "https://www.eefocus.com/live/980102.html",
+              "status": 200,
+              "body_file": "fixtures/safety-reinstatement-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/live/980102.html",
+          "bounded_complete": true
+        },
+        "current_reinstatement": "fixtures/safety-reinstatement-evidence.json",
+        "current_cancellation_observation": null
+      },
+      "expected": "expected/53-verified-reinstatement-preserves-hold.json",
+      "notes": [
+        "This narrow fixture isolates guard resolution and does not request normal content ingestion. Required current detail evidence is concrete. Status eligibility is recomputed after every remaining guard and manual hold."
+      ]
+    },
+    {
+      "id": "54-verified-reinstatement-restores-eligibility",
+      "purpose": "Verified explicit same-occurrence reinstatement clears only this safety guard; preserve all user state",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "initial_guard_state": [
+          "fixtures/safety-active-guard.json"
+        ],
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980002.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980002.html",
+              "status": 302,
+              "location": "https://www.eefocus.com/live/980102.html"
+            },
+            {
+              "url": "https://www.eefocus.com/live/980102.html",
+              "status": 200,
+              "body_file": "fixtures/safety-reinstatement-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/live/980102.html",
+          "bounded_complete": true
+        },
+        "current_reinstatement": "fixtures/safety-reinstatement-evidence.json",
+        "current_cancellation_observation": null
+      },
+      "expected": "expected/54-verified-reinstatement-restores-eligibility.json",
+      "notes": [
+        "This narrow fixture isolates guard resolution and does not request normal content ingestion. Required current detail evidence is concrete. Status eligibility is recomputed after every remaining guard and manual hold."
+      ]
+    },
+    {
+      "id": "55-suppression-survives-restart",
+      "purpose": "Durable suppression must be applied on reload and cannot be cleared by absence or cache expiry",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "persisted_guard": "fixtures/safety-active-guard.json",
+        "restart": true,
+        "new_list_observation": null,
+        "detail_budget": 0
+      },
+      "expected": "expected/55-suppression-survives-restart.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "56-disassociation-recovers-ambiguous-target",
+      "purpose": "A false historical match can be explicitly adjudicated without requiring impossible publisher reinstatement",
+      "inputs": {
+        "stored_state": "fixtures/safety-ambiguous-history.json",
+        "initial_target_event_ids": [
+          "event-synthetic-980102",
+          "event-synthetic-980999"
+        ],
+        "adjudication": {
+          "kind": "reviewed_manual_disassociation",
+          "target_event_id": "event-synthetic-980102",
+          "reason": "Reviewer established this cancellation concerns only the separate 980999 occurrence; historical reused alias was ambiguous",
+          "evidence_reference": "synthetic-review-decision-056",
+          "authorized_actor": "fixture-reviewer",
+          "observed_at": "2026-10-02T11:10:00+08:00",
+          "target_guard_id": "guard-ambiguous-980102",
+          "target_observation_ids": [
+            "cancel-observation-001"
+          ],
+          "expected_guard_revision": 1
+        },
+        "initial_guard_snapshots": [
+          {
+            "guard_id": "guard-ambiguous-980102",
+            "event_id": "event-synthetic-980102",
+            "observation_ids": [
+              "cancel-observation-001"
+            ],
+            "revision": 1,
+            "state": "active"
+          },
+          {
+            "guard_id": "guard-ambiguous-980999",
+            "event_id": "event-synthetic-980999",
+            "observation_ids": [
+              "cancel-observation-001"
+            ],
+            "revision": 1,
+            "state": "active"
+          }
+        ]
+      },
+      "expected": "expected/56-disassociation-recovers-ambiguous-target.json",
+      "notes": [
+        "Synthetic manual decision input is a design fixture, not authorization or evidence that a real adjudication was performed. Automatic disassociation requires equivalent verified same-occurrence evidence; title, new redirect or current silence alone is insufficient."
+      ]
+    },
+    {
+      "id": "57-expiry-alone-preserves-eligible-record",
+      "purpose": "Identity expiry and timeout alone do not fabricate cancellation or remove existing scheduled events",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "identity_cache": "fixtures/safety-expired-identity-cache.json",
+        "list_html": "fixtures/safety-open-list.html",
+        "cancellation_observation": null,
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "initial_guard_state": []
+      },
+      "expected": "expected/57-expiry-alone-preserves-eligible-record.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "58-sidebar-cancellation-does-not-suppress",
+      "purpose": "Cancellation outside the candidate card cannot target the stored event",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "identity_cache": "fixtures/safety-expired-identity-cache.json",
+        "list_html": "fixtures/safety-sidebar-cancelled-list.html",
+        "cancellation_observation": null,
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "initial_guard_state": []
+      },
+      "expected": "expected/58-sidebar-cancellation-does-not-suppress.json",
+      "notes": [
+        "Synthetic design acceptance expectations; no adapter executed"
+      ]
+    },
+    {
+      "id": "59-fresh-cache-cannot-overrule-contradiction",
+      "purpose": "Even an unexpired identity cache cannot authorize positive admission after contradictory fetched body",
+      "inputs": {
+        "list_html": "fixtures/identity-41-list.html",
+        "detail_transport": {
+          "requested_url": "https://www.eefocus.com/event/980041.html",
+          "responses": [
+            {
+              "url": "https://www.eefocus.com/event/980041.html",
+              "status": 200,
+              "body_file": "fixtures/identity-41-detail.html"
+            }
+          ],
+          "final_url": "https://www.eefocus.com/event/980041.html",
+          "bounded_complete": true
+        },
+        "prior_database": {
+          "raw_items": 0,
+          "events": 0,
+          "event_sources": 0
+        },
+        "identity_cache": {
+          "fixture_only_proposed_identity_cache": true,
+          "state": "verified",
+          "alias_url": "https://www.eefocus.com/event/980041.html",
+          "canonical_url": "https://www.eefocus.com/event/980041.html",
+          "verified_at": "2026-10-02T10:00:00+08:00",
+          "expires_at": "2026-10-03T10:00:00+08:00",
+          "content_identity_validated": true,
+          "redirect_chain_validated": true
+        }
+      },
+      "expected": "expected/59-fresh-cache-cannot-overrule-contradiction.json",
+      "notes": [
+        "Synthetic acceptance oracle only; no application execution"
+      ]
+    },
+    {
+      "id": "60-failed-only-cache-is-not-history",
+      "purpose": "A failed-only cache entry cannot invent a stored alias association for suppression",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-unlinked.json",
+        "identity_cache": {
+          "fixture_only_proposed_identity_cache": true,
+          "state": "failed",
+          "alias_url": "https://www.eefocus.com/event/980002.html",
+          "canonical_url": "https://www.eefocus.com/live/980102.html",
+          "verified_at": null,
+          "last_failure_at": "2026-10-02T10:50:00+08:00",
+          "redirect_chain_validated": false,
+          "content_identity_validated": false
+        },
+        "list_html": "fixtures/safety-cancelled-list.html",
+        "cancellation_observation": "fixtures/safety-cancellation-observation.json",
+        "refresh_result": {
+          "exception_type": "collectors.SourceError",
+          "message": "ReadTimeout"
+        },
+        "initial_guard_state": []
+      },
+      "expected": "expected/60-failed-only-cache-is-not-history.json",
+      "notes": [
+        "Synthetic acceptance oracle only; no application execution"
+      ]
+    },
+    {
+      "id": "61-resolved-cancellation-replay",
+      "purpose": "Reprocessing the same captured cancellation observation after its resolution is idempotent",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "resolved_guard": "fixtures/safety-resolved-guard.json",
+        "resolution_evidence": "fixtures/safety-reinstatement-evidence.json",
+        "replayed_cancellation": "fixtures/safety-cancellation-observation.json",
+        "processed_at": "2026-10-02T11:20:00+08:00",
+        "new_network_observation": false,
+        "same_captured_observation_id": true
+      },
+      "expected": "expected/61-resolved-cancellation-replay.json",
+      "notes": [
+        "Synthetic acceptance oracle only; no application execution"
+      ]
+    },
+    {
+      "id": "62-concurrent-cancellation-survives-resolution",
+      "purpose": "A reinstatement must resolve only guards in its evidence snapshot, never an unseen cancellation",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "reinstatement_started_with_guard": "fixtures/safety-active-guard.json",
+        "resolution_evidence": "fixtures/safety-reinstatement-evidence.json",
+        "concurrent_new_guard": "fixtures/safety-concurrent-new-guard.json",
+        "concurrent_evidence": {
+          "id": "cancel-observation-002",
+          "source_id": "eefocus-events-synthetic",
+          "observed_alias_url": "https://www.eefocus.com/event/980002.html",
+          "event_occurrence": "2026-10-23",
+          "main_card_status_text": "恢复举办后，本次10月23日活动再次取消。",
+          "observed_at": "2026-10-02T11:06:00+08:00",
+          "publisher_updated_at": null,
+          "materially_distinct": true,
+          "identity_currently_unverified": true
+        },
+        "commit_order": [
+          "insert cancel-observation-002 and guard-cancel-002",
+          "compare-and-set resolve guard-cancel-001 for reinstate-001"
+        ]
+      },
+      "expected": "expected/62-concurrent-cancellation-survives-resolution.json",
+      "notes": [
+        "Synthetic acceptance oracle only; no application execution"
+      ]
+    },
+    {
+      "id": "63-cancellation-language-scope",
+      "purpose": "Negated, historical, other-session and postponed text must not become whole-event cancellation evidence",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "identity_cache": "fixtures/safety-expired-identity-cache.json",
+        "status_variants": [
+          {
+            "list_html": "fixtures/safety-negated-status-list.html",
+            "reason": "negated"
+          },
+          {
+            "list_html": "fixtures/safety-postponed-status-list.html",
+            "reason": "postponed"
+          },
+          {
+            "list_html": "fixtures/safety-quoted-status-list.html",
+            "reason": "quoted"
+          },
+          {
+            "list_html": "fixtures/safety-session-status-list.html",
+            "reason": "session"
+          }
+        ]
+      },
+      "expected": "expected/63-cancellation-language-scope.json",
+      "notes": [
+        "Synthetic acceptance oracle only; no application execution"
+      ]
+    },
+    {
+      "id": "64-identical-new-fetch-is-not-proven-replay",
+      "purpose": "Identical bytes in a new capture do not prove a cancellation is the old resolved generation",
+      "inputs": {
+        "stored_state": "fixtures/safety-stored-scheduled.json",
+        "resolved_guard": "fixtures/safety-resolved-guard.json",
+        "resolution_evidence": "fixtures/safety-reinstatement-evidence.json",
+        "new_cancellation_observation": "fixtures/safety-identical-new-observation.json",
+        "publisher_generation_proven_same": false
+      },
+      "expected": "expected/64-identical-new-fetch-is-not-proven-replay.json",
+      "notes": [
+        "Uncertain source chronology keeps review-only planning suppression; it does not assert the event was authoritatively cancelled again."
+      ]
+    }
+  ],
+  "revision": "v3",
+  "supersedes": "v2 design expectations; input v2 preserved byte-for-byte",
+  "identity_policy": "Fail closed on missing or inconsistent main-event evidence, even for same-origin numeric HTTP 200. Safety-only eligibility suppression for already stored historical targets is separate from positive admission."
+}

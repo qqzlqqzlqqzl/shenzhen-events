@@ -1,0 +1,10 @@
+{
+  "stage": "identity_design",
+  "merge_allowed": false,
+  "assertions": [
+    "Validate every redirect before navigation using public-target protections",
+    "Foreign origin or unsupported route is not an allowed EEFocus detail",
+    "Retain original safe listing evidence; do not upgrade it using an unrelated document",
+    "A canonical tag in a 200 page cannot authorize a cross-origin alias"
+  ]
+}

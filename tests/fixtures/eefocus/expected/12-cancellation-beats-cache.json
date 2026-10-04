@@ -1,0 +1,16 @@
+{
+  "stage": "cache_and_merge",
+  "item_subset": {
+    "status": "cancelled",
+    "details": {
+      "source_status": "已取消"
+    }
+  },
+  "cache_reused": false,
+  "upcoming_included": false,
+  "assertions": [
+    "Fingerprint changes on cancellation even if title and summary are unchanged",
+    "If merge_detail is directly forced with the stale patch, cancelled still wins",
+    "Do not fetch or overwrite a database in this fixture-only pack"
+  ]
+}

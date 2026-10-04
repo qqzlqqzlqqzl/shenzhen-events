@@ -1,0 +1,36 @@
+{
+  "stage": "collect",
+  "report": {
+    "status": "error",
+    "error_nonempty": true,
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 0,
+      "page_urls": [],
+      "source_total": null,
+      "visible": 0,
+      "extracted": 0,
+      "unique": 0,
+      "admitted": 0,
+      "rejected": {},
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": true,
+      "next_cursor": null,
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "requests_attempted": 1
+    }
+  },
+  "worker_semantics": {
+    "preserve_last_success": true,
+    "preserve_raw_count": true,
+    "failure_count_increment": 1,
+    "keep_stored_events": true
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "stage": "parse",
+  "item_subset": {
+    "details": {
+      "attendance": "hybrid"
+    },
+    "location": "深圳市南山区合成会议室",
+    "status": "scheduled"
+  },
+  "upcoming_included": true
+}

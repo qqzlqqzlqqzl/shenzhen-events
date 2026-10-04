@@ -2,11 +2,74 @@
 from __future__ import annotations
 import hashlib, json, math, re, time
 from collections import Counter
-from datetime import timedelta
+from datetime import date, timedelta
 from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 import feedparser
 from bs4 import BeautifulSoup
-from . import core, collectors as c, details, official_sources, aggregates, source_fields, recurring_sources
+from . import core, collectors as c, details, official_sources, aggregates, source_fields, recurring_sources, eefocus
+
+
+OBSERVATION_FIELDS=('pages_visited','visible','extracted','unique','shenzhen_candidates','admitted',
+    'duplicates','parser_unaccounted','detail_attempted','detail_resolved','detail_failed','detail_deferred','detail_cached')
+
+
+def fresh_coverage(source, attempt_started_at=None, available=False):
+    """Create current-attempt evidence, never reuse previous sample counters."""
+    return dict(version=1,mode=source.get('coverage_mode','single_page'),
+        counters_available=available,attempt_started_at=attempt_started_at or core.stamp(),sampled_at=None,
+        page_urls=[],source_total=None,rejected={} if available else None,
+        truncated=not available,next_cursor=None,reasons=[],complete_scope=False,
+        traversal_from_root=True,structure_recognized=False,
+        **{key:0 if available else None for key in OBSERVATION_FIELDS})
+
+
+def finalize(metrics, status, error=''):
+    """Completion describes the final status and all measured pending work."""
+    error=error or metrics.get('error','')
+    blockers=[]
+    if not metrics.get('counters_available') or not metrics.get('pages_visited'):blockers.append('本轮观测计数不可用')
+    if not metrics.get('structure_recognized'):blockers.append('未确认来源列表结构')
+    if not metrics.get('traversal_from_root',False):blockers.append('本轮仅检查续页，不能确认来源全量')
+    if metrics.get('mode') not in ('city_pages','page_inventory'):blockers.append('当前采集模式不声明全量覆盖')
+    if error:blockers.append(error)
+    if metrics.get('truncated') or metrics.get('next_cursor'):blockers.append('仍有未完成的列表工作')
+    if metrics.get('continuation_unavailable'):blockers.append('已观察到后续分页，但缺少可用的续页参数')
+    if metrics.get('parser_unaccounted'):blockers.append('可见条目与解析量不符，需检查适配器')
+    if metrics.get('detail_failed'):blockers.append('详情读取失败，待后续重试')
+    if metrics.get('detail_deferred'):blockers.append('详情工作仍待处理或处于退避期')
+    if metrics.get('source_total') is not None and not metrics.get('source_total_reconciled'):
+        blockers.append('声明总量尚未与来源条目核对')
+    if status=='ok' and blockers:status='partial'
+    metrics['complete_scope']=status=='ok' and not blockers
+    for reason in blockers:
+        if reason not in metrics['reasons']:metrics['reasons'].append(reason)
+    return status
+
+
+def sample_projection(metrics, status):
+    fields=(*OBSERVATION_FIELDS,'page_urls','source_total','rejected','mode','sampled_at','attempt_started_at',
+        'counters_available','complete_scope','source_total_basis','source_total_observed','source_total_gap',
+        'source_total_comparable','source_total_reconciled','truncated','next_cursor','continuation_unavailable')
+    return {**{key:metrics.get(key) for key in fields},'status':status}
+
+
+def previous_sample(previous, health):
+    """Keep a dated readable sample; legacy provenance is explicitly limited."""
+    prior=previous.get('last_good')
+    if 'last_good' in previous and not isinstance(prior,dict):return None
+    candidate=prior if isinstance(prior,dict) else previous
+    if candidate.get('counters_available') is False:return None
+    if candidate.get('visible') is None and candidate.get('admitted') is None:return None
+    sampled_at=candidate.get('sampled_at') or health.get('last_success')
+    if not sampled_at:return None
+    status=candidate.get('status') or (health.get('status') if candidate is previous else 'unknown')
+    legacy=bool(candidate.get('legacy') or not candidate.get('sampled_at') or candidate.get('counters_available') is not True)
+    sample=sample_projection(candidate,status)
+    if legacy:
+        sample.update(sampled_at=sampled_at,legacy=True,counters_available=True,complete_scope=False)
+        if status in ('error','blocked'):sample['status']='unknown'
+    elif status not in ('ok','partial','empty'):sample['complete_scope']=False
+    return sample
 
 
 def set_query(url, **values):
@@ -119,6 +182,44 @@ def next_page(soup,url,kind):
     return None,None
 
 
+def _douban_card(node, url):
+    a=node.select_one('.title a[href],.event-title a[href],a[itemprop="url"]')
+    if not a:return None
+    link=urlsplit(urljoin(url,a['href']))
+    if re.match(r'^/event/\d+/?$',link.path):return 'event'
+    if link.hostname=='site.douban.com' and re.fullmatch(r'/\d+/?',link.path):return 'organizer'
+    return None
+
+
+def _developer_inventory(soup):
+    rows=soup.select('.row:not(.featured)')
+    excluded=Counter();comparable=True;recognized=False
+    for row in rows:
+        scripts=row.select('script[type="application/ld+json"]')
+        if len(scripts)!=1:comparable=False;continue
+        try:data=json.loads(scripts[0].get_text())
+        except ValueError:continue
+        if not isinstance(data,dict) or data.get('@type')!='Event':continue
+        recognized=True
+        mode=data.get('eventAttendanceMode')
+        if mode not in ('https://schema.org/OnlineEventAttendanceMode','https://schema.org/MixedEventAttendanceMode'):
+            excluded['不支持的活动形式']+=1;continue
+        try:
+            start=date.fromisoformat(str(data.get('startDate',''))[:10])
+            end=date.fromisoformat(str(data.get('endDate') or data.get('startDate'))[:10])
+            valid=end>=start and core.clean(data.get('name')) and core.canon_url(data.get('url',''))
+        except ValueError:valid=False
+        if not valid:excluded['日期或链接信息不足']+=1
+    return len(rows),dict(excluded),recognized,comparable
+
+
+def _recognized_page(source, soup, url, items):
+    kind=source['kind']
+    if kind=='douban':return any(_douban_card(n,url) for n in soup.select('li.list-entry,.event-item'))
+    if kind=='devevents':return _developer_inventory(soup)[2]
+    return bool(items) or kind in ('rss','wordpress_events',*recurring_sources.KINDS,eefocus.KIND)
+
+
 def parse_page(source,html,soup,url):
     kind=source['kind']
     if kind in recurring_sources.KINDS:return recurring_sources.parse(kind,html,soup,url)
@@ -131,16 +232,43 @@ def parse_page(source,html,soup,url):
     selectors={'lianpu':'article','douban':'li.list-entry','bendibao':'.main-single-block[data-url]','chaihuo':'a[href*="/activity/poster"]','tech':'a[href^="/event/"]','hdx':'.search-tab-content-item'}
     visible=len(soup.select(selectors[kind])) if kind in selectors else len(items)
     excluded={}
+    if kind=='devevents':visible,excluded,_,_=_developer_inventory(soup)
     if kind=='chaihuo':
         excluded['其他城市']=sum(any(w in c.text(n) for w in ('成都柴火','贵阳','河北柴火')) for n in soup.select(selectors[kind]))
     # Some markup contains JSON-LD/sidebars as well as main list rows. Never invent a denominator.
     if kind=='douban':
-        excluded['非活动主办方卡片']=sum(bool(n.select_one('.title a[href]')) and not re.match(r'^/event/\d+/?$',urlsplit(n.select_one('.title a[href]')['href']).path) for n in soup.select('li.list-entry'))
+        visible=len(soup.select('li.list-entry,.event-item'))
+        excluded['非活动主办方卡片']=sum(_douban_card(n,url)=='organizer' for n in soup.select('li.list-entry,.event-item'))
     return items,visible,excluded
 
 
 def _detail_fingerprint(e):
     return hashlib.sha256((e.get('title','')+'|'+e.get('summary','')).encode()).hexdigest()
+
+
+def _detail_fields_valid(fields):
+    """Check the nested containers and scalars consumed by detail merging."""
+    if not isinstance(fields,dict):return False
+    scalar=('cost_text','organizer','location','start_at','end_at','attendance','organizer_role','publisher','evidence_url','detail_text','checked_at')
+    if any(fields.get(key) is not None and not isinstance(fields[key],str) for key in scalar):return False
+    if 'all_day' in fields and type(fields['all_day']) is not bool:return False
+    if 'details' in fields and not _detail_fields_valid(fields['details']):return False
+    if 'field_provenance' in fields:
+        provenance=fields['field_provenance']
+        if not isinstance(provenance,dict):return False
+        for evidence in provenance.values():
+            if not isinstance(evidence,dict) or not isinstance(evidence.get('kind'),str) or not evidence['kind']:return False
+            if 'evidence_url' in evidence and not isinstance(evidence['evidence_url'],str):return False
+    return True
+
+
+def _detail_observation(payload):
+    """Legacy whole-event payloads and malformed envelopes are safe misses."""
+    try:value=json.loads(payload)
+    except (ValueError,TypeError):return None
+    if not isinstance(value,dict) or value.get('kind')!='detail_observation' or type(value.get('version')) is not int or value.get('version')!=1:return None
+    if not all(_detail_fields_valid(value.get(key)) for key in ('structured','metadata')):return None
+    return value
 
 
 def enrich_details(source, items, metrics):
@@ -154,15 +282,14 @@ def enrich_details(source, items, metrics):
         cache={r['url']:dict(r) for r in db.execute('SELECT * FROM detail_cache WHERE source_id=?',(source['id'],))}
     for e in items:
         key=canonical(e['url']);e['url']=key;old=cache.get(key);fp=_detail_fingerprint(e)
-        if old and old['fingerprint']==fp and old['next_attempt']>core.stamp():
-            if old['payload']:
-                cached=json.loads(old['payload']);fresh_details=e.get('details') or {}
-                e={**e,**cached,'details':{**fresh_details,**(cached.get('details') or {})}}
-                if fresh_details.get('attendance'):e['details']['attendance']=fresh_details['attendance']
-                metrics['detail_cached']+=1
-            elif not e.get('start_at'):metrics['detail_deferred']+=1
-            out.append(e);continue
         if e.get('start_at') and not source.get('enrich_dated',False):
+            out.append(e);continue
+        observation=_detail_observation(old['payload']) if old and old['payload'] else None
+        if old and old['fingerprint']==fp and old['next_attempt']>core.stamp() and (not old['payload'] or observation):
+            if old['payload']:
+                e=details.merge(e,observation['structured'],observation['metadata'])
+                metrics['detail_cached']+=1
+            else:metrics['detail_deferred']+=1
             out.append(e);continue
         pending.append((old['checked_at'] if old else '',len(out),e,fp));out.append(e)
     pending.sort(key=lambda x:x[0])
@@ -173,14 +300,11 @@ def enrich_details(source, items, metrics):
             html,soup,url=c.fetch(e['url'],max_bytes=1000000,proxy=source.get('proxy'))
             meta=details.extract(soup,url)
             values=c.jsonld(soup,url) or microdata_detail(soup,url)
+            chosen=None
             if values:
                 chosen=next((v for v in values if canonical(v['url'])==e['url']),values[0] if len(values)==1 else None)
-                if chosen:
-                    chosen['url']=e['url'];chosen['published_at']=e.get('published_at','');out[idx]=details.merge(e,chosen,meta)
-            else:
-                out[idx]=details.merge(e,{},meta)
-                if not e.get('summary') and meta.get('detail_text'):out[idx]['summary']=core.clean(meta['detail_text'])[:3500]
-            payload=json.dumps(out[idx],ensure_ascii=False)
+            out[idx]=details.merge(e,chosen or {},meta)
+            payload=json.dumps({'kind':'detail_observation','version':1,'structured':chosen or {},'metadata':meta},ensure_ascii=False)
             if out[idx].get('start_at'):metrics['detail_resolved']+=1;status='ok'
         except c.SourceError as exc:
             status='blocked' if isinstance(exc,c.Blocked) else 'error';metrics['detail_failed']+=1
@@ -208,21 +332,37 @@ def rss_page(source, html, metrics):
 
 
 def collect_report(source, previous=None):
+    capture_context = {}
+    try:
+        return _collect_report(source, previous, capture_context)
+    except Exception as exc:
+        # Carry this attempt's opaque identity across an optional-stage crash.
+        # Never recover a receipt by looking up another attempt's latest time.
+        exc._radar_safety_capture_id = capture_context.get('capture_id')
+        raise
+
+
+def _collect_report(source, previous, capture_context):
+    from . import safety
+    safety_capture = safety.begin_capture(source) if source['kind']==eefocus.KIND else None
+    if safety_capture is not None:
+        capture_context['capture_id'] = safety_capture.id
+    safety_receipt = None
     started=time.monotonic();previous=previous or {};kind=source['kind']
-    metrics={'version':1,'mode':source.get('coverage_mode','single_page'),'pages_visited':0,'page_urls':[],
-        'source_total':None,'visible':0,'extracted':0,'unique':0,'shenzhen_candidates':0,'admitted':0,'rejected':{},
-        'duplicates':0,'parser_unaccounted':0,'truncated':False,'next_cursor':None,'reasons':[],
-        'detail_attempted':0,'detail_resolved':0,'detail_failed':0,'detail_deferred':0,'detail_cached':0}
+    if kind==eefocus.KIND:
+        source={**source,'coverage_mode':'single_page','max_pages':1}
+    metrics=fresh_coverage(source,available=True);metrics['counters_available']=False
     rows={};rejects=Counter();seen_pages=set();signatures=set()
     max_pages=max(1,min(300,int(source.get('max_pages',1))));max_entries=max(1,min(5000,int(source.get('max_entries',5000))))
     max_seconds=max(5,min(360,float(source.get('max_seconds',180))))
     if kind in recurring_sources.KINDS:max_pages=min(max_pages,5)
     deadline=started+max_seconds
-    url=source['url'];cursor=previous.get('next_cursor');monthly_queue=[]
+    url=source['url'];cursor=previous.get('next_cursor');monthly_queue=[];monthly_eligible=[];monthly_visited=[]
     if kind=='wordpress_events':url=set_query(url,after=(core.now()-timedelta(days=120)).strftime('%Y-%m-%dT00:00:00'))
     if cursor:
         a,b=urlsplit(url),urlsplit(cursor)
-        if a.netloc==b.netloc and a.path==b.path:url=cursor;metrics['reasons'].append('接续上轮分页')
+        if a.netloc==b.netloc and a.path==b.path:
+            url=cursor;metrics['traversal_from_root']=False;metrics['reasons'].append('接续上轮分页')
     error='';blocked=False
     for page in range(max_pages):
         if time.monotonic()-started>=max_seconds:
@@ -233,14 +373,31 @@ def collect_report(source, previous=None):
         try:
             if kind=='sogou':
                 items=c.sogou(source);visible=len(items);excluded={};nxt=None;total=None
+                recognized=bool(items)
             else:
                 if kind=='wordpress_events':
                     html,soup,final,pagination=c.fetch(url,proxy=source.get('proxy'),include_pagination=True)
+                elif kind==eefocus.KIND:
+                    safety_capture=safety.claim(safety_capture)
+                    try:
+                        html,soup,final,trace=eefocus.fetch(url,source,deadline,metrics,inventory=True)
+                    except c.SourceError as exc:
+                        safety_receipt=safety.known_failure(safety_capture,exc,metrics)
+                        raise
+                    try:
+                        safety_capture=safety.retain(safety_capture,html,final,trace)
+                        safety_receipt=safety.finalize(safety_capture)
+                    except Exception as exc:
+                        safety.mark_unknown(safety_capture,type(exc).__name__)
+                        raise
                 elif kind in recurring_sources.KINDS:
                     html,soup,final=recurring_sources.bounded_fetch(c.fetch,url,source,deadline,metrics)
                 else:html,soup,final=c.fetch(url,trusted_local=url.startswith('http://127.0.0.1:1200/'),proxy=source.get('proxy'))
                 if kind=='szhzfw' and urlsplit(url).path==urlsplit(source['url']).path:
-                    monthly_queue=aggregates.monthly_links(soup,final);items=[];visible=0;excluded={}
+                    monthly_eligible=aggregates.monthly_links(soup,final)
+                    monthly_queue=monthly_eligible[:4];items=[];visible=0;excluded={}
+                    metrics.update(monthly_eligible_urls=monthly_eligible,monthly_selected_urls=monthly_queue.copy())
+                    recognized=bool(monthly_eligible)
                 elif kind=='xuanwu_activity':
                     module_url=recurring_sources.discover_module(soup,final)
                     recurring_sources.pause(source,deadline)
@@ -249,8 +406,16 @@ def collect_report(source, previous=None):
                     metrics['inventory_module_url']=module_url
                     items,visible,excluded=parse_page(source,module,module_soup,module_final)
                     metrics['source_total']=visible
+                    recognized=True
+                elif kind==eefocus.KIND:items,visible,excluded=eefocus.parse(soup,final)
                 else:items,visible,excluded=rss_page(source,html,metrics) if kind=='rss' else parse_page(source,html,soup,final)
+                if not (kind=='szhzfw' and urlsplit(url).path==urlsplit(source['url']).path) and kind!='xuanwu_activity':
+                    recognized=_recognized_page(source,soup,final,items)
+                if kind=='devevents':
+                    metrics['source_total_comparable']=metrics.get('source_total_comparable',True) and _developer_inventory(soup)[3]
                 nxt,total=next_page(soup,final,kind) if kind in ('lianpu','douban','hdx','devevents','elecfans_webinar','shenzhenware_events') else (None,None)
+                if kind=='devevents' and soup.select_one('button.moreButton') and not nxt:
+                    metrics['continuation_unavailable']=True;metrics['truncated']=True
                 if kind=='szhzfw':nxt=monthly_queue.pop(0) if monthly_queue else None
                 if kind=='wordpress_events':
                     try:
@@ -262,13 +427,21 @@ def collect_report(source, previous=None):
                 if not items and kind=='hdx' and ('login' in final.lower() or ('登录' in c.text(soup) and not soup.select_one('.search-tab-content-list'))):
                     metrics['access_boundary']=url
                     raise c.Blocked('后续分页要求登录；已保留公开可读页，未绕过访问限制')
-                if not items and kind in recurring_sources.KINDS:
+                if not items and kind==eefocus.KIND:
+                    metrics['recognized_empty']=visible==0
+                elif not items and kind in recurring_sources.KINDS:
                     # The source-specific parser has already validated the inventory shape.
                     metrics['recognized_empty']=True
-                elif not items and kind not in ('rss','wordpress_events') and not (kind=='szhzfw' and nxt):
+                elif not items and not recognized:
                     raise c.SourceError('页面可访问但解析为空')
             metrics['pages_visited']+=1;metrics['page_urls'].append(url);metrics['visible']+=visible;metrics['extracted']+=len(items)
-            if total is not None:metrics['source_total']=total
+            metrics['counters_available']=True;metrics['sampled_at']=core.stamp()
+            metrics['structure_recognized']=recognized and (metrics['structure_recognized'] or metrics['pages_visited']==1)
+            if kind=='szhzfw' and url in monthly_eligible:monthly_visited.append(url)
+            if total is not None:
+                if metrics['source_total'] is not None and metrics['source_total']!=total:
+                    metrics['source_total_comparable']=False
+                metrics['source_total']=total
             rejects.update(excluded)
             metrics['parser_unaccounted']+=max(0,visible-len(items)-sum(excluded.values()))
             signature=(tuple(sorted(recurring_sources.regular_urls(soup,final))) if kind=='shenzhenware_events'
@@ -296,17 +469,32 @@ def collect_report(source, previous=None):
     if metrics.get('access_boundary'):
         metrics['next_cursor']=None
         metrics['reasons'].append('下轮更新公开页；登录后内容不计为已覆盖')
+    if monthly_eligible:
+        deferred=[link for link in monthly_eligible if link not in monthly_visited]
+        metrics.update(monthly_eligible=len(monthly_eligible),monthly_selected=len(metrics['monthly_selected_urls']),
+            monthly_visited=len(monthly_visited),monthly_deferred=len(deferred),
+            monthly_visited_urls=monthly_visited,monthly_deferred_urls=deferred)
+        if deferred:
+            metrics['truncated']=True
+            metrics['reasons'].append(f'发现 {len(monthly_eligible)} 个月，已检查 {len(monthly_visited)} 个，{len(deferred)} 个因四月上限或本轮预算待处理')
+        # The existing resume guard cannot honor a monthly URL with a different path.
+        metrics['next_cursor']=None
     if not metrics['truncated']:metrics['next_cursor']=None
     items=list(rows.values())[:max_entries];metrics['unique']=len(items)
-    if kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':deadline},items,metrics)
-    if kind in recurring_sources.KINDS and metrics.get('detail_blocked'):
+    if kind==eefocus.KIND:
+        if not safety_receipt:
+            raise safety.SafetyError('mandatory safety receipt absent')
+        metrics['safety']=safety_receipt
+        items=eefocus.enrich(source,items,metrics,deadline)
+    elif kind in ('rss','douban','sogou') or source.get('enrich_dated',False):items=enrich_details({**source,'_deadline':deadline},items,metrics)
+    if kind in (*recurring_sources.KINDS,eefocus.KIND) and metrics.get('detail_blocked'):
         error='来源详情限制访问，已退避并保留已读取的列表'
         blocked=True
     admitted=[]
     for e in items:
         mode=core.event_attendance(e);online=mode in ('online','hybrid') and source.get('allow_online',False)
         city='深圳' if online else city_evidence(e,source)
-        if kind in recurring_sources.KINDS and not online and city!='深圳':
+        if kind in (*recurring_sources.KINDS,eefocus.KIND) and not online and city!='深圳':
             rejects['城市尚未确认' if city=='待确认' else '其他城市']+=1;continue
         if city not in ('深圳','待确认'):rejects['其他城市']+=1;continue
         if city=='待确认' and source.get('scope')=='national':
@@ -322,13 +510,31 @@ def collect_report(source, previous=None):
         if not core.normalize_event(e):rejects['无有效标题或链接']+=1;continue
         admitted.append(e)
     metrics['admitted']=len(admitted);metrics['rejected']=dict(rejects)
+    if metrics['source_total'] is not None:
+        bases={'devevents':'ordinary_nonfeatured_inventory_rows','hdx':'source_list_rows',
+            'wordpress_events':'source_post_rows','xuanwu_activity':'validated_module_rows'}
+        metrics['source_total_basis']=bases.get(kind,'unknown')
+        comparable=kind in bases and metrics.get('source_total_comparable',True)
+        metrics.update(source_total_comparable=comparable,source_total_observed=metrics['visible'],
+            source_total_gap=max(0,metrics['source_total']-metrics['visible']) if comparable else None,
+            source_total_reconciled=comparable and metrics['source_total']==metrics['visible'])
+        if not metrics['source_total_reconciled']:
+            metrics['truncated']=True
+            if comparable:
+                metrics['reasons'].append(f"声明总量 {metrics['source_total']}，本轮观察 {metrics['visible']}，缺口 {metrics['source_total_gap']}；来源条目尚未核对一致")
+            else:metrics['reasons'].append('声明总量与条目单位或范围无法可靠比较')
+            if not metrics['next_cursor']:metrics['reasons'].append('未提供可用的后续分页；未猜测链接')
     partial=metrics['truncated'] or metrics['parser_unaccounted'] or metrics['detail_deferred'] or metrics['detail_failed']
     if metrics['mode'] in ('search_index','discovery_only','fallback_only','single_page'):
         metrics['reasons'].append({'search_index':'搜索索引非全量实时','discovery_only':'仅发现入口中的公开线索','fallback_only':'全国订阅仅作兜底','single_page':'仅覆盖这个公开汇总页'}[metrics['mode']])
         partial=True
     metrics['elapsed_seconds']=round(time.monotonic()-started,2)
     status=('blocked' if blocked else 'error') if error and not metrics['pages_visited'] else ('partial' if partial else ('ok' if items else 'empty'))
-    metrics['complete_scope']=status=='ok' and metrics['mode'] in ('city_pages','page_inventory') and not cursor
-    if cursor and status=='ok':status='partial'
-    return {'items':admitted,'coverage':metrics,'status':status,'error':error}
+    if not metrics['counters_available']:
+        metrics.update({key:None for key in OBSERVATION_FIELDS})
+        metrics.update(source_total=None,rejected=None,page_urls=[],sampled_at=None,truncated=True)
+    status=finalize(metrics,status,error)
+    return {'items':admitted,'coverage':metrics,'status':status,'error':error,
+            'safety_observations_version':1 if kind==eefocus.KIND else None,
+            'safety_receipt':safety_receipt}
 

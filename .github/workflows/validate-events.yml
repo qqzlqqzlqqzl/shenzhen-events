@@ -21,6 +21,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - name: Prepare isolated evidence before dependencies
+        id: prepare_artifacts
+        shell: bash
+        run: |
+          # Keep inherited output private on the runner; upload only this run.
+          timeout 30s bash scripts/prepare_ci_artifacts.sh
+          git rev-parse HEAD > artifacts/ci/tested-commit.txt
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -47,29 +54,30 @@ jobs:
           )
           test -x "$browser"
           echo "RADAR_BROWSER=$browser" >> "$GITHUB_ENV"
-          # Only this fresh checkout's historical test output is removed.
-          rm -rf artifacts
-          mkdir -p artifacts/ci
-          git rev-parse HEAD > artifacts/ci/tested-commit.txt
+      - name: Enable test-only file retention
+        shell: bash
+        run: |
+          retention_root=$(mktemp -d "$RUNNER_TEMP/events-test-retention.XXXXXXXX")
+          mkdir -p "$retention_root/tmp"
+          echo "RADAR_RETAIN_TEST_FILES=1" >> "$GITHUB_ENV"
+          echo "RADAR_TEST_RETENTION_ROOT=$retention_root" >> "$GITHUB_ENV"
+          echo "RADAR_TEST_WORKSPACE=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          echo "TMPDIR=$retention_root/tmp" >> "$GITHUB_ENV"
+          echo "PYTHONPYCACHEPREFIX=$retention_root/pycache" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/tests/ci_retention:$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
       - name: Unit, API, syntax and DOM regressions
         shell: bash
         run: |
-          .venv/bin/python -m pytest -q --junitxml=artifacts/ci/unit.xml | tee artifacts/ci/unit.log
-          .venv/bin/python -m compileall -q radar tests
-          for script in static/*.js; do node --check "$script"; done
-          node --test tests/*_dom.cjs | tee artifacts/ci/dom.log
+          timeout --signal=TERM --kill-after=10s 600s .venv/bin/python -m pytest -q --junitxml=artifacts/ci/unit.xml | tee artifacts/ci/unit.log
+          timeout 60s .venv/bin/python -m compileall -q radar tests
+          for script in static/*.js; do timeout 15s node --check "$script"; done
+          timeout --signal=TERM --kill-after=10s 600s node --test tests/*_dom.cjs | tee artifacts/ci/dom.log
       - name: Desktop and mobile browser regressions
         shell: bash
         run: |
-          result=0
-          for suite in taxonomy_browser multiday_browser calendar_browser review_district_browser review_filter_context_browser review_personal_browser review_feedback_state_browser review_planning_browser review_decisions_browser review_session_boundary_browser review_recovery_browser feedback_browser review_browser coverage_browser; do
-            if [ -f "tests/$suite.py" ]; then
-              .venv/bin/python "tests/$suite.py" 2>&1 | tee "artifacts/ci/$suite.log" || result=1
-            fi
-          done
-          exit "$result"
+          timeout --signal=TERM --kill-after=10s 900s bash scripts/run_browser_matrix.sh
       - name: Retain logs and screenshots
-        if: always()
+        if: always() && steps.prepare_artifacts.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: events-regression-${{ github.event.pull_request.head.sha }}

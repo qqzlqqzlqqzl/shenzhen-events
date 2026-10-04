@@ -1,0 +1,37 @@
+{
+  "stage": "collect",
+  "report": {
+    "status": "partial",
+    "error": "",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 0,
+      "extracted": 0,
+      "unique": 0,
+      "admitted": 0,
+      "rejected": {},
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "recognized_empty": true,
+      "requests_attempted": 1
+    }
+  },
+  "assertions": [
+    "Do not set source_total to zero",
+    "Do not delete previously stored events merely because this snapshot is empty"
+  ]
+}

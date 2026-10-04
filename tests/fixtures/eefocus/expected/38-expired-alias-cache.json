@@ -1,0 +1,57 @@
+{
+  "stage": "identity_refresh_design",
+  "report": {
+    "status": "partial",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 1,
+      "extracted": 1,
+      "unique": 1,
+      "admitted": 0,
+      "rejected": {},
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "detail_attempted": 1,
+      "detail_resolved": 0,
+      "detail_failed": 1,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "requests_attempted": 2
+    }
+  },
+  "admitted": 0,
+  "database_counts": {
+    "raw_items": 1,
+    "events": 1,
+    "event_sources": 1
+  },
+  "changed": 0,
+  "expected_persisted_event": {
+    "url": "https://www.eefocus.com/live/980102.html",
+    "status": "needs_review",
+    "details": {
+      "review_hold": true,
+      "review_notes": "人工保留：确认参加资格后再展示",
+      "address_precision": "undisclosed"
+    }
+  },
+  "favorite": 1,
+  "assertions": [
+    "Do not overwrite the last stored canonical row with an unresolved alias or delete it",
+    "A past success or a failed cache entry is not fresh alias proof",
+    "The run can show zero newly admitted records and one stored event without contradiction",
+    "Do not write an alias-success cache on timeout"
+  ],
+  "required_code_changes": [
+    "R2 freshness-aware identity cache and safe failed refresh"
+  ]
+}

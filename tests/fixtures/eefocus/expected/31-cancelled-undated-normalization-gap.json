@@ -1,0 +1,18 @@
+{
+  "stage": "design_requirement_with_known_gap",
+  "desired_item_subset": {
+    "start_at": null,
+    "end_at": null,
+    "all_day": false,
+    "status": "cancelled",
+    "details": {
+      "source_status": "已取消"
+    }
+  },
+  "current_normalize_event_status": "needs_review",
+  "upcoming_included": false,
+  "assertions": [
+    "Do not manufacture an actual start date just to preserve cancellation status",
+    "Resolve status precedence deliberately when implementing; this pack does not claim the gap is fixed"
+  ]
+}

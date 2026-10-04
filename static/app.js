@@ -2,7 +2,26 @@
 let view='discover',offset=0,total=0,sequence=0,calendar=null,controller=null;
 let authenticated=false,authEpoch=0,statusTicket=0,statsTicket=0,detailTicket=0,busy=false;
 let calendarDate='',calendarRange=null,detailId=null,debounce=null,composing=false,opener=null;
-let listSnapshot=null,calendarSnapshot=null;
+let listSnapshot=null,calendarSnapshot=null,safetyEpoch=null;
+let personalReadRevision=0;
+let connectivityGeneration=0,networkOffline=navigator.onLine===false;
+function invalidatePlanning(clear=false,preserveComparisonIntent=false){
+  for(const e of records.values()){e._safety_pending=true;e.planning_eligible=false;e.safety={...e.safety,warning:e.safety?.warning||'安全状态待重新核实；暂不可安排或导出'};}
+  for(const snapshot of [listSnapshot,calendarSnapshot])for(const e of [...(snapshot?.items||[]),...(snapshot?.excluded?.items||[])]){e._safety_pending=true;e.planning_eligible=false;}
+  if(undoFeedback?.record){undoFeedback.record._safety_pending=true;undoFeedback.record.planning_eligible=false;}
+  for(const card of document.querySelectorAll('.event-card')){const tags=card.querySelector('.card-tags');if(tags&&!tags.querySelector('.safety-warning')){const warning=document.createElement('span');warning.className='tag warn safety-warning';warning.textContent='安排待重新核实';tags.append(warning);}}
+  if($('#detail').open){const tags=$('#detail-body .card-tags');if(tags&&!tags.querySelector('.safety-warning')){const warning=document.createElement('span');warning.className='tag warn safety-warning';warning.textContent='安全状态待重新核实；暂不可安排或导出';tags.append(warning);}}
+  $('#calendar').dataset.safetyVerified='false';
+  for(const a of document.querySelectorAll('a[href*=".ics"]')){a.removeAttribute('href');a.setAttribute('aria-disabled','true');}
+  RadarEventWorkflows.invalidateSafety?.(preserveComparisonIntent);
+  if(clear){listSnapshot=null;calendarSnapshot=null;calendar?.removeAllEvents();renderLongCalendar([]);renderExcluded(null);updateFacetCounts(null);$('#more').hidden=true;}
+}
+function acceptSafety(data){
+  const next=data?.safety_epoch;if(!Number.isInteger(next))return;
+  if(safetyEpoch!==null&&next<safetyEpoch){const error=new Error('安全状态已更新，请重新加载');error.code='safety_snapshot_changed';throw error;}
+  if(safetyEpoch!==null&&next!==safetyEpoch)invalidatePlanning(true,true);
+  safetyEpoch=next;
+}
 let filterDraft=null;
 // Date inputs are a draft until explicitly applied; detail/refresh URLs use this pair.
 let appliedDates={from:'',until:''},appliedFilterQuery=null,dateLoadError='',dateLoadValues=null;
@@ -40,25 +59,30 @@ function renderActiveFilters(){
   if(rest.length){const span=document.createElement('span');span.className='filter-text';span.textContent=rest.join(' · ');box.append(span)}
 }
 async function api(path,options={}) {
-  const epoch=authEpoch,c=new AbortController(),abort=()=>c.abort();
+  const epoch=authEpoch,generation=connectivityGeneration,c=new AbortController(),abort=()=>c.abort();
+  const planningRead=path==='events'||path.startsWith('events?')||path.startsWith('event/')||path==='calendar-summary';
+  const connectivityChanged=()=>generation!==connectivityGeneration||networkOffline||navigator.onLine===false||(planningRead&&document.hidden);
+  if(connectivityChanged())throw new DOMException('网络状态已变化，请重新核实','AbortError');
   if(options.signal?.aborted)c.abort();else options.signal?.addEventListener('abort',abort,{once:true});
   inflight.add(c);let timedOut=false;
   const timer=setTimeout(()=>{timedOut=true;c.abort()},20000);
   try {
     const r=await fetch('/events/api/'+path,{credentials:'same-origin',...options,signal:c.signal,headers:{'Content-Type':'application/json','X-Radar-Request':'1',...(options.headers||{})}});
     if(epoch!==authEpoch)throw new DOMException('Stale session','AbortError');
+    if(connectivityChanged())throw new DOMException('网络状态已变化，请重新核实','AbortError');
     if(r.status===401&&path!=='login'){showLogin('登录已过期，请重新登录。');throw new DOMException('Expired session','AbortError')}
     let data;try{data=await r.json()}catch{throw new Error('服务器返回异常，请重试。')}
     if(epoch!==authEpoch)throw new DOMException('Stale session','AbortError');
-    if(!r.ok){const err=new Error(typeof data.detail==='string'?data.detail:'请求失败，请重试。');err.status=r.status;err.current=data.current;throw err}
-    return data;
+    if(connectivityChanged())throw new DOMException('网络状态已变化，请重新核实','AbortError');
+    if(!r.ok){const err=new Error(typeof data.detail==='string'?data.detail:'请求失败，请重试。');err.status=r.status;err.current=data.current;err.code=data.code;if(String(data.code||'').startsWith('safety_'))invalidatePlanning(true);throw err}
+    acceptSafety(data);return data;
   } catch(e) {if(timedOut)throw new Error('请求超时，已有数据未更改，请重试。');throw e}
   finally {clearTimeout(timer);inflight.delete(c);options.signal?.removeEventListener('abort',abort)}
 }
 function showLogin(message='') {
   // Invalidate session callbacks before closing dialogs or restoring any focus.
   authenticated=false;authEpoch++;
-  resetStatusRecovery();personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;sequence++;detailTicket++;statusTicket++;busy=false;
+  resetStatusRecovery();safetyEpoch=null;personalReadRevision++;personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
@@ -72,21 +96,28 @@ async function stats() {
     $('#update-note').textContent=s.last_updated?'全站统计 · 最近更新：'+timeText(s.last_updated):'活动正在整理中';
     if(!$('#district-options input'))renderFacetOptions('district',[...(s.districts||[]).map(v=>({value:v,label:v})),{value:'待确认',label:'地区待确认'}]);
     if(!$('#type-options input'))renderFacetOptions('type',s.event_types||[],s.type_pending||0);if(!$('#topic-options input'))renderFacetOptions('topic',s.topics||[]);
-  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)$('#update-note').textContent=e.message}
+  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===statsTicket)$('#update-note').textContent=e.message}
 }
-let filterStorageKey='radar.filters.v1:owner';
+let filterStorageKey='radar.filters.v1:owner',filterOwner=null,generatedFilterURL=null,filterWriteBlocked=false;
 const filterKeys=new Set(['q','district','districts','district_none','type','topic','type_none','topic_none','tag','free','show_long','sort','attendance','feedback','feedback_tag','viewed','from','until','saved_only']);
-function rememberFilters(){
-  try{const p=urlParams();RadarPlanner.range(p.get('from')||'',p.get('until')||'');for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);localStorage.setItem(filterStorageKey,JSON.stringify({version:1,query:p.toString()}))}catch{}
+function storedFilters(){
+ const raw=localStorage.getItem(filterStorageKey);if(raw===null)return {valid:true,saved:null};
+ try{const saved=JSON.parse(raw);return {valid:saved?.version===1&&typeof saved.query==='string'&&saved.query.length<=4096,saved}}catch{return {valid:false,saved:null}}
+}
+function rememberFilters(explicit=false){
+ // Rejected or unreadable bytes survive automatic entry/navigation. Only an
+ // explicit applied choice can replace readable invalid data.
+ if(filterWriteBlocked&&!explicit)return;
+ try{const stored=storedFilters();if(!stored.valid&&!explicit){filterWriteBlocked=true;return}const p=urlParams();RadarPlanner.range(p.get('from')||'',p.get('until')||'');for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);localStorage.setItem(filterStorageKey,JSON.stringify({version:1,query:p.toString()}));filterWriteBlocked=false}catch{filterWriteBlocked=true}
 }
 function restoreSavedFilters(){
-  const explicit=new URLSearchParams(location.search);
-  if([...explicit.keys()].some(k=>filterKeys.has(k)||['view','month','event'].includes(k)))return;
-  try{const saved=JSON.parse(localStorage.getItem(filterStorageKey)||'null');if(saved?.version!==1||typeof saved.query!=='string'||saved.query.length>4096)return;
-    const p=new URLSearchParams(saved.query);for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);
-    for(const [k,v] of p)explicit.append(k,v);
-    if(p.size)history.replaceState({radar:true},'',location.pathname+'?'+explicit.toString());
-  }catch{}
+ const explicit=new URLSearchParams(location.search);
+ if([...explicit.keys()].some(k=>filterKeys.has(k)||['view','month','event'].includes(k)))return;
+ try{const {valid,saved}=storedFilters();filterWriteBlocked=!valid;if(!valid||!saved)return;
+  const p=new URLSearchParams(saved.query);for(const k of [...p.keys()])if(!filterKeys.has(k))p.delete(k);
+  for(const [k,v] of p)explicit.append(k,v);
+  if(p.size){history.replaceState({radar:true},'',location.pathname+'?'+explicit.toString());generatedFilterURL=location.pathname+location.search}
+ }catch{filterWriteBlocked=true}
 }
 function readURL() {
   const p=new URLSearchParams(location.search);view=Object.hasOwn(views,p.get('view'))?p.get('view'):'discover';
@@ -128,15 +159,20 @@ function writeURL(mode='push',event=null) {
   // Invalid legacy URLs remain editable, but are never newly persisted.
   try{RadarPlanner.range(appliedDates.from,appliedDates.until)}catch{
     const p=new URLSearchParams(location.search);if(event)p.set('event',event);else p.delete('event');
-    const u=location.pathname+(p.size?'?'+p:'');if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);return;
+    const u=location.pathname+(p.size?'?'+p:'');if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);generatedFilterURL=location.pathname+location.search;return;
   }
   rememberFilters();
   const p=urlParams();if(event)p.set('event',event);const u=location.pathname+(p.size?'?'+p:'');
-  if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);
+  if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);generatedFilterURL=location.pathname+location.search;
 }
 function clearFilters(){clearTimeout(debounce);dateLoadError='';$('#calendar-saved-only').checked=false;$('#date-from').value='';$('#date-until').value='';$('#date-error').textContent='';$('#feedback-filter').value='';$('#feedback-tag-filter').value='';$('#viewed-filter').value='all';$('#attendance').value='all';$('#search').value='';$$('#type-options input,#topic-options input,#district-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');updateFacetSummary('district');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc';syncFilterControls()}
 async function enter(user={}) {
-  filterStorageKey='radar.filters.v1:'+String(user.username||'owner');RadarPlanner.user(user.username);
+  const owner=typeof user.username==='string'&&user.username?user.username:null;
+  // Conditional boundary: a verified different owner in the same DOM should
+  // not inherit a URL generated by the previous owner. Supplied links survive.
+  if(owner&&filterOwner&&owner!==filterOwner&&generatedFilterURL===location.pathname+location.search){history.replaceState({radar:true},'',location.pathname);generatedFilterURL=null}
+  if(owner)filterOwner=owner;
+  const nextStorageKey='radar.filters.v1:'+String(user.username||'owner');if(nextStorageKey!==filterStorageKey)filterWriteBlocked=false;filterStorageKey=nextStorageKey;RadarPlanner.user(user.username);
   authenticated=true;authEpoch++;$('.hero').hidden=true;$('#manage-sources').hidden=false;$('#login-panel').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;
   await stats();if(!authenticated)return;restoreSavedFilters();readURL();rememberFilters();await load();const id=new URLSearchParams(location.search).get('event');if(id&&authenticated)await openDetail(id,false);
 }
@@ -161,8 +197,8 @@ function showView(){
 }
 function emptyState(){const p=urlParams(),filtered=['feedback','feedback_tag','viewed','from','q','attendance','free','type','topic','districts','type_none','topic_none','district_none'].some(key=>p.has(key));return `<div class="empty"><b>${filtered?'当前筛选条件下没有活动':view==='favorites'?'还没有收藏活动':'这里暂时没有活动'}</b><p>${filtered?'试试重置筛选；其他收藏或活动不会被删除。':view==='favorites'?'点击活动卡片的星号即可收藏，过期后仍会保留。':'可以查看其他日期，或去全部活动探索。'}</p><button class="secondary" data-action="${filtered?'reset':'browse-all'}">${filtered?'重置筛选':'查看全部活动 →'}</button></div>`}
 async function load(append=false){
-  if(!authenticated||filterDraft||(append&&busy))return;personalQueryDirty=false;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;showView();
-  let requestKey,keep=false;
+  if(!authenticated||filterDraft||(append&&busy))return;personalQueryDirty=false;const seq=++sequence,personalRevision=personalReadRevision;controller?.abort();controller=new AbortController();busy=true;showView();
+  invalidatePlanning();let requestKey,keep=false;
   try{
   // Validate raw restored values before input[type=date] can normalize them away.
   requestKey=query().toString();
@@ -174,12 +210,15 @@ async function load(append=false){
   if(keep){updateFacetCounts(listSnapshot.facets);renderExcluded(listSnapshot.excluded);records.clear();for(const e of listSnapshot.items)records.set(e.id,e);$('#event-list').innerHTML=listSnapshot.items.map(card).join('')||emptyState();total=listSnapshot.total;offset=listSnapshot.offset;$('#more').hidden=!listSnapshot.hasMore;$('#result-count').textContent=`${total} 个活动 · 刷新中，保留上次结果`}
   $('#event-list').setAttribute('aria-busy','true');$('#more').disabled=true;$('#more').textContent='正在加载…';
   if(!append&&!keep){updateFacetCounts(null);renderExcluded(null);offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
-  const p=new URLSearchParams(requestKey);p.set('offset',append?offset:0);p.set('limit',36);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
+  const p=new URLSearchParams(requestKey);p.set('offset',append?offset:0);p.set('limit',36);if(append&&Number.isInteger(listSnapshot?.safety_epoch))p.set('safety_epoch',listSnapshot.safety_epoch);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
+    // A read begun before a confirmed personal write has stale membership/facets.
+    // Reissue the applied query, keeping its now-correct snapshot until completion.
+    if(personalRevision!==personalReadRevision)return load();
     updateFacetCounts(res.facets);renderExcluded(res.excluded_long);total=res.total;if(!append)$('#event-list').replaceChildren();
     const fresh=append?res.items.filter(e=>!records.has(e.id)):res.items;if(!append)records.clear();for(const e of res.items)records.set(e.id,e);
     if(!res.items.length&&!append)$('#event-list').innerHTML=emptyState();else $('#event-list').insertAdjacentHTML('beforeend',fresh.map(card).join(''));
-    offset=append?offset+res.items.length:res.items.length;listSnapshot={key:requestKey,items:$$('.event-card[data-event]').map(n=>records.get(n.dataset.event)).filter(Boolean),total,offset,hasMore:!!res.has_more,facets:res.facets||null,excluded:res.excluded_long||null,at:Date.now()};$('#event-list').dataset.hasSnapshot='true';$('#result-count').textContent=resultCountText(total,res.excluded_long);$('#more').hidden=!res.has_more;
-  }catch(e){if(e.name==='AbortError'||seq!==sequence||!authenticated)return;if(dateLoadError)$('#date-error').textContent=dateLoadError;if(!append&&!keep){$('#event-list').replaceChildren();$('#result-count').textContent='加载失败';if(dateLoadError){records.clear();updateFacetCounts(null);renderExcluded(null);calendar?.removeAllEvents();renderLongCalendar([])}}if(keep){$('#result-count').textContent=`${total} 个活动 · 上次成功结果`;showError(new Error(e.message+' 正在保留此查询的上次结果，请手动重试。'),append)}else showError(e,append);if(append)$('#more').hidden=false}
+    offset=append?offset+res.items.length:res.items.length;listSnapshot={key:requestKey,safety_epoch:res.safety_epoch,items:$$('.event-card[data-event]').map(n=>records.get(n.dataset.event)).filter(Boolean),total,offset,hasMore:!!res.has_more,facets:res.facets||null,excluded:res.excluded_long||null,at:Date.now()};$('#event-list').dataset.hasSnapshot='true';$('#result-count').textContent=resultCountText(total,res.excluded_long);$('#more').hidden=!res.has_more;
+  }catch(e){if(e.name==='AbortError'||seq!==sequence||!authenticated)return;invalidatePlanning(String(e.code||'').startsWith('safety_'));if(String(e.code||'').startsWith('safety_')){keep=false;append=false;}if(dateLoadError)$('#date-error').textContent=dateLoadError;if(!append&&!keep){$('#event-list').replaceChildren();$('#result-count').textContent='加载失败';if(dateLoadError){records.clear();updateFacetCounts(null);renderExcluded(null);calendar?.removeAllEvents();renderLongCalendar([])}}if(keep){$('#result-count').textContent=`${total} 个活动 · 上次成功结果`;showError(new Error(e.message+' 正在保留此查询的上次结果，请手动重试。'),append)}else showError(e,append);if(append)$('#more').hidden=false}
   finally{if(seq===sequence){busy=false;$('#event-list').setAttribute('aria-busy','false');$('#more').disabled=false;$('#more').textContent='再看看更多 ↓'}}
 }
 function renderCalendar(){
@@ -214,23 +253,24 @@ function renderLongCalendar(items){
   box.append(head,list);
 }
 async function loadCalendar(info){
-  if(!authenticated||view!=='calendar')return;calendarRange=info;const seq=++sequence;controller?.abort();controller=new AbortController();busy=true;
-  let keep=false;
+  if(!authenticated||view!=='calendar')return;calendarRange=info;const seq=++sequence,personalRevision=personalReadRevision;controller?.abort();controller=new AbortController();busy=true;
+  invalidatePlanning();let keep=false;
   try{const requestKey=query('calendar').toString()+'|'+info.startStr+'|'+info.endStr;keep=calendarSnapshot?.key===requestKey;
   $('#notice').hidden=true;$('#calendar').dataset.hasSnapshot=String(keep);$('#calendar').setAttribute('aria-busy','true');$('#result-count').textContent=keep?'正在刷新 · 保留该月份上次结果':'正在加载当前月份';if(!keep){updateFacetCounts(null);renderExcluded(null);calendar.removeAllEvents();records.clear();$('#calendar-long').replaceChildren();$('#calendar-long').hidden=true}else{updateFacetCounts(calendarSnapshot.facets);renderExcluded(calendarSnapshot.excluded);calendar.removeAllEvents();records.clear();for(const e of calendarSnapshot.items)records.set(e.id,e);renderLongCalendar(calendarSnapshot.items.filter(e=>e.long_running));calendar.addEventSource(calendarSnapshot.items.filter(e=>!e.long_running).map(RadarUI.calendarEvent))}
   let cursor=0,metadata=null;const data=[];
-    while(true){const p=query('calendar');p.set('start',info.startStr.slice(0,10));p.set('end',info.endStr.slice(0,10));p.set('offset',cursor);p.set('limit',500);
+    while(true){const p=query('calendar');p.set('start',info.startStr.slice(0,10));p.set('end',info.endStr.slice(0,10));p.set('offset',cursor);p.set('limit',500);if(Number.isInteger(metadata?.safety_epoch))p.set('safety_epoch',metadata.safety_epoch);
       const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated||view!=='calendar')return;
+      if(personalRevision!==personalReadRevision)return loadCalendar(info);
       if(!metadata)metadata=res;data.push(...res.items);cursor+=res.items.length;if(!res.has_more)break;if(!res.items.length)throw new Error('该范围活动过多，请用地区或兴趣缩小筛选。');
     }
-    calendar.removeAllEvents();records.clear();for(const e of data)records.set(e.id,e);calendarSnapshot={key:requestKey,items:data,facets:metadata?.facets||null,excluded:metadata?.excluded_long||null,at:Date.now()};updateFacetCounts(metadata?.facets);renderExcluded(metadata?.excluded_long);$('#calendar').dataset.hasSnapshot='true';
+    calendar.removeAllEvents();records.clear();for(const e of data)records.set(e.id,e);$('#calendar').dataset.safetyVerified='true';calendarSnapshot={key:requestKey,safety_epoch:metadata?.safety_epoch,items:data,facets:metadata?.facets||null,excluded:metadata?.excluded_long||null,at:Date.now()};updateFacetCounts(metadata?.facets);renderExcluded(metadata?.excluded_long);$('#calendar').dataset.hasSnapshot='true';
     const long=data.filter(e=>e.long_running);
     const normal=data.filter(e=>!e.long_running); // API already selects interval overlap, including prior-month starts.
     renderLongCalendar(long);RadarEventWorkflows.unplanned();
     calendar.addEventSource(normal.map(RadarUI.calendarEvent));
     const hiddenText=metadata?.excluded_long?.total?` · ${metadata.excluded_long.total} 项长期/重复未计入（上方灰色列出）`:urlParams().get('show_long')!=='true'?' · 已应用长期/重复排除规则':long.length?` · ${long.length} 项长期/重复单列`:'';
     $('#result-count').textContent=`本月 ${normal.length} 个活动 · 跨日活动按覆盖日期显示${hiddenText}`;calendar.updateSize();
-  }catch(e){if(seq!==sequence||!authenticated||view!=='calendar'||!calendar)return;if(!keep){calendar.removeAllEvents();records.clear();renderLongCalendar([])}if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent=keep?'上次成功结果 · 当前月份刷新失败':'日历加载失败';showError(keep?new Error(e.message+' 保留该月份上次结果，其他月份不会混入。'):e)}}
+  }catch(e){if(seq!==sequence||!authenticated||view!=='calendar'||!calendar)return;invalidatePlanning(String(e.code||'').startsWith('safety_'));if(String(e.code||'').startsWith('safety_'))keep=false;if(!keep){calendar.removeAllEvents();records.clear();renderLongCalendar([])}if(e.name!=='AbortError'&&seq===sequence&&authenticated){$('#result-count').textContent=keep?'上次成功结果 · 当前月份刷新失败':'日历加载失败';showError(keep?new Error(e.message+' 保留该月份上次结果，仅供历史查阅；当前安排待重新核实。'):e)}}
   finally{if(seq===sequence){busy=false;$('#calendar').setAttribute('aria-busy','false')}}
 }
 function mountFeedback(e){
@@ -252,12 +292,21 @@ function paintFeedback(id){const e=records.get(id);if(!e)return;const summary=fe
     const clear=$$('[data-feedback-clear]').find(b=>b.dataset.feedbackClear===id);if(clear){clear.hidden=!(e.feedback||selected.size);clear.disabled=feedbackSaving.has(id)}
   }
 }
+function personalFields(result){return Object.fromEntries(Object.entries(result).filter(([key])=>['favorite','hidden','feedback','feedback_tags','feedback_updated_at','revision','viewed_at'].includes(key)));}
+function reconcilePersonalRead(incoming){
+  const confirmed=records.get(incoming.id);
+  // Point reads may complete after a confirmed personal write. Preserve only
+  // newer personal fields; the response's fresh safety projection stays intact.
+  if(confirmed&&Number(confirmed.revision)>Number(incoming.revision||0))Object.assign(incoming,personalFields(confirmed));
+  if(confirmed?.viewed_at&&(!incoming.viewed_at||confirmed.viewed_at>incoming.viewed_at))incoming.viewed_at=confirmed.viewed_at;
+  return incoming;
+}
 function syncPersonalSnapshots(id,result){
   if(listSnapshot)listSnapshot.facets=null;if(calendarSnapshot)calendarSnapshot.facets=null;updateFacetCounts(null);
   for(const snapshot of [listSnapshot,calendarSnapshot]){
     if(!snapshot)continue;
-    for(const item of snapshot.items)if(item.id===id)Object.assign(item,result);
-    for(const item of snapshot.excluded?.items||[])if(item.id===id)Object.assign(item,result);
+    for(const item of snapshot.items)if(item.id===id)Object.assign(item,personalFields(result));
+    for(const item of snapshot.excluded?.items||[])if(item.id===id)Object.assign(item,personalFields(result));
     // A confirmed un-save must not reappear from an older saved-only snapshot.
     if(result.favorite===false&&new URLSearchParams(snapshot.key.split('|')[0]).get('favorites')==='true'){
       const before=snapshot.items.length;snapshot.items=snapshot.items.filter(item=>item.id!==id);
@@ -268,10 +317,10 @@ function syncPersonalSnapshots(id,result){
     }
   }
 }
-function syncPersonal(id,result){const current=records.get(id);if(current)Object.assign(current,result);syncPersonalSnapshots(id,result);paintFeedback(id);paintFavorite(id)}
+function syncPersonal(id,result){personalReadRevision++;const current=records.get(id);if(current)Object.assign(current,personalFields(result));syncPersonalSnapshots(id,result);paintFeedback(id);paintFavorite(id)}
 function positionFeedbackUndo(){
   const bar=$('#undo-bar'),dialog=$('#detail'),inside=dialog.open;
-  const host=inside?dialog:document.body;
+  const host=inside?dialog:$('#bottom-overlays');
   if(bar.parentElement!==host)host.appendChild(bar);
   bar.classList.toggle('in-detail',inside);
 }
@@ -282,21 +331,22 @@ async function updateFeedback(id,patch,message,undo=false){const e=records.get(i
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}
   finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch){paintFeedback(id);paintFavorite(id)}}
 }
-async function recordView(id){const epoch=authEpoch;try{const result=await api('viewed/'+encodeURIComponent(id),{method:'POST'});if(!authenticated||epoch!==authEpoch)return;const current=records.get(id);if(current)current.viewed_at=result.viewed_at;syncPersonalSnapshots(id,{viewed_at:result.viewed_at});for(const tag of $$('[data-viewed-for]'))if(tag.dataset.viewedFor===id){tag.hidden=false;tag.textContent='已看过'}}catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast('浏览记录未同步；活动仍可阅读。')}}
+async function recordView(id){const epoch=authEpoch;try{const result=await api('viewed/'+encodeURIComponent(id),{method:'POST'});if(!authenticated||epoch!==authEpoch)return;personalReadRevision++;const current=records.get(id);if(current)current.viewed_at=result.viewed_at;syncPersonalSnapshots(id,{viewed_at:result.viewed_at});for(const tag of $$('[data-viewed-for]'))if(tag.dataset.viewedFor===id){tag.hidden=false;tag.textContent='已看过'}}catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch)toast('浏览记录未同步；活动仍可阅读。')}}
 function setFeedbackSignal(id,value){const e=records.get(id);if(!e)return;const target=e.feedback===value?'':value;updateFeedback(id,{feedback:target},target?'已记录“'+feedbackSignals[target]+'”。':'已清除主反馈。')}
 function toggleFeedbackTag(id,value){const e=records.get(id);if(!e)return;const tags=new Set(e.feedback_tags||[]);if(tags.has(value))tags.delete(value);else tags.add(value);updateFeedback(id,{feedback_tags:[...tags]},'反馈标签已更新。')}
 function clearFeedback(id){updateFeedback(id,{feedback:'',feedback_tags:[]},'已清除这条活动反馈。')}
 function renderDetail(e){
   const state=RadarUI.lifecycle(e);const ended=state==='已结束'||e.status==='cancelled'||e.status==='not_event';
-  $('#detail-body').innerHTML=`<div class="card-tags"><span class="tag type-tag">${esc(e.event_type_label||'其他活动')}</span>${(e.topics||[]).map(t=>`<span class="tag topic-tag">${esc(t)}</span>`).join('')}${e.long_running?'<span class="tag long-tag">长期/重复</span>':''}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p>${costText(e)?`<p><b>费用</b>${esc(costText(e))}</p>`:''}${e.organizer?`<p><b>${esc(organizerLabel(e))}</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}${detailExtras(e)}<div class="detail-actions"><a class="primary" href="${esc(RadarUI.safeUrl(e.url))}" target="_blank" rel="noopener noreferrer">${ended?'查看历史原文':'查看原文 / 报名'} ↗</a>${e.start_at&&e.status==='scheduled'?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：<a href="${esc(RadarUI.safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
+  $('#detail-body').innerHTML=`<div class="card-tags"><span class="tag type-tag">${esc(e.event_type_label||'其他活动')}</span>${(e.topics||[]).map(t=>`<span class="tag topic-tag">${esc(t)}</span>`).join('')}${e.long_running?'<span class="tag long-tag">长期/重复</span>':''}${state?`<span class="tag warn">${esc(state)}</span>`:''}</div><h2 class="detail-title" id="detail-title">${esc(e.title)}</h2><div class="detail-meta"><p><b>时间</b>${esc(fullTime(e))}</p><p><b>地点</b>${esc(e.location||'原文未明确地点')}</p>${costText(e)?`<p><b>费用</b>${esc(costText(e))}</p>`:''}${e.organizer?`<p><b>${esc(organizerLabel(e))}</b>${esc(e.organizer)}</p>`:''}</div><p class="detail-summary">${esc(e.summary||'请查看原始活动页。')}</p>${e.reason&&e.ai_state==='done'?`<p class="detail-summary">${esc(e.reason)}</p>`:''}${detailExtras(e)}<div class="detail-actions">${originalLink(e.url,(ended?'查看历史原文':e.planning_eligible===true&&!e._safety_pending?'查看原文 / 报名':'查看原文（安排待核实）')+' ↗','primary','原文链接不可用')}${e.planning_eligible===true&&!e._safety_pending?`<a class="secondary" href="/events/api/event/${esc(e.id)}.ics">导出日历 ↓</a>`:''}<button class="secondary" data-save="${esc(e.id)}" ${personalPending(e.id)?'disabled':''} aria-pressed="${!!e.favorite}">${e.favorite?'取消收藏':'☆ 收藏活动'}</button></div><div class="detail-source">${(e.sources||[]).map(s=>`<div>来源：${originalLink(s.url,s.name+' ↗')}</div>`).join('')}<div>最近采集：${esc(timeText(e.last_seen))}。报名状态与变更请以主办方为准。</div></div>`;
   mountFeedback(e);RadarEventWorkflows.mountDetail(e);
 }
 async function openDetail(id,push=true){
   if(!authenticated)return;if(push||!detailId)RadarEventWorkflows.beginDetail(id);const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
-  try{const e=records.get(id)||await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
+  try{invalidatePlanning();const e=await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
+    reconcilePersonalRead(e);
     records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
     if(!$('#detail').open)$('#detail').showModal();positionFeedbackUndo();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
-  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch){toast(e.message);writeURL('replace');detailId=null}}
+  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===detailTicket){toast(e.message);writeURL('replace');detailId=null}}
 }
 function closeDetail(updateHistory=true){
   detailTicket++;const had=detailId;detailId=null;if($('#detail').open)$('#detail').close();positionFeedbackUndo();document.body.classList.remove('modal-open');
@@ -309,7 +359,7 @@ function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $
 async function save(id){
   const e=records.get(id);if(!e||saving.has(id)||feedbackSaving.has(id)||!authenticated)return;const epoch=authEpoch,target=!e.favorite;saving.add(id);paintFavorite(id);
   try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({favorite:target,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
-    Object.assign(e,result);syncPersonal(id,result);
+    Object.assign(e,personalFields(result));syncPersonal(id,result);
     toast(result.favorite?'已收藏，其他设备登录后也能看到。':'已取消收藏。');
     if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=resultCountText(total,listSnapshot?.excluded);if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}finally{saving.delete(id);if(authenticated&&epoch===authEpoch){paintFavorite(id);paintFeedback(id)}}
@@ -322,8 +372,9 @@ function validateDateInputs(){
 }
 function commitDateInputs(){appliedDates={from:$('#date-from').value,until:$('#date-until').value};dateLoadError='';dateLoadValues=null;appliedFilterQuery=draftParams().toString()}
 function navigate(next,reset=false){if(filterDraft)finishFilterDraft(false);clearTimeout(debounce);if(reset){clearFilters();dateLoadError=''}if(!validateDateInputs())return;commitDateInputs();closeDetail(false);view=Object.hasOwn(views,next)?next:'discover';writeURL();load()}
-function applyFilters(mode='push'){clearTimeout(debounce);syncFilterControls();if(filterDraft)return;if(!validateDateInputs())return;commitDateInputs();closeDetail(false);writeURL(mode);load()}
-function restoreNavigation(){if(!authenticated)return;if(filterDraft)finishFilterDraft(false);const before=urlParams().toString();closeDetail(false);readURL();rememberFilters();const after=urlParams().toString();const id=new URLSearchParams(location.search).get('event');if(before!==after||personalQueryDirty)load().then(()=>{if(id)openDetail(id,false)});else if(id)openDetail(id,false)}
+function applyFilters(mode='push'){clearTimeout(debounce);syncFilterControls();if(filterDraft)return;if(!validateDateInputs())return;commitDateInputs();rememberFilters(true);closeDetail(false);writeURL(mode);load()}
+// History entries retain whether the app generated the query, including Back while signed out.
+function restoreNavigation(){generatedFilterURL=history.state?.radar?location.pathname+location.search:null;if(!authenticated)return;if(filterDraft)finishFilterDraft(false);const before=urlParams().toString();closeDetail(false);readURL();rememberFilters();const after=urlParams().toString();const id=new URLSearchParams(location.search).get('event');if(before!==after||personalQueryDirty)load().then(()=>{if(id)openDetail(id,false)});else if(id)openDetail(id,false)}
 addEventListener('popstate',restoreNavigation);
 $('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit');if(b.disabled)return;b.disabled=true;b.textContent='正在验证…';$('#login-error').textContent='';try{const user=await api('login',{method:'POST',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});$('#password').value='';await enter(user)}catch(err){if(err.name!=='AbortError')$('#login-error').textContent=err.message}finally{b.disabled=false;b.textContent='打开我的雷达 →'}};
 $('#logout').onclick=async()=>{const b=$('#logout');b.disabled=true;try{await api('logout',{method:'POST'});showLogin()}catch(e){if(e.name!=='AbortError')toast(e.message)}finally{b.disabled=false}};
@@ -383,3 +434,15 @@ addEventListener('offline',updateConnectivity);addEventListener('online',updateC
 
 initStatusRecovery();
 
+
+// A disconnected or background snapshot remains readable, but cannot authorize
+// planning/export. Foreground use obtains fresh point/list eligibility.
+window.addEventListener('offline',()=>{networkOffline=true;connectivityGeneration++;for(const c of inflight)c.abort();invalidatePlanning(true);});
+window.addEventListener('online',()=>{networkOffline=false;connectivityGeneration++;});
+document.addEventListener('visibilitychange',()=>{connectivityGeneration++;for(const c of inflight)c.abort();if(document.hidden)invalidatePlanning();else if(authenticated&&!filterDraft){if(detailId)openDetail(detailId,false);else load();}});
+document.addEventListener('click',async event=>{
+  const link=event.target.closest('a[href*=".ics"]');if(!link||!authenticated)return;
+  event.preventDefault();const href=link.getAttribute('href'),id=href.match(/event\/([^/]+)\.ics/)?.[1];
+  if(!id)return;const epoch=authEpoch;invalidatePlanning();
+  try{const current=await api('event/'+decodeURIComponent(id));if(!authenticated||epoch!==authEpoch)return;if(current.planning_eligible!==true)throw new Error(current.safety?.warning||'当前活动不可安排');records.set(current.id,current);location.assign(href);}catch(error){if(authenticated&&epoch===authEpoch)toast(error.message);}
+},true);

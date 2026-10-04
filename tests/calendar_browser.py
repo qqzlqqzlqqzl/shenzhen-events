@@ -40,12 +40,8 @@ def cleanup():
     try:server.wait(timeout=5)
     except subprocess.TimeoutExpired:server.kill()
     shutil.rmtree(FIX,ignore_errors=True)
-import requests
-for _ in range(50):
-    try:
-        if requests.get(BASE+'/events/api/health',timeout=.2).status_code==200:break
-    except requests.RequestException:pass
-    time.sleep(.1)
+from browser_startup import wait_for_api
+wait_for_api(server,BASE)
 report={'checks':{},'errors':[]}
 pw=sync_playwright().start();br=pw.chromium.launch(executable_path=accept.browser_path(),headless=True,args=['--no-sandbox','--no-proxy-server','--disable-dev-shm-usage'],env=dict(os.environ))
 ctx=br.new_context(viewport={'width':1440,'height':1050},locale='zh-CN',timezone_id='Asia/Shanghai')

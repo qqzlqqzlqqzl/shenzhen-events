@@ -44,6 +44,8 @@ globalThis.RadarUI = (() => {
       extendedProps:{rangeLabel:span.label,fullTime:fullTime(e),favorite:!!e.favorite,favoriteRank:e.favorite?0:1}};
   }
   function lifecycle(e, current=Date.now()) {
+    if(e.safety?.warning)return e.safety.warning;
+    if(e._safety_pending)return '安全状态待重新核实';
     if(e.status==='cancelled')return '已取消';
     if(e.status==='not_event')return '非线下活动';
     if(!valid(e.start_at)||e.status==='needs_review')return '时间地点待确认';
@@ -52,7 +54,7 @@ globalThis.RadarUI = (() => {
     return '';
   }
   function safeUrl(value) {
-    try {const u=new URL(value,location.origin);return ['https:','http:'].includes(u.protocol)?u.href:'#';} catch{return '#';}
+    try {const u=new URL(value);return ['https:','http:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'#';} catch{return '#';}
   }
   return {dayKey,format,fullTime,dateSpan,calendarEvent,lifecycle,safeUrl};
 })();

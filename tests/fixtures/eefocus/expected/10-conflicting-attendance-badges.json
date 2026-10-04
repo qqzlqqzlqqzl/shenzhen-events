@@ -1,0 +1,16 @@
+{
+  "stage": "parse",
+  "item_subset": {
+    "status": "needs_review",
+    "start_at": "2026-10-25T00:00:00+08:00",
+    "end_at": "2026-10-26T00:00:00+08:00",
+    "all_day": true,
+    "location": "深圳市南山区合成会议室",
+    "details": {
+      "attendance": "unknown",
+      "review_notes": "线上与线下标签冲突，尚无明确同步参与证据。"
+    }
+  },
+  "upcoming_included": false,
+  "forbidden_attendance": "hybrid"
+}

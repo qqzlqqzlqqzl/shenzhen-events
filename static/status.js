@@ -1,13 +1,14 @@
 /* Readable source coverage and persistent one-source retry controls. */
 'use strict';
 let statusPoll=null,sourceSearch='',sourceState='all',statusData=null,statusSampledAt=null;
+const sourceRetries=new Map();
 const modes={city_pages:'城市分页列表',page_inventory:'指定汇总页',single_page:'指定公开页面',search_index:'搜索索引（非全量）',discovery_only:'发现入口（非全量）',fallback_only:'兜底订阅（非全量）'};
 const number=v=>Number.isFinite(Number(v))&&v!==null?Number(v).toLocaleString():'—';
 function coverageCard(s){
- const v=s.coverage||{},job=s.retry,active=job&&['queued','running'].includes(job.state);
+ const v=s.coverage||{},job=s.retry,pending=sourceRetries.has(s.id),active=pending||(job&&['queued','running'].includes(job.state));
  const count=(label,value)=>`<div><dt>${esc(label)}</dt><dd>${number(value)}</dd></div>`;
- const label=job?.state==='queued'?'检查已排队':job?.state==='running'?'正在检查…':v.next_cursor?'继续采集后续页':'重新检查此来源';
- return `<article class="source-card" data-source="${esc(s.id)}"><header><h3><a href="${esc(RadarUI.safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a></h3><span class="status-label ${esc(s.status)}">${esc(states[s.status]||s.status)}</span></header>
+ const label=pending?'正在排队…':job?.state==='queued'?'检查已排队':job?.state==='running'?'正在检查…':v.next_cursor?'继续采集后续页':'重新检查此来源';
+ return `<article class="source-card" data-source="${esc(s.id)}"><header><h3>${originalLink(s.url,s.name+' ↗')}</h3><span class="status-label ${esc(s.status)}">${esc(states[s.status]||s.status)}</span></header>
  <p class="coverage-scope">${esc(modes[v.mode]||'等待新一轮覆盖检查')}${v.pages_visited!==undefined?' · 本次检查 '+number(v.pages_visited)+' 页':''}</p>
  ${v.version?`<dl class="coverage-flow">${count('本次可见条目',v.visible)}${count('成功解析',v.extracted)}${count('去重后',v.unique)}${count('深圳候选',v.shenzhen_candidates)}${v.online_candidates?count('线上/混合候选',v.online_candidates):''}${count('本轮纳入',v.admitted)}${count('已收录含线索',v.stored_events??s.event_count)}</dl>`:`<p>${esc(s.message||'等待首次采集')}</p>`}
  ${v.online_candidates?'<p>线上/混合候选可远程参加，不要求在深圳举办；不同来源条目可能合并为同一活动。</p>':''}
@@ -16,12 +17,21 @@ function coverageCard(s){
  ${v.detail_attempted||v.detail_deferred||v.detail_cached?`<p>详情补全 ${number(v.detail_attempted)} 次 · 缓存复用 ${number(v.detail_cached)} 条 · 待后续补全 ${number(v.detail_deferred)} 条</p>`:''}
  ${(v.reasons||[]).length?`<p class="coverage-warning">${esc([...new Set(v.reasons)].join('；'))}</p>`:''}
  <details class="source-inspection"><summary>检查时间与自动更新计划</summary><small>上次检查 ${esc(timeText(s.last_attempt))}<br>最近取得数据 ${esc(timeText(s.last_success))}<br>自动检查不早于 ${esc(timeText(s.next_attempt))}</small></details>
- <div class="source-retry"><button class="secondary" data-retry-source="${esc(s.id)}" ${active?'disabled':''}>${label}</button><span aria-live="polite">${esc(active?job.message:job?.state==='failed'?'上次手动检查未完成，可重试':job?.state==='done'?'上次手动检查已完成':'只检查此来源，不重抓其他来源')}</span></div></article>`;
+ <div class="source-retry"><button class="secondary" data-retry-source="${esc(s.id)}" ${active?'disabled':''}>${label}</button><span aria-live="polite">${esc(active?(job?.message||label):job?.state==='failed'?'上次手动检查未完成，可重试':job?.state==='done'?'上次手动检查已完成':'只检查此来源，不重抓其他来源')}</span></div></article>`;
 }
 async function retrySource(id,button){
- if(!authenticated||button.disabled)return;const epoch=authEpoch;button.disabled=true;button.textContent='正在排队…';
+ if(!authenticated||button.disabled||sourceRetries.has(id))return;const epoch=authEpoch,token={epoch};sourceRetries.set(id,token);button.disabled=true;button.textContent='正在排队…';
+ if(document.activeElement===button)button.closest('[data-source]')?.querySelector('.source-inspection summary')?.focus({preventScroll:true});
  try{const j=await api('sources/'+encodeURIComponent(id)+'/retry',{method:'POST'});if(epoch!==authEpoch||!authenticated)return;toast(j.message);await loadStatus(true)}
- catch(e){if(e.name!=='AbortError'&&epoch===authEpoch&&authenticated){toast(e.message);button.disabled=false;button.textContent='重新检查此来源'}}
+ catch(e){if(e.name!=='AbortError'&&epoch===authEpoch&&authenticated)toast(e.message)}
+ finally{if(sourceRetries.get(id)===token){sourceRetries.delete(id);if(epoch===authEpoch&&authenticated)paintSourceRetry(id)}}
+}
+function paintSourceRetry(id){
+ const source=statusData?.sources.find(s=>s.id===id),job=source?.retry;
+ for(const button of $$('[data-retry-source]'))if(button.dataset.retrySource===id){
+  button.disabled=sourceRetries.has(id)||!!(job&&['queued','running'].includes(job.state));
+  button.textContent=sourceRetries.has(id)?'正在排队…':job?.state==='queued'?'检查已排队':job?.state==='running'?'正在检查…':source?.coverage?.next_cursor?'继续采集后续页':'重新检查此来源';
+ }
 }
 async function loadStatus(background=false){
  clearTimeout(statusPoll);if(background&&document.hidden)return;const epoch=authEpoch,ticket=++statusTicket;$('#status-panel').setAttribute('aria-busy','true');
@@ -41,7 +51,7 @@ async function loadStatus(background=false){
   <div class="status-actions"><button id="copy-ics" class="secondary">复制我的收藏日历订阅链接</button><button class="secondary" data-change-view="review">查看待确认线索</button><button class="secondary" data-change-view="past">查看过往活动</button><button class="secondary" id="refresh-status">刷新看板（不重新抓取）</button></div>
   <div class="source-diagnostics"><label>搜索来源<input id="source-search" type="search" value="${esc(sourceSearch)}" placeholder="来源名称或地址"></label><label>查看状态<select id="source-state"><option value="all">全部来源</option><option value="attention">需要关注</option><option value="healthy">读取正常</option><option value="queued">排队 / 处理中</option></select></label><button type="button" id="reset-source-search">重置来源筛选</button><span id="source-match-count" role="status"></span></div><p class="source-snapshot" id="source-snapshot">看板读取时间：${esc(timeText(new Date().toISOString()))} · 这是最近记录，不是实时抓取</p><div class="source-grid" id="filtered-sources">${s.sources.map(coverageCard).join('')}</div><p id="source-empty" hidden>没有匹配的来源，可重置筛选查看全部。</p>
   <div class="section-heading"><div><h2>发现的公众号线索</h2><p>候选来源不等于已验证订阅。</p></div><span class="result-count">${s.candidates.length} 个候选</span></div>
-  ${s.candidates.length?`<div class="table-wrap"><table><thead><tr><th>公众号 / 发布者</th><th>关键词</th><th>命中</th></tr></thead><tbody>${s.candidates.map(c=>`<tr><td><a href="${esc(RadarUI.safeUrl(c.url))}" target="_blank" rel="noopener noreferrer">${esc(c.name)}</a></td><td>${esc(c.query)}</td><td>${number(c.hits)}</td></tr>`).join('')}</tbody></table></div>`:'<p>暂无线索</p>'}
+  ${s.candidates.length?`<div class="table-wrap"><table><thead><tr><th>公众号 / 发布者</th><th>关键词</th><th>命中</th></tr></thead><tbody>${s.candidates.map(c=>`<tr><td>${originalLink(c.url,c.name)}</td><td>${esc(c.query)}</td><td>${number(c.hits)}</td></tr>`).join('')}</tbody></table></div>`:'<p>暂无线索</p>'}
   <div class="section-heading"><div><h2>最近运行记录</h2><p>日志只记录运行结果，不记录密钥或密码。</p></div></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>任务</th><th>结果</th></tr></thead><tbody>${s.runs.map(r=>{let d={};try{d=JSON.parse(r.details)}catch{}return `<tr><td>${esc(timeText(r.finished_at))}</td><td>${esc(({source:'来源采集',collect:'采集汇总',analysis:'内容分析',type_backfill:'活动类型补全',geocode:'地区补全'})[r.kind]||r.kind)}</td><td>${esc(d.message||('状态 '+r.status+(d.processed!==undefined?' · 已处理 '+d.processed+' 条':'')))}</td></tr>`}).join('')}</tbody></table></div>`;
   $('#copy-ics').onclick=async()=>{if(!authenticated||epoch!==authEpoch)return;const link=new URL(s.ics_url,location.origin).href;try{await navigator.clipboard.writeText(link);if(!authenticated||epoch!==authEpoch)return;toast('已复制私人收藏日历链接，请勿公开分享。')}catch{if(!authenticated||epoch!==authEpoch)return;prompt('私人收藏日历链接，请勿公开分享',link)}};
   if(budgetOpen&&$('.analysis-budget details'))$('.analysis-budget details').open=true;
@@ -53,7 +63,8 @@ async function loadStatus(background=false){
     if(focusedId==='source-search'&&selection)focusedControl.setSelectionRange(...selection);
   }else if(focusedSource&&focusedKind){
     const sourceCard=$$('#status-panel [data-source]').find(x=>x.dataset.source===focusedSource);
-    sourceCard?.querySelector({summary:'.source-inspection summary',retry:'[data-retry-source]',link:'a'}[focusedKind])?.focus({preventScroll:true});
+    const target=sourceCard?.querySelector({summary:'.source-inspection summary',retry:'[data-retry-source]',link:'a'}[focusedKind]);
+    (target?.disabled?sourceCard?.querySelector('.source-inspection summary'):target)?.focus({preventScroll:true});
   }
   if(active.length)statusPoll=setTimeout(()=>{if(authenticated&&view==='status'&&!document.hidden)loadStatus(true)},3000);
  }catch(e){
@@ -70,4 +81,4 @@ function filterSources(){if(!statusData||!$('#source-match-count'))return;const 
  $('#source-match-count').textContent=`匹配 ${matches} / ${statusData.sources.length} 个来源`;$('#source-empty').hidden=matches>0;
 }
 function initStatusRecovery(){document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(statusPoll);else if(authenticated&&view==='status')loadStatus(true)})}
-function resetStatusRecovery(){clearTimeout(statusPoll);sourceSearch='';sourceState='all';statusData=null;statusSampledAt=null}
+function resetStatusRecovery(){clearTimeout(statusPoll);sourceRetries.clear();sourceSearch='';sourceState='all';statusData=null;statusSampledAt=null}

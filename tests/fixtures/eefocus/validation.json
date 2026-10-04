@@ -1,0 +1,18 @@
+{
+  "static_artifact_validation": "passed",
+  "revision": "v3",
+  "cases": 64,
+  "json_files_checked": 86,
+  "main_list_cards": 20,
+  "application_code_imported": false,
+  "adapter_tests_run": false,
+  "network_requests_to_publisher": 0,
+  "repository_edits": false,
+  "scope": "JSON/types/references/evidence text/fixture arithmetic/immutable-state oracles only; no adapter or integration pass claimed",
+  "inherited_cases_unchanged": 39,
+  "strengthened_cases": 1,
+  "added_cases": 24,
+  "v2_preservation_file_count": 83,
+  "production_database_mutations": false,
+  "query_restart_concurrency_tests_run": false
+}

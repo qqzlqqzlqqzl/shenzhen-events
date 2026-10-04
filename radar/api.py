@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from .core import ROOT, TZ, config, db, events, init, reconcile_aliases, now, stamp, VERSION, CATEGORIES, TOPICS, EVENT_TYPES, DISTRICTS, FEEDBACK_SIGNALS, FEEDBACK_TAGS, decode_feedback_tags, iso, canonical_topic
 from .calendar import make_calendar
 from . import jobs
+from . import safety
 COOKIE='sz_events_session'
 AUTH_URL='http://127.0.0.1:8091/mf/v1/me'
 ATTEMPTS=defaultdict(deque);ATTEMPT_LOCK=threading.Lock()
@@ -48,6 +49,10 @@ async def lifespan(app):
     initialize_settings();init();reconcile_aliases();yield
 app=FastAPI(title='深圳活动雷达',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
 app.add_middleware(GZipMiddleware,minimum_size=700)
+
+@app.exception_handler(safety.SafetyError)
+async def safety_error(request,exc):
+    return JSONResponse({'detail':str(exc),'code':exc.code},status_code=exc.status)
 
 @app.middleware('http')
 async def security(request,call_next):
@@ -96,7 +101,7 @@ def logout(request:Request):
 @app.get('/events/api/session')
 def session(request:Request):return {'username':require(request)['name']}
 @app.get('/events/api/events')
-def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',districts:list[str]|None=Query(None),district_none:bool=False,tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,attendance:str='all',feedback:str='',feedback_tag:str='',viewed:str='all',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0),limit:int=Query(36,ge=1,le=500),start:str='',end:str=''):
+def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming',district:str='',districts:list[str]|None=Query(None),district_none:bool=False,tag:str='',event_types:list[str]|None=Query(None,alias='type'),topics:list[str]|None=Query(None,alias='topic'),type_none:bool=False,topic_none:bool=False,attendance:str='all',feedback:str='',feedback_tag:str='',viewed:str='all',free:bool=False,recommended:bool=False,favorites:bool=False,hide_long:bool=False,sort:str='asc',offset:int=Query(0,ge=0),limit:int=Query(36,ge=1,le=500),start:str='',end:str='',safety_epoch:int|None=Query(None,ge=0)):
     require(request)
     if period not in ('upcoming','week','weekend','review','past','saved','calendar','feedback','history','range'):raise HTTPException(400,'无效日期筛选')
     if attendance not in ('all','online','offline','hybrid','unknown'):raise HTTPException(400,'无效参加方式')
@@ -120,12 +125,15 @@ def listing(request:Request,q:str=Query('',max_length=160),period:str='upcoming'
     if period=='history':viewed='seen'
     from .filtering import contextual_listing
     candidates=events(query=q,period=period,free=free,recommended=recommended,favorites=favorites,range_start=begin,range_end=finish,hide_long=False,sort=sort,attendance=attendance,feedback=feedback,feedback_tag=feedback_tag,viewed=viewed)
-    return contextual_listing(candidates,event_types=event_types,topics=topics,tag=tag,district=district,districts=districts,type_none=type_none,topic_none=topic_none,district_none=district_none,hide_long=hide_long and period not in ('saved','feedback','history'),offset=offset,limit=limit)
+    if safety_epoch is not None and safety_epoch!=candidates.safety_epoch:
+        raise safety.Conflict('pagination safety epoch changed; restart query')
+    result=contextual_listing(candidates,event_types=event_types,topics=topics,tag=tag,district=district,districts=districts,type_none=type_none,topic_none=topic_none,district_none=district_none,hide_long=hide_long and period not in ('saved','feedback','history'),offset=offset,limit=limit)
+    return {**result,'safety_epoch':candidates.safety_epoch}
 @app.get('/events/api/calendar-summary')
 def calendar_summary(request:Request):
     require(request)
     rows=events(period='saved',favorites=True)
-    return {'total':len(rows),'unscheduled':sum(not e['start_at'] or e['status']!='scheduled' for e in rows),'long_running':sum(e['long_running'] for e in rows)}
+    return {'total':len(rows),'unscheduled':sum(not e['planning_eligible'] for e in rows),'long_running':sum(e['long_running'] and e['planning_eligible'] for e in rows),'safety_epoch':rows.safety_epoch}
 
 @app.get('/events/api/stats')
 def stats(request:Request):
@@ -141,7 +149,7 @@ def stats(request:Request):
     type_facets.append({'value':'Event','label':'其他活动','count':type_counts.get('Event',0)})
     topic_facets=[{'value':v,'label':v,'count':topic_counts.get(v,0)} for v in TOPICS]
     topic_facets.append({'value':'其他','label':'主题待归类','count':topic_counts.get('其他',0)})
-    return {'upcoming':len(up),'recommended':len(rec),'weekend':weekend,'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'type_pending':type_pending,'long_running':long_running,'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(TOPICS),'event_types':type_facets,'topics':topic_facets,'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
+    return {'upcoming':len(up),'recommended':len(rec),'weekend':weekend,'sources':len(health),'working_sources':sum(s['status'] in ('ok','partial') and s['raw_count']>0 for s in health),'normal_sources':sum(s['status']=='ok' and s['raw_count']>0 for s in health),'partial_sources':sum(s['status']=='partial' for s in health),'raw':raw,'pending':pending,'type_pending':type_pending,'type_pending_scope':'stored_analysis_inventory','long_running':long_running,'last_updated':max((s['last_success'] or '' for s in health),default=''),'categories':list(TOPICS),'event_types':type_facets,'topics':topic_facets,'districts':DISTRICTS,'timezone':'Asia/Shanghai'}
 @app.get('/events/api/status')
 def status(request:Request):
     require(request);cfg=config()
@@ -154,7 +162,7 @@ def status(request:Request):
     for source in sources:
         source['coverage']=json.loads(source.get('coverage') or '{}')
         source['retry']=pending_jobs.get(source['id'])
-    return {'analysis_enabled':cfg.get('analysis_enabled') is True,'analysis_pending':analysis_pending,'type_pending':type_pending,'sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
+    return {'analysis_enabled':cfg.get('analysis_enabled') is True,'analysis_pending':analysis_pending,'type_pending':type_pending,'type_pending_scope':'stored_analysis_inventory','sources':sources,'runs':runs,'candidates':candidates,'budget':dict(b) if b else {'calls':0,'tokens':0},'limits':{'daily_tokens':cfg.get('daily_tokens',200000),'daily_calls':cfg.get('daily_calls',60)},'db_bytes':(ROOT/'data/events.sqlite3').stat().st_size,'ics_url':'/events/calendar.ics?token='+cfg['feed_token']+'&favorites=true','retention_days':45}
 @app.post('/events/api/sources/{source_id}/retry',status_code=202)
 def retry_source(source_id:str,request:Request):
     require(request)
@@ -198,7 +206,7 @@ def calendar(request:Request,token:str='',favorites:bool=False,recommended:bool=
 def one_event(event_id:str,request:Request):
     require(request);rows=events(period='record',event_id=event_id,include_hidden=True)
     if not rows:raise HTTPException(404,'活动不存在')
-    if not rows[0]['start_at'] or rows[0]['status']!='scheduled':raise HTTPException(409,'此活动没有可导出的已确认日程')
+    if not rows[0]['planning_eligible']:raise safety.Conflict('event planning eligibility unavailable')
     return Response(make_calendar(rows),media_type='text/calendar; charset=utf-8',headers={'Content-Disposition':'attachment; filename="event.ics"'})
 @app.get('/events/api/event/{event_id}')
 def event_detail(event_id:str,request:Request):
@@ -206,10 +214,49 @@ def event_detail(event_id:str,request:Request):
     rows=events(period='record',event_id=event_id,include_hidden=True)
     if not rows:raise HTTPException(404,'活动已不存在或已清理')
     return rows[0]
+
+@app.get('/events/api/safety')
+def safety_state(request:Request):
+    require(request)
+    with db() as c:
+        c.execute('BEGIN')
+        epoch=safety.assert_schema(c)
+        return {'safety_epoch':epoch,'available':not safety.fenced(c)}
+
+class CaptureRecovery(BaseModel):
+    expected_revision:int=Field(ge=1)
+    mode:str=Field(max_length=40)
+    decision_id:str=Field(min_length=1,max_length=120)
+
+@app.post('/events/api/safety/captures/{capture_id}/recover')
+def recover_safety_capture(capture_id:str,body:CaptureRecovery,request:Request):
+    user=require(request)
+    try:return safety.recover_capture(capture_id,body.expected_revision,body.mode,body.decision_id,'maintainer:'+str(user['id']))
+    except ValueError as exc:raise HTTPException(400,str(exc))
+    except LookupError as exc:raise HTTPException(404,str(exc))
+
+class GuardExpectation(BaseModel):
+    guard_id:str=Field(max_length=120)
+    source_id:str=Field(max_length=120)
+    event_id:str=Field(max_length=120)
+    alias_url:str=Field(max_length=500)
+    occurrence:str=Field(max_length=1000)
+    revision:int=Field(ge=1)
+    evidence_set_digest:str=Field(min_length=64,max_length=64)
+
+class ReviewedDisassociation(BaseModel):
+    resolution_id:str=Field(min_length=1,max_length=120)
+    current_binding_id:str=Field(min_length=1,max_length=120)
+    expectations:list[GuardExpectation]=Field(min_length=1,max_length=16)
+    observation_ids:list[str]=Field(min_length=1,max_length=256)
+    review_reason:str=Field(min_length=20,max_length=2000)
+
+@app.post('/events/api/safety/disassociation')
+def disassociate_safety_target(body:ReviewedDisassociation,request:Request):
+    user=require(request)
+    return safety.reviewed_disassociation(body.resolution_id,[row.model_dump() for row in body.expectations],body.current_binding_id,'maintainer:'+str(user['id']),body.observation_ids,body.review_reason)
 @app.get('/events')
 def redirect():return RedirectResponse('/events/',status_code=308)
 @app.get('/events/')
 def index():return FileResponse(ROOT/'static/index.html')
 app.mount('/events/static',StaticFiles(directory=ROOT/'static'),name='static')
-
-

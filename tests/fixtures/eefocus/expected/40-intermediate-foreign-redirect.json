@@ -1,0 +1,15 @@
+{
+  "stage": "transport_identity_design",
+  "identity_verified": false,
+  "admitted": 0,
+  "foreign_request_allowed": false,
+  "assertions": [
+    "Validate each Location before following it; stop at first foreign hop",
+    "If supplied only an already-followed trace, reject its identity evidence even when final_url is accepted",
+    "The existing fetch return (html,soup,final) is insufficient proof of a same-origin chain",
+    "No cross-origin request is authorized just because another hop might return to EEFocus"
+  ],
+  "required_code_changes": [
+    "R6 per-hop origin/route validation and auditable redirect evidence"
+  ]
+}

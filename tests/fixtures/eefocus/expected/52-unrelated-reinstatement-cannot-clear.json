@@ -1,0 +1,127 @@
+{
+  "stage": "safety_only_transition_design",
+  "report": {
+    "status": "partial",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 1,
+      "extracted": 1,
+      "unique": 1,
+      "admitted": 0,
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "detail_attempted": 1,
+      "detail_resolved": 0,
+      "detail_failed": 1,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "requests_attempted": 2
+    }
+  },
+  "admitted": 0,
+  "items": [],
+  "changed": 0,
+  "fixture_only_safety_counters": {
+    "active_guards": 1,
+    "guard_writes": 0,
+    "event_content_updates": 0,
+    "alias_success_writes": 0
+  },
+  "database_counts": {
+    "raw_items": 1,
+    "events": 1,
+    "event_sources": 1
+  },
+  "immutable_stored_state_sha256": "542463eebf4ebd7fd13373b6fb7b0e585dbb13bacc326df2e66a6ce91ecb3597",
+  "expected_stored_event": {
+    "id": "event-synthetic-980102",
+    "url": "https://www.eefocus.com/live/980102.html",
+    "title": "合成线上电路研讨会",
+    "start_at": "2026-10-23T14:00:00+08:00",
+    "end_at": "2026-10-23T15:00:00+08:00",
+    "all_day": false,
+    "status": "scheduled",
+    "details": {
+      "attendance": "online",
+      "source_status": "即将开始",
+      "review_hold": false,
+      "review_notes": "",
+      "address_precision": "online"
+    }
+  },
+  "expected_preference": {
+    "event_id": "event-synthetic-980102",
+    "favorite": 1,
+    "hidden": 0,
+    "feedback": "interested",
+    "feedback_tags": [
+      "要参加"
+    ],
+    "revision": 7,
+    "viewed_at": "2026-09-20T11:00:00+08:00"
+  },
+  "expected_alias_history": [
+    {
+      "binding_id": "binding-980002-to-980102",
+      "source_id": "eefocus-events-synthetic",
+      "alias_url": "https://www.eefocus.com/event/980002.html",
+      "canonical_url": "https://www.eefocus.com/live/980102.html",
+      "event_id": "event-synthetic-980102",
+      "verified_at": "2026-09-20T10:00:00+08:00",
+      "revoked": false,
+      "evidence_file": "fixtures/safety-historical-verification.json",
+      "evidence_sha256": "a03c681035b9d86ce7c1485707574cbccd1c753938c74f16bd9577b6dde602b4",
+      "occurrence": "2026-10-23"
+    }
+  ],
+  "query_expectations": {
+    "upcoming_included": false,
+    "calendar_included": false,
+    "range_included": false,
+    "saved_record_included": true,
+    "point_record_included": true,
+    "effective_status": "needs_review",
+    "safety_label": "来源显示已取消，当前活动身份待核验",
+    "upcoming_api_included": false,
+    "planning_feed_included": false,
+    "calendar_export_included": false,
+    "pending_notification_dispatch_allowed": false,
+    "eligible_counts_facets_use_safety_state": true,
+    "cached_scheduled_result_may_bypass_guard": false,
+    "manual_hold_may_be_cleared_by_guard_resolution": false,
+    "planning_eligible_event_total": 0
+  },
+  "authoritative_cancelled_status_written": false,
+  "required_code_changes": [
+    "R7 durable safety-only eligibility suppression",
+    "R8 consistent query/status projection and recovery"
+  ],
+  "expected_guard": {
+    "guard_id": "guard-cancel-001",
+    "source_id": "eefocus-events-synthetic",
+    "event_id": "event-synthetic-980102",
+    "alias_binding_ids": [
+      "binding-980002-to-980102"
+    ],
+    "observation_ids": [
+      "cancel-observation-001"
+    ],
+    "reason": "unconfirmed_cancellation_for_historical_identity",
+    "state": "active",
+    "created_at": "2026-10-02T11:00:00+08:00",
+    "auto_expires_at": null,
+    "current_identity_verified": false,
+    "authoritative_cancellation": false
+  },
+  "reason_code": "unrelated_reinstatement_rejected",
+  "identity_verdict": "unverified"
+}

@@ -1,0 +1,51 @@
+{
+  "stage": "parse_and_collect_design",
+  "parse": {
+    "visible": 5,
+    "extracted": 0,
+    "excluded": {
+      "已结束或回放": 2,
+      "非活动推广": 3
+    }
+  },
+  "report": {
+    "status": "partial",
+    "coverage_subset": {
+      "version": 1,
+      "mode": "single_page",
+      "pages_visited": 1,
+      "page_urls": [
+        "https://www.eefocus.com/event/"
+      ],
+      "source_total": null,
+      "visible": 5,
+      "extracted": 0,
+      "unique": 0,
+      "admitted": 0,
+      "rejected": {
+        "已结束或回放": 2,
+        "非活动推广": 3
+      },
+      "duplicates": 0,
+      "parser_unaccounted": 0,
+      "truncated": false,
+      "next_cursor": null,
+      "detail_attempted": 0,
+      "detail_resolved": 0,
+      "detail_failed": 0,
+      "detail_deferred": 0,
+      "detail_cached": 0,
+      "complete_scope": false,
+      "recognized_empty": false,
+      "requests_attempted": 1
+    }
+  },
+  "assertions": [
+    "5 = 0 extracted + 5 explicitly excluded",
+    "Do not set recognized_empty merely because items is empty",
+    "Keep source_total=null and all stored events; no tombstones from inventory absence"
+  ],
+  "required_code_changes": [
+    "R5 recognized-empty only for validated zero-card inventory"
+  ]
+}

@@ -7,6 +7,7 @@ const {JSDOM} = require('jsdom');
 
 function card(coverage){
   const context=vm.createContext({esc:s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;'),RadarUI:{safeUrl:x=>x},states:{ok:'读取完成'},timeText:x=>x??''});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/render.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/status.js'),'utf8'),context);
   return new JSDOM(context.coverageCard({id:'example',name:'示例',url:'https://example.org',status:'ok',coverage})).window.document;
 }
