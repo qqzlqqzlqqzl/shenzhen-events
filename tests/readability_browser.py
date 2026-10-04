@@ -1,5 +1,5 @@
 """Computed contrast and real keyboard focus, using the isolated API harness."""
-import json,tempfile,struct,zlib,subprocess
+import json,tempfile,struct,zlib,subprocess,base64
 from urllib.parse import urlsplit
 from pathlib import Path
 from review_harness import Harness
@@ -90,7 +90,7 @@ try:
         (extension/'worker.js').write_text('globalThis.nativeZoom=async(url)=>{const tabs=await chrome.tabs.query({});const tab=tabs.find(t=>t.url===url);if(!tab)throw new Error("fixture tab not found");await chrome.tabs.setZoom(tab.id,2);return await chrome.tabs.getZoom(tab.id)};')
         browser=h.browser.browser_type.launch_persistent_context(str(profile/'browser'),executable_path=h.browser.browser_type.executable_path,headless=False,no_viewport=True,locale='zh-CN',ignore_default_args=['--disable-extensions'],args=['--window-size=1280,1000','--disable-extensions-except='+str(extension),'--load-extension='+str(extension)])
         browser.route(lambda url:urlsplit(url).netloc!=urlsplit(h.base).netloc,lambda r:r.abort())
-        browser.add_cookies(h.ctx.cookies());zp=browser.pages[0] if browser.pages else browser.new_page();zp.goto(h.base+'/events/?view=all');zp.locator('.event-card').first.wait_for()
+        browser.add_cookies(h.ctx.cookies());zp=browser.new_page();zp.goto(h.base+'/events/?view=all');zp.locator('.event-card').first.wait_for();zp.bring_to_front()
         try:
             worker=browser.service_workers[0] if browser.service_workers else browser.wait_for_event('serviceworker',timeout=10000)
             native=worker.evaluate('(url)=>nativeZoom(url)',zp.url);zp.wait_for_timeout(200)
@@ -107,9 +107,12 @@ try:
         session=browser.new_cdp_session(zp);session.send('DOM.enable');session.send('CSS.enable')
         root=session.send('DOM.getDocument')['root']['nodeId'];node=session.send('DOM.querySelector',{'nodeId':root,'selector':'.detail-title'})['nodeId']
         fonts=session.send('CSS.getPlatformFontsForNode',{'nodeId':node})['fonts']
-        h.report['native_zoom'].update(rendered_fonts=fonts,physical_android_ios=False,visual_capture='headed Chromium/Xvfb native-200.png')
+        h.report['native_zoom'].update(rendered_fonts=fonts,physical_android_ios=False,visual_capture='headed Chromium/Xvfb Page.captureScreenshot fromSurface=false native-200.png')
         (h.out/'native-metrics.json').write_text(json.dumps(h.report['native_zoom'],ensure_ascii=False,indent=2))
-        shot=zp.screenshot(path=str(h.out/'native-200.png'));offset=8;compressed=b''
+        zp.screenshot(path=str(h.out/'native-200-playwright.png'))
+        session.send('Page.bringToFront');zp.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+        shot=base64.b64decode(session.send('Page.captureScreenshot',{'format':'png','fromSurface':False,'captureBeyondViewport':False})['data'])
+        (h.out/'native-200.png').write_bytes(shot);offset=8;compressed=b''
         while offset<len(shot):
             size=struct.unpack('>I',shot[offset:offset+4])[0];kind=shot[offset+4:offset+8]
             if kind==b'IDAT':compressed+=shot[offset+8:offset+8+size]
@@ -119,6 +122,7 @@ try:
         (h.out/'native-font-coverage.json').write_text(json.dumps(font_proof,ensure_ascii=False,indent=2))
         h.check('native_200_actual_cjk_glyphs',chinese_ok)
         h.check('native_200_visual_capture_not_blank',len(set(zlib.decompress(compressed)))>8)
+        h.check('native_200_capture_keeps_real_zoom',worker.evaluate('(url)=>chrome.tabs.query({}).then(t=>chrome.tabs.getZoom(t.find(x=>x.url===url).id))',zp.url)==2 and zp.evaluate('devicePixelRatio')==2)
         close=zp.locator('#close-detail');close.scroll_into_view_if_needed();close.click(trial=True);close.focus();expect(close).to_be_focused()
         h.check('native_200_close_reachable',close.evaluate('e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth}'))
     finally:
