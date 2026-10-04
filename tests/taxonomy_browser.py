@@ -67,7 +67,12 @@ def multiselect_semantics_and_url():
     expect(page.locator('#type-summary')).to_have_text('已选 2 类');expect(page.locator('#topic-summary')).to_have_text('已选 1 个主题')
     page.screenshot(path=str(ART/'desktop-multiselect.png'),full_page=True)
     page.reload(wait_until='domcontentloaded');expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
-    ok(page.get_by_role('checkbox',name='喜剧 / 脱口秀',exact=True).is_checked() and page.get_by_role('checkbox',name='音乐 / 演唱会',exact=True).is_checked() and page.get_by_role('checkbox',name='AI与开源',exact=True).is_checked())
+    # Reload closes the facet disclosures. Read the exact accessible checkbox
+    # after opening its panel, just as a user would inspect the restored choice.
+    page.locator('#type-filter > summary').click()
+    ok(page.get_by_role('checkbox',name='喜剧 / 脱口秀',exact=True).is_checked() and page.get_by_role('checkbox',name='音乐 / 演唱会',exact=True).is_checked())
+    page.locator('#topic-filter > summary').click()
+    ok(page.get_by_role('checkbox',name='AI与开源',exact=True).is_checked())
 check('multiselect_or_within_and_across_groups_url_roundtrip',multiselect_semantics_and_url)
 
 def removable_chip_and_history():
@@ -96,10 +101,12 @@ def legacy_topic_url_aliases():
     from urllib.parse import urlencode
     for key in ('tag', 'topic'):
         ready('?' + urlencode({'view': 'all', key: '展览文化'}))
+        page.locator('#topic-filter > summary').click()
         ok(page.get_by_role('checkbox',name='文化艺术',exact=True).is_checked())
         ok(page.locator('.title-button').all_inner_texts() == ['博物馆设计展'])
         page.reload(wait_until='domcontentloaded')
         expect(page.locator('#event-list')).to_have_attribute('aria-busy', 'false')
+        page.locator('#topic-filter > summary').click()
         ok(page.get_by_role('checkbox',name='文化艺术',exact=True).is_checked())
         ok(page.locator('.title-button').all_inner_texts() == ['博物馆设计展'])
 check('legacy_topic_urls_keep_the_culture_filter', legacy_topic_url_aliases)
@@ -121,6 +128,7 @@ def remembered_filters_after_fresh_entry():
     ok(page.locator('#topic-options input:checked').count()==1)
     page.goto(BASE+'/events/',wait_until='domcontentloaded')
     expect(page.locator('#event-list')).to_have_attribute('aria-busy','false')
+    page.locator('#topic-filter > summary').click()
     ok(page.get_by_role('checkbox',name='机器人',exact=True).is_checked())
     ok(page.locator('#topic-options input:checked').count()==1)
     ready('?view=all')
@@ -140,4 +148,3 @@ check('responsive_one_two_three_four_columns',responsive_card_columns)
 report['page_errors_empty']=not report['errors'];(ART/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 br.close();pw.stop();print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)
-
