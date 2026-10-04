@@ -37,6 +37,7 @@ if os.environ.get('RADAR_RETAIN_TEST_FILES') == '1':
             if kind=='rmdir' and any(source.iterdir()):raise OSError(errno.ENOTEMPTY,os.strerror(errno.ENOTEMPTY),str(source))
             if kind=='unlink' and source.is_dir() and not source.is_symlink():raise IsADirectoryError(str(source))
             if kind=='rmtree' and source.is_symlink():raise OSError('Cannot call rmtree on a symbolic link')
+            if kind=='rmtree' and not source.is_dir():raise NotADirectoryError(errno.ENOTDIR,os.strerror(errno.ENOTDIR),str(source))
             destination=_QUARANTINE/(uuid.uuid4().hex+'-'+source.name)
             _real_rename(source,destination)
             with (_BASE/'retained-test-cleanup.jsonl').open('a') as stream:

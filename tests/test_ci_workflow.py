@@ -136,6 +136,32 @@ print(json.dumps({'retained':len(kept),'nonempty_rmdir':'refused'}))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)['retained'], 4)
 
+    def test_rmtree_rejects_regular_file_without_moving_it(self):
+        file = self.root / 'regular-file.txt'
+        file.write_text('retained sentinel bytes\n')
+        env = dict(self.env, RADAR_RETAIN_TEST_FILES='1',
+                   RADAR_TEST_RETENTION_ROOT=str(self.root),
+                   RADAR_TEST_WORKSPACE=str(self.root),
+                   SLOT5_NEGATIVE_FILE=str(file),
+                   PYTHONPATH=str(ROOT / 'tests/ci_retention'))
+        code = """
+import shutil,os
+from pathlib import Path
+p=Path(os.environ["SLOT5_NEGATIVE_FILE"])
+try:
+ shutil.rmtree(p)
+except NotADirectoryError:
+ assert p.read_text()=="retained sentinel bytes\\n"
+ print("PASS: file rejected and unchanged")
+else:
+ print("FAIL: rmtree accepted a regular file; baseline API requires NotADirectoryError")
+ raise SystemExit(37)
+"""
+        result = subprocess.run(['timeout', '15s', sys.executable, '-c', code],
+                                env=env, capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(file.read_text(), 'retained sentinel bytes\n')
+
     def test_retention_invalid_configuration_fails_before_user_code(self):
         env = dict(self.env, RADAR_RETAIN_TEST_FILES='1',
                    RADAR_TEST_RETENTION_ROOT='/', RADAR_TEST_WORKSPACE=str(self.root),
