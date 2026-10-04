@@ -6,8 +6,8 @@ from ux_calendar_fixture import seed
 
 
 def run(h):
-    p=h.page;ids=seed(h.core, 'a');requests=[];observations=[];captures={}
-    h.report.update(ux_calendar_observations=observations,ux_calendar_requests=requests,ux_calendar_captures=captures)
+    p=h.page;ids=seed(h.core, 'a');requests=[];observations=[];captures={};navigation_reveals=[]
+    h.report.update(ux_calendar_observations=observations,ux_calendar_requests=requests,ux_calendar_captures=captures,ux_navigation_reveals=navigation_reveals)
     def request_seen(request):
         url=urlsplit(request.url)
         if url.path=='/events/api/events':requests.append(parse_qs(url.query))
@@ -60,6 +60,13 @@ def run(h):
         h.check('ux_active_calendar_tab_visible_'+str(width),p.locator('.tabs').evaluate('''e=>{const r=e.getBoundingClientRect(),a=e.querySelector('[aria-current="page"]').getBoundingClientRect();return a.left>=r.left-.5&&a.right<=r.right+.5}'''))
         h.check('ux_calendar_no_overflow_'+str(width),p.evaluate('document.documentElement.scrollWidth<=innerWidth'))
         capture(f'ux-calendar-first-{width}.png')
+        # Isolate the reveal helper from navigate(), history restoration and focus scrolling.
+        # Prepare a real clipped tab at a nonzero page scroll where the page permits it.
+        reveal=p.evaluate('''()=>{const tabs=document.querySelector('.tabs'),active=tabs.querySelector('[aria-current="page"]');window.scrollTo({top:Math.min(120,document.documentElement.scrollHeight-innerHeight),behavior:'instant'});tabs.scrollLeft=0;const read=()=>{const r=tabs.getBoundingClientRect(),a=active.getBoundingClientRect();return {scrollY,scrollX,tabScrollLeft:tabs.scrollLeft,url:location.href,viewport:{left:r.left,right:r.right},active:{left:a.left,right:a.right},visible:a.left>=r.left-.5&&a.right<=r.right+.5}};const before=read();keepActiveTabVisible();return {trigger:'keepActiveTabVisible only; no navigation or focus change',width:innerWidth,before,after:read()}}''')
+        navigation_reveals.append(reveal)
+        h.check('ux_reveal_never_scrolls_page_'+str(width),reveal['before']['scrollY']==reveal['after']['scrollY'] and reveal['before']['scrollX']==reveal['after']['scrollX'] and reveal['before']['url']==reveal['after']['url'])
+        h.check('ux_reveal_exposes_active_'+str(width),reveal['after']['visible'])
+        if width<620:h.check('ux_reveal_exercises_clipped_input_'+str(width),not reveal['before']['visible'])
         if width<620:
             p.locator('#open-filters').click();p.locator('#topic-filter summary').click();p.locator('[data-facet-only="topic"][data-facet-value="文化艺术"]').click()
             p.get_by_role('button',name='应用筛选',exact=True).click();settled(4)
