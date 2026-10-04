@@ -21,6 +21,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - name: Prepare isolated evidence before dependencies
+        id: prepare_artifacts
+        shell: bash
+        run: |
+          # Keep inherited output private on the runner; upload only this run.
+          timeout 30s bash scripts/prepare_ci_artifacts.sh
+          git rev-parse HEAD > artifacts/ci/tested-commit.txt
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -47,9 +54,9 @@ jobs:
           )
           test -x "$browser"
           echo "RADAR_BROWSER=$browser" >> "$GITHUB_ENV"
-          # Keep inherited output private on the runner; upload only this run.
-          timeout 30s bash scripts/prepare_ci_artifacts.sh
-          git rev-parse HEAD > artifacts/ci/tested-commit.txt
+      - name: Enable test-only file retention
+        shell: bash
+        run: |
           retention_root=$(mktemp -d "$RUNNER_TEMP/events-test-retention.XXXXXXXX")
           mkdir -p "$retention_root/tmp"
           echo "RADAR_RETAIN_TEST_FILES=1" >> "$GITHUB_ENV"
@@ -70,7 +77,7 @@ jobs:
         run: |
           timeout --signal=TERM --kill-after=10s 900s bash scripts/run_browser_matrix.sh
       - name: Retain logs and screenshots
-        if: always()
+        if: always() && steps.prepare_artifacts.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: events-regression-${{ github.event.pull_request.head.sha }}

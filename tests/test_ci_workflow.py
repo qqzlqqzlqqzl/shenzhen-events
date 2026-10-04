@@ -171,6 +171,16 @@ else:
         self.assertEqual(result.returncode, 78)
         self.assertNotIn('must not run', result.stdout)
 
+    def test_prepare_precedes_dependencies_and_failed_prepare_cannot_upload(self):
+        workflow = (ROOT / '.github/workflows/validate-events.yml').read_text()
+        prepare = workflow.index('- name: Prepare isolated evidence before dependencies')
+        self.assertLess(prepare, workflow.index('- name: Set up Python'))
+        self.assertLess(prepare, workflow.index('- name: Install test dependencies'))
+        self.assertIn("if: always() && steps.prepare_artifacts.outcome == 'success'", workflow)
+        self.assertIn('id: prepare_artifacts', workflow)
+        self.assertLess(workflow.index('git rev-parse HEAD > artifacts/ci/tested-commit.txt'),
+                        workflow.index('- name: Set up Python'))
+
     def test_workflow_enables_retention_and_fail_closed_runner(self):
         workflow = (ROOT / '.github/workflows/validate-events.yml').read_text()
         self.assertIn('scripts/prepare_ci_artifacts.sh', workflow)
