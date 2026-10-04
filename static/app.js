@@ -210,6 +210,10 @@ function keepActiveTabVisible(){
   else if(item.right>viewport.right)tabs.scrollLeft+=item.right-viewport.right+4;
 }
 function showView(){
+  $('#workspace').dataset.activeView=view;
+  const overview=$('.overview'),overviewHome=$('#overview-home');
+  if(view==='calendar'){if(overview.parentElement!==$('#calendar-panel'))$('#calendar-panel').append(overview)}
+  else if(overview.previousElementSibling!==overviewHome)overviewHome.after(overview);
   syncFilterControls();$('#excluded-events').hidden=true;
   $('#personal-actions').hidden=view!=='feedback';$('#saved-views').hidden=view==='status';$('#open-filters').hidden=view==='status';
   $('#result-count').hidden=view==='status';$('#active-filters').hidden=view==='status';if(view==='status')$('#result-count').textContent='';

@@ -190,3 +190,12 @@ body.modal-open{overflow:hidden}button:disabled{cursor:wait;opacity:.55}
 
 #calendar[data-safety-verified="false"] {opacity:.65;}
 .excluded-events.calendar-excluded{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px 16px;font-size:12px}
+#calendar-panel>.overview{margin-top:22px;margin-bottom:0}
+@media(max-width:620px){
+ .topbar{flex-wrap:wrap;gap:8px 16px}
+ .brand{flex-shrink:0}
+ .brand>span:last-child{white-space:nowrap}
+ .top-actions{margin-left:auto}
+ #workspace[data-active-view="calendar"] .section-heading{margin-top:10px;margin-bottom:14px}
+ .calendar-tools{gap:8px 16px}
+}

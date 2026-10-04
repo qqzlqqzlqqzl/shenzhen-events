@@ -9,6 +9,9 @@ identity, personal-write and calendar/ICS rules retain their existing code.
 
 - Month controls and the calendar precede the guide, long-event region and
   excluded-long summary. The empty list-pagination spacer is hidden in calendar.
+- In calendar view the intact global overview follows the calendar; returning to
+  another view restores its original position. Mobile branding stays on one line
+  and the action row wraps as a group, retaining the existing text and font sizes.
 - Long events start collapsed. The explicit expand/collapse button changes only
   presentation; it does not change the hide-long checkbox, URL or API query.
   The choice survives reload per authenticated owner. Storage failure leaves
@@ -62,6 +65,18 @@ for that browser work. Hosted execution, independent review, production deployme
 and real user-flow verification remain required before closing the issues or
 counting the whole three-round UX effort complete. No EEFocus activation or
 production operation is part of this branch.
+
+Hosted run `37199957052` on `d1df96a4fb09bf271f1e9c4165f56de8adb20505`
+executed all 20 browser suites: 18 passed. Taxonomy's four partial label selectors
+became ambiguous after the new shortcut/chip names; the navigation test wrongly
+assumed that the calendar tab was clipped at 430px. The corrective test commit
+uses exact checkbox roles, retains the already-visible case, and exercises a
+genuinely clipped end tab at every narrow width. Original failures remain evidence.
+That run's 320px screenshot also exposed vertical branding and calendar y=770px.
+The separate layout change adds first-viewport month-navigation geometry, exact
+unchanged font sizes, a single-line brand and preserved-overview assertions at
+320/360/390/430/1440. These new visual gates require a new exact-head Hosted run;
+passing local DOM tests is not visual acceptance.
 
 Frontend delivery uses the repository's existing FastAPI-served `static/` files;
 there is no extra frontend bundler. Use the unchanged locked requirements and

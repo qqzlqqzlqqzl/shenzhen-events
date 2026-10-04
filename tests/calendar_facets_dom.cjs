@@ -38,6 +38,13 @@ const follows=(r,a,b)=>!!(r.$(a).compareDocumentPosition(r.$(b))&r.w.Node.DOCUME
 test('calendar navigation/grid precedes guide, long disclosures and excluded summaries',async()=>{
  const r=await ready();try{assert.ok(follows(r,'#calendar','.calendar-guide'));assert.ok(follows(r,'#calendar','#calendar-long'));assert.ok(follows(r,'#calendar','#excluded-events'));assert.equal(r.$('#excluded-events').querySelectorAll('[data-open]').length,0)}finally{r.close()}
 });
+test('calendar moves the intact global overview after the grid and restores it on other views and Back',async()=>{
+ const r=await ready();try{
+  const overview=r.$('.overview'),before=overview.textContent;assert.ok(follows(r,'#calendar','.overview'));assert.equal(r.w.document.querySelectorAll('.overview').length,1);
+  r.$('[data-view="all"]').click();await until(()=>r.$('#event-list').getAttribute('aria-busy')==='false');assert.ok(follows(r,'.overview','.tabs'));assert.equal(r.$('.overview'),overview);assert.equal(overview.textContent,before);
+  const back=new Promise(resolve=>r.w.addEventListener('popstate',resolve,{once:true}));r.w.history.back();await back;await r.settled();assert.ok(follows(r,'#calendar','.overview'));assert.equal(r.$('.overview'),overview);assert.equal(overview.textContent,before);assert.equal(r.calls.at(-1).get('q'),'UX');
+ }finally{r.close()}
+});
 test('long disclosure is independent of filtering and persists across reload for only its owner',async()=>{
  const r=await ready('?view=calendar&month=2026-10-01&q=UX&show_long=true');let stored;try{
   const n=r.calls.length;assert.equal(r.$('[data-calendar-long-toggle]').getAttribute('aria-expanded'),'false');
