@@ -76,6 +76,7 @@ check('month_calendar_has_no_spanning_long_bars',calendar_default)
 def calendar_show_long():
     ready('?view=calendar');page.locator('#hide-long').uncheck();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
     page.locator('#calendar-long').wait_for(state='visible')
+    page.locator('#calendar-long [data-calendar-long-toggle]').click()
     panel=page.locator('#calendar-long').inner_text();grid=page.locator('#calendar').inner_text()
     ok('深圳博物馆新展《宠爱--猫猫狗狗的世界》' in panel)
     ok('深圳博物馆新展《宠爱--猫猫狗狗的世界》' not in grid)
@@ -101,4 +102,3 @@ report['page_errors_empty']=not report['errors']
 browser.close();pw.stop()
 print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)
-

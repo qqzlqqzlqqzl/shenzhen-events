@@ -88,7 +88,7 @@ check('detail_favorite_history_and_list_range_preserved',detail_favorite)
 def long_panel():
     ready();expect(event('长期展览')).to_have_count(0);ok(page.locator('#calendar-long').is_hidden())
     page.locator('#hide-long').uncheck();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
-    expect(page.locator('#calendar-long')).to_be_visible();ok('长期展览' in page.locator('#calendar-long').inner_text());expect(event('长期展览')).to_have_count(0)
+    expect(page.locator('#calendar-long')).to_be_visible();page.locator('#calendar-long [data-calendar-long-toggle]').click();ok('长期展览' in page.locator('#calendar-long').inner_text());expect(event('长期展览')).to_have_count(0)
     page.locator('#calendar-long [data-open]').click();expect(page.locator('#detail')).to_be_visible();ok('2026/09/01 — 2026/11/29' in page.locator('.detail-meta').inner_text());page.keyboard.press('Escape')
 check('long_running_stays_explicit_separate_panel',long_panel)
 
