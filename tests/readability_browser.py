@@ -1,5 +1,5 @@
 """Computed contrast and real keyboard focus, using the isolated API harness."""
-import json,tempfile,struct,zlib,subprocess,base64
+import json,tempfile,struct,zlib,subprocess,base64,hashlib
 from urllib.parse import urlsplit
 from pathlib import Path
 from review_harness import Harness
@@ -7,14 +7,17 @@ from playwright.sync_api import expect
 
 def rendered_chinese_fonts(fonts,text):
     points=[ord(c) for c in text if '\u4e00'<=c<='\u9fff'];proof=[]
+    installed=subprocess.run(['fc-list','--format=%{postscriptname}\t%{family}\t%{file}\t%{index}\n'],check=True,capture_output=True,text=True,timeout=10).stdout.splitlines()
+    faces=[row.split('\t') for row in installed]
     for font in fonts:
         if font['isCustomFont'] or font['glyphCount']<=0:continue
-        match=subprocess.run(['fc-match','--format=%{family}\n%{file}\n%{index}',font['familyName']],check=True,capture_output=True,text=True,timeout=10).stdout.splitlines()
-        assert font['familyName'] in match[0],match[0]
-        charset=subprocess.run(['fc-query','-i',match[2],'--format=%{charset}',match[1]],check=True,capture_output=True,text=True,timeout=10).stdout
+        matches={(row[2],row[3]) for row in faces if len(row)==4 and font['postScriptName'] in [v.strip() for v in row[0].split(',')] and font['familyName'] in [v.strip() for v in row[1].split(',')]}
+        assert len(matches)==1,(font,matches)
+        file,index=matches.pop()
+        charset=subprocess.run(['fc-query','-i',index,'--format=%{charset}',file],check=True,capture_output=True,text=True,timeout=10).stdout
         ranges=[tuple(int(v,16) for v in token.split('-')) for token in charset.split()]
         covers=all(any(r[0]<=cp<=r[-1] for r in ranges) for cp in points)
-        proof.append({'family':font['familyName'],'glyphs':font['glyphCount'],'font_file':Path(match[1]).name,'font_index':match[2],'covers_chinese_codepoints':covers})
+        proof.append({'family':font['familyName'],'postscript_name':font['postScriptName'],'glyphs':font['glyphCount'],'font_file':Path(file).name,'font_index':index,'covers_chinese_codepoints':covers})
     return sum(f['glyphs'] for f in proof if f['covers_chinese_codepoints'])>=len(points)>0,proof
 
 CONTRAST=r'''(element,pseudo=null)=>{
@@ -121,7 +124,13 @@ try:
         chinese_ok,font_proof=rendered_chinese_fonts(fonts,heading.inner_text())
         (h.out/'native-font-coverage.json').write_text(json.dumps(font_proof,ensure_ascii=False,indent=2))
         h.check('native_200_actual_cjk_glyphs',chinese_ok)
+        h.check('native_200_western_font_rejected',any(f['family']=='DejaVu Sans' and not f['covers_chinese_codepoints'] for f in font_proof))
         h.check('native_200_visual_capture_not_blank',len(set(zlib.decompress(compressed)))>8)
+        stable_before=heading.evaluate('e=>e.getBoundingClientRect().toJSON()');zp.wait_for_timeout(300)
+        stable_after=heading.evaluate('e=>e.getBoundingClientRect().toJSON()');second=base64.b64decode(session.send('Page.captureScreenshot',{'format':'png','fromSurface':False,'captureBeyondViewport':False})['data'])
+        (h.out/'native-200-after300ms.png').write_bytes(second)
+        (h.out/'native-stability.json').write_text(json.dumps({'wait_ms':300,'before':stable_before,'after':stable_after,'before_sha256':hashlib.sha256(shot).hexdigest(),'after_sha256':hashlib.sha256(second).hexdigest()},indent=2))
+        h.check('native_200_capture_stable_300ms',stable_before==stable_after and shot==second)
         h.check('native_200_capture_keeps_real_zoom',worker.evaluate('(url)=>chrome.tabs.query({}).then(t=>chrome.tabs.getZoom(t.find(x=>x.url===url).id))',zp.url)==2 and zp.evaluate('devicePixelRatio')==2)
         close=zp.locator('#close-detail');close.scroll_into_view_if_needed();close.click(trial=True);close.focus();expect(close).to_be_focused()
         h.check('native_200_close_reachable',close.evaluate('e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth}'))
