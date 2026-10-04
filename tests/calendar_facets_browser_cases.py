@@ -62,11 +62,23 @@ def run(h):
         capture(f'ux-calendar-first-{width}.png')
         # Isolate the reveal helper from navigate(), history restoration and focus scrolling.
         # Prepare a real clipped tab at a nonzero page scroll where the page permits it.
-        reveal=p.evaluate('''()=>{const tabs=document.querySelector('.tabs'),active=tabs.querySelector('[aria-current="page"]');window.scrollTo({top:Math.min(120,document.documentElement.scrollHeight-innerHeight),behavior:'instant'});tabs.scrollLeft=0;const read=()=>{const r=tabs.getBoundingClientRect(),a=active.getBoundingClientRect();return {scrollY,scrollX,tabScrollLeft:tabs.scrollLeft,url:location.href,viewport:{left:r.left,right:r.right},active:{left:a.left,right:a.right},visible:a.left>=r.left-.5&&a.right<=r.right+.5}};const before=read();keepActiveTabVisible();return {trigger:'keepActiveTabVisible only; no navigation or focus change',width:innerWidth,before,after:read()}}''')
+        reveal_action='''()=>{const tabs=document.querySelector('.tabs'),active=tabs.querySelector('[aria-current="page"]');window.scrollTo({top:Math.min(120,document.documentElement.scrollHeight-innerHeight),behavior:'instant'});tabs.scrollLeft=0;const read=()=>{const r=tabs.getBoundingClientRect(),a=active.getBoundingClientRect();return {scrollY,scrollX,tabScrollLeft:tabs.scrollLeft,url:location.href,selectedView:active.dataset.view,viewport:{left:r.left,right:r.right},active:{left:a.left,right:a.right},visible:a.left>=r.left-.5&&a.right<=r.right+.5}};const before=read();keepActiveTabVisible();return {trigger:'keepActiveTabVisible only; no navigation or focus change',width:innerWidth,before,after:read()}}'''
+        reveal=p.evaluate(reveal_action)
         navigation_reveals.append(reveal)
         h.check('ux_reveal_never_scrolls_page_'+str(width),reveal['before']['scrollY']==reveal['after']['scrollY'] and reveal['before']['scrollX']==reveal['after']['scrollX'] and reveal['before']['url']==reveal['after']['url'])
         h.check('ux_reveal_exposes_active_'+str(width),reveal['after']['visible'])
-        if width<620:h.check('ux_reveal_exercises_clipped_input_'+str(width),not reveal['before']['visible'])
+        if reveal['before']['visible']:
+            h.check('ux_already_visible_tab_stays_still_'+str(width),reveal['before']['tabScrollLeft']==reveal['after']['tabScrollLeft'])
+        if width<620:
+            # Calendar already fits at 430px. Exercise an actual end tab which
+            # lies outside the unscrolled strip, without changing viewport size.
+            last=p.locator('.tabs button').last;last.click();expect(last).to_have_attribute('aria-current','page')
+            expect(p.locator('#event-list')).to_have_attribute('aria-busy','false')
+            clipped=p.evaluate(reveal_action);navigation_reveals.append(clipped)
+            h.check('ux_reveal_exercises_clipped_input_'+str(width),not clipped['before']['visible'])
+            h.check('ux_clipped_last_tab_recovered_'+str(width),clipped['after']['visible'])
+            h.check('ux_clipped_reveal_preserves_page_'+str(width),clipped['before']['scrollY']==clipped['after']['scrollY'] and clipped['before']['scrollX']==clipped['after']['scrollX'] and clipped['before']['url']==clipped['after']['url'])
+            p.locator('.tabs button[data-view="calendar"]').click();settled(5)
         if width<620:
             p.locator('#open-filters').click();p.locator('#topic-filter summary').click();p.locator('[data-facet-only="topic"][data-facet-value="文化艺术"]').click()
             p.get_by_role('button',name='应用筛选',exact=True).click();settled(4)
