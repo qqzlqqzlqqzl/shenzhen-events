@@ -125,6 +125,8 @@ check('calendar_favorite_updates_without_reload',calendar_favorite_updates_witho
 def calendar_show_long():
     ready(CALENDAR_QUERY);page.locator('#hide-long').uncheck();expect(page.locator('#calendar')).to_have_attribute('aria-busy','false')
     page.locator('#calendar-long').wait_for(state='visible')
+    expect(page.locator('#calendar-long [data-calendar-long-toggle]')).to_have_attribute('aria-expanded','false')
+    page.locator('#calendar-long [data-calendar-long-toggle]').click()
     ok('长期博物馆展' in page.locator('#calendar-long').inner_text())
     ok('长期博物馆展' not in page.locator('#calendar').inner_text())
     ok('不再铺成整月长条' in page.locator('#calendar-long').inner_text())
@@ -146,4 +148,3 @@ report['page_errors_empty']=not report['errors']
 (ART/'result.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 br.close();pw.stop();print(json.dumps(report,ensure_ascii=False,indent=2),flush=True)
 raise SystemExit(0 if all(report['checks'].values()) and not report['errors'] else 1)
-

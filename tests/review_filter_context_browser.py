@@ -49,5 +49,7 @@ try:
     p.get_by_role('button',name='取消筛选',exact=True).click()
     from filter_state_browser_cases import run
     run(h)
+    from calendar_facets_browser_cases import run as calendar_facets
+    calendar_facets(h)
 except Exception as exc:h.report['errors'].append(str(exc));raise
 finally:h.close()
