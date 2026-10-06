@@ -21,7 +21,7 @@ for(const summary of ['讨论如何管理时间：用番茄钟完成机器人原
   assert.equal(r.$('.card-summary').textContent,summary);assert.equal(r.$('.detail-summary').textContent,summary);
   assert.equal(r.$('.title-button').textContent,fixture.title);assert.equal(r.$('#detail-title').textContent,fixture.title);
   assert.equal(r.$('.compare-item h3').textContent,fixture.title);assert.equal(r.w.document.querySelector('[data-fixture]'),null);
-  assert.equal(r.$('vector'),null);assert.equal(r.$('em'),null);
+  assert.equal(r.$('vector'),null);assert.equal(r.$('#event-list em, #detail em, #compare-dialog em'),null);
  }finally{r.close()}});
 }
 test('known schedule text is retained because flattened text cannot prove a metadata boundary',async()=>{

@@ -82,7 +82,7 @@ test('FIX: owner switch clears stale saved-view editor and Undo',async()=>{
 });
 
 test('PASS: blocked storage during mobile draft, session expiry, same-owner login cancels draft without persisting it',async()=>{
- const old=pref('q=before&attendance=offline');const r=await ready({initial:{[fk('alice')]:old}});try{r.$('#open-filters').click();r.$('#search').value='cancel me';r.change('#attendance','online');r.mode.getter=true;r.w.probe.showLogin('Synthetic expired session');assert.equal(r.$('#filter-dialog').open,false);assert.equal(r.$('#search').value,'before');assert.equal(r.data.get(fk('alice')),old);await r.login('alice');live(r);assert.equal(r.$('#search').value,'before');assert.equal(r.$('#attendance').value,'offline');assert.equal(r.data.get(fk('alice')),old)}finally{r.close()}
+ const old=pref('q=before&attendance=offline');const r=await ready({initial:{[fk('alice')]:old}});try{r.$('#open-filters').click();r.$('#search').value='cancel me';r.change('#attendance','online');r.mode.getter=true;r.w.probe.showLogin('Synthetic expired session');assert.equal(r.$('#filter-dialog').hidden,true);assert.equal(r.$('#search').value,'before');assert.equal(r.data.get(fk('alice')),old);await r.login('alice');live(r);assert.equal(r.$('#search').value,'before');assert.equal(r.$('#attendance').value,'offline');assert.equal(r.data.get(fk('alice')),old)}finally{r.close()}
 });
 
 test('PASS: same-owner successful login keeps valid saved bytes and discarded draft out of filters',async()=>{

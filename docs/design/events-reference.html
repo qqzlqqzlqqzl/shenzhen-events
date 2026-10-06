@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>深圳活动雷达</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f3f4f7;--surface:#fff;--surface2:#f1f2f6;--line:rgba(16,20,34,.09);--text:#13151b;--mute:#566074;--dim:#6b7488;
+  --acc:#f08a24;--acc-t:#b8520a;--acc-ink:#1d1200;--ok:#17a363;--shadow:0 1px 2px rgba(16,20,34,.05),0 10px 30px rgba(16,20,34,.06);--glow:rgba(240,138,36,.13);
+  --font:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",system-ui,-apple-system,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){color-scheme:dark;--bg:#0c0d11;--surface:#14161c;--surface2:#1b1e26;--line:rgba(255,255,255,.08);--text:#eef0f6;--mute:#a0a7b8;--dim:#8a92a6;--acc:#ff9b3d;--acc-t:#ffb066;--ok:#3ddc97;--shadow:0 10px 30px rgba(0,0,0,.35);--glow:rgba(255,155,61,.12)}
+}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0c0d11;--surface:#14161c;--surface2:#1b1e26;--line:rgba(255,255,255,.08);--text:#eef0f6;--mute:#a0a7b8;--dim:#8a92a6;--acc:#ff9b3d;--acc-t:#ffb066;--ok:#3ddc97;--shadow:0 10px 30px rgba(0,0,0,.35);--glow:rgba(255,155,61,.12)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;font-family:var(--font);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;min-height:100vh;background-image:radial-gradient(800px 420px at 8% -8%,var(--glow),transparent 70%);background-repeat:no-repeat}
+button{font:inherit;color:inherit;cursor:pointer}
+.page{max-width:1160px;margin:0 auto;padding:0 clamp(16px,4vw,32px) 120px}
+.head{display:flex;align-items:center;justify-content:space-between;padding:20px 0}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent);border:1px solid color-mix(in srgb,var(--acc) 28%,transparent)}
+.logo svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8}
+.brand b{display:block;font-size:16px;font-weight:650}.brand small{font:500 10.5px var(--mono);letter-spacing:.14em;color:var(--dim)}
+.nav{display:flex;align-items:center;gap:6px;font-size:13px}
+.nav a,.btn{color:var(--mute);text-decoration:none;padding:7px 11px;border-radius:9px;border:1px solid transparent;background:none}
+.nav a:hover,.btn:hover{color:var(--text);background:var(--surface2)}
+
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:clamp(18px,4vh,40px) 0 24px}
+h1{margin:0;font-size:clamp(30px,4.6vw,50px);line-height:1.15;font-weight:650;letter-spacing:0}
+h1 em{font-style:normal;color:var(--acc-t)}
+.sub{margin:10px 0 0;color:var(--mute);font-size:14.5px}
+.stats{display:flex;gap:28px}.stats div{display:flex;flex-direction:column}
+.stats b{font:600 28px var(--mono);font-variant-numeric:tabular-nums}.stats span{font-size:12.5px;color:var(--dim)}
+
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;margin:0 calc(-1*clamp(16px,4vw,32px));padding:10px clamp(16px,4vw,32px);background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.tab{flex:none;border:0;background:none;color:var(--mute);padding:8px 14px;border-radius:99px;font-size:14px;display:flex;gap:7px;align-items:center}
+.tab i{font:500 11px var(--mono);font-style:normal;opacity:.7}
+.tab:hover{color:var(--text);background:var(--surface2)}
+.tab[aria-pressed=true]{background:var(--acc);color:var(--acc-ink);font-weight:600}
+.row1{display:flex;gap:10px;margin-top:10px;align-items:center}
+.find{flex:1;display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border-radius:13px;background:var(--surface);border:1px solid var(--line)}
+.find:focus-within{border-color:var(--dim)}
+.find svg{width:17px;height:17px;stroke:var(--dim);fill:none;stroke-width:2;stroke-linecap:round;flex:none}
+.find input{all:unset;flex:1;min-width:0;font-size:14.5px}.find input::placeholder{color:var(--dim)}
+kbd{font:500 11px var(--mono);color:var(--dim);padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:var(--surface2)}
+.fbtn{height:44px;padding:0 14px;border-radius:13px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;gap:8px;font-size:14px}
+.fbtn[aria-pressed=true]{border-color:var(--acc)}
+.fbtn i{font:600 11px var(--mono);font-style:normal;background:var(--acc);color:var(--acc-ink);border-radius:99px;padding:1px 7px}
+.seg{display:flex;padding:3px;background:var(--surface2);border-radius:12px;border:1px solid var(--line)}
+.seg button{border:0;background:none;padding:7px 12px;border-radius:9px;font-size:13px;color:var(--mute)}
+.seg button[aria-pressed=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+
+.panel{display:none;margin-top:12px;padding:18px;border-radius:18px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
+.panel.open{display:block}
+.grp{display:flex;gap:12px;align-items:baseline;margin-bottom:12px}
+.grp h4{margin:0;flex:none;width:44px;font-size:12.5px;font-weight:600;color:var(--dim)}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:1px solid var(--line);background:var(--surface2);border-radius:99px;padding:5px 12px;font-size:13px;color:var(--mute);display:flex;gap:6px;align-items:center}
+.chip i{font:500 11px var(--mono);font-style:normal;opacity:.65}
+.chip:hover{color:var(--text)}
+.chip[aria-pressed=true]{background:color-mix(in srgb,var(--acc) 18%,transparent);border-color:color-mix(in srgb,var(--acc) 55%,transparent);color:var(--text)}
+.opts{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--mute)}
+.opts label{display:flex;gap:7px;align-items:center}
+.opts input[type=date]{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:5px 8px}
+.opts input[type=checkbox]{accent-color:var(--acc)}
+.hint{margin:10px 0 0;font-size:12px;color:var(--dim)}
+.lnk{border:0;background:none;color:var(--acc-t);font-size:13px;padding:0}
+.active{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.active:empty{display:none}
+.ac{border:1px solid color-mix(in srgb,var(--acc) 45%,transparent);background:color-mix(in srgb,var(--acc) 12%,transparent);border-radius:99px;padding:4px 11px;font-size:12.5px}
+
+.rh{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 14px;font-size:13.5px;color:var(--mute)}.rh b{color:var(--text);font-size:16px;font-weight:650}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.card{--mx:50%;--my:50%;position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:20px;border-radius:22px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);cursor:pointer;transition:transform .2s cubic-bezier(.2,.7,.2,1),border-color .2s}
+.card::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;background:radial-gradient(320px circle at var(--mx) var(--my),color-mix(in srgb,var(--acc) 13%,transparent),transparent 65%)}
+.card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--acc) 45%,var(--line))}.card:hover::after{opacity:1}
+.card>*{position:relative;z-index:1}
+.ch{display:flex;justify-content:space-between;align-items:flex-start}
+.dt{display:flex;align-items:baseline;gap:9px}.dt b{font:600 34px/1 var(--mono);letter-spacing:-.02em}.dt span{font-size:12.5px;color:var(--dim)}
+.star{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);font-size:15px;color:var(--dim)}
+.star.on{color:var(--acc);border-color:var(--acc)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tg{font-size:11.5px;padding:3px 9px;border-radius:7px;background:var(--surface2);color:var(--mute)}
+.tg.a{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc-t);font-weight:600}
+.tg.live{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.card h3{margin:0;font-size:18px;line-height:1.4;font-weight:650;letter-spacing:0}
+.when{margin:0;font:500 13px var(--mono);color:var(--text)}
+.desc{margin:0;font-size:13.5px;line-height:1.6;color:var(--mute);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.loc{font-size:13px;color:var(--dim)}.loc::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--acc);margin-right:8px}
+.cf{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--dim)}
+.cb{display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12.5px;color:var(--mute)}.cb input{accent-color:var(--acc)}
+
+.lg{margin:18px 0 6px;font:600 13px var(--font);color:var(--dim);display:flex;gap:10px;align-items:center}.lg::after{content:"";flex:1;height:1px;background:var(--line)}
+.row{display:grid;grid-template-columns:120px 1fr auto auto;gap:14px;align-items:center;padding:14px 16px;margin-bottom:8px;border-radius:14px;background:var(--surface);border:1px solid var(--line);cursor:pointer}
+.row:hover{border-color:color-mix(in srgb,var(--acc) 45%,var(--line))}
+.row .tm{font:500 12.5px var(--mono);color:var(--mute)}.row b{font-weight:600;font-size:14.5px}.row .v{font-size:12.5px;color:var(--dim)}
+
+.cal{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
+.ch2{display:flex;align-items:center;gap:8px;margin-bottom:12px}.ch2 h3{margin:0 auto 0 8px;font-size:18px}
+.ch2 button{border:1px solid var(--line);background:var(--surface2);border-radius:10px;padding:6px 12px;font-size:13px}
+.cg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border-radius:12px;overflow:hidden}
+.cg>div{background:var(--surface);min-height:96px;padding:6px;font-size:12px}
+.cg .w{min-height:0;text-align:center;color:var(--dim);padding:8px 0;background:var(--surface2)}
+.cg .o{background:var(--surface2);opacity:.5}
+.cg .n{display:block;text-align:right;color:var(--dim);font:500 12px var(--mono);margin-bottom:4px}
+.cg .t .n{color:var(--acc-ink);background:var(--acc);display:inline-block;float:right;border-radius:6px;padding:0 6px}
+.ev{display:block;width:100%;text-align:left;border:0;margin-bottom:3px;padding:3px 6px;border-radius:6px;background:color-mix(in srgb,var(--text) 7%,transparent);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev.m{background:color-mix(in srgb,var(--acc) 22%,transparent);border-left:3px solid var(--acc)}
+.more{border:0;background:none;color:var(--dim);font-size:11.5px;padding:2px 4px}
+.leg{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--dim)}
+.long{margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--surface2);font-size:13px;color:var(--mute);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.empty{text-align:center;padding:56px 0;color:var(--mute)}.empty b{display:block;font-size:17px;color:var(--text);margin-bottom:6px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}.ov.on{opacity:1;pointer-events:auto}
+.dr{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:var(--surface);border-left:1px solid var(--line);transform:translateX(100%);transition:transform .28s cubic-bezier(.2,.7,.2,1);z-index:21;overflow:auto;padding:26px 24px calc(28px + env(safe-area-inset-bottom,0px))}
+.dr.on{transform:none}
+.dr h2{margin:14px 0 18px;font-size:24px;line-height:1.35;letter-spacing:0}
+.x{float:right;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface2)}
+.dl{display:grid;grid-template-columns:64px 1fr;gap:10px 12px;font-size:14px;margin:0 0 18px}.dl dt{color:var(--dim)}.dl dd{margin:0}
+.dr p{color:var(--mute);line-height:1.7;font-size:14.5px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.b{padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:var(--surface2);font-size:14px;text-decoration:none;color:var(--text)}
+.b.p{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
+.cmpt{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:16px}.cmpt th,.cmpt td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}.cmpt th{color:var(--dim);font-weight:500;width:56px}
+.tray{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,160%);display:flex;align-items:center;gap:12px;padding:10px 12px 10px 18px;border-radius:99px;background:var(--text);color:var(--bg);box-shadow:0 14px 40px rgba(0,0,0,.3);transition:transform .3s cubic-bezier(.2,.7,.2,1);z-index:10;font-size:13.5px;white-space:nowrap}
+.tray.on{transform:translate(-50%,0)}.tray button{border:0;border-radius:99px;padding:7px 14px;font-size:13px}
+.tray .go{background:var(--acc);color:var(--acc-ink);font-weight:600}.tray .go:disabled{opacity:.4}.tray .cl{background:none;color:inherit;opacity:.7}
+@media (max-width:640px){
+  .dr{top:auto;height:84vh;width:100%;border-left:0;border-radius:22px 22px 0 0;transform:translateY(100%)}
+  .row{grid-template-columns:1fr auto}.row .tm,.row .v{display:none}
+  .cg>div{min-height:60px;padding:4px}.ev{font-size:0;height:6px;padding:0}.stats{gap:20px}.nav a.hide{display:none}.fbtn span{display:none}
+  .grp{flex-direction:column;gap:6px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="head">
+    <div class="brand"><div class="logo"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg></div><div><b>深圳活动雷达</b><small>SHENZHEN + ONLINE</small></div></div>
+    <nav class="nav"><a href="#">← 服务首页</a><a class="hide" href="#">数据来源</a><button class="btn" id="theme" aria-label="切换明暗主题">◐</button></nav>
+  </header>
+  <section class="hero">
+    <div><h1 id="h1"></h1><p class="sub">按你关注的 AI、开源、创客、机器人筛选 · 更新于 2026/10/06 16:09</p></div>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <div class="bar">
+    <div class="tabs" id="tabs"></div>
+    <div class="row1">
+      <label class="find"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="搜索活动、主办方、地点" autocomplete="off"><kbd>/</kbd></label>
+      <button class="fbtn" id="fbtn" data-a="panel" aria-pressed="false">筛选<span id="fcnt"></span></button>
+      <div class="seg" id="seg"></div>
+    </div>
+    <div class="panel" id="panel">
+      <div id="chips"></div>
+      <div class="opts">
+        <label>日期 <input type="date" id="from"> 至 <input type="date" id="to"></label>
+        <label><input type="checkbox" id="free">只看免费</label>
+        <label><input type="checkbox" id="hrep">隐藏长期/重复</label>
+        <button class="lnk" data-a="reset">重置全部</button>
+      </div>
+      <p class="hint">同一组内可多选，满足任一即可；不同组之间需同时满足。</p>
+    </div>
+  </div>
+  <div class="active" id="active"></div>
+  <div class="rh" id="rh"></div>
+  <main id="main"></main>
+</div>
+<div class="ov" id="ov" data-a="close"></div>
+<aside class="dr" id="dr" aria-label="详情"></aside>
+<div class="tray" id="tray"></div>
+
+<script>
+/* 演示数据：正式环境换成接口数据即可，字段保持一致 */
+var TODAY=new Date('2026-10-06T00:00:00'),WK='日一二三四五六',INTEREST=['AI与开源','创客与硬件','机器人'];
+var E=[
+{id:1,t:'VibeKode Netherlands 2026',s:'2026-10-05',e:'2026-10-07',tm:'时段以原文为准',ty:'会议 / 大会',tp:['AI与开源'],md:'线上+线下',rg:'线上',v:'Utrecht · 部分议程可线上参与',fee:'以官网为准',src:'dev.events',d:'聚焦 AI 编程与 vibe coding 的开发者大会，海外活动，线上可看直播。'},
+{id:2,t:'AI 出海获客实战沙龙',s:'2026-10-10',e:'2026-10-10',tm:'13:30 – 17:00',ty:'沙龙',tp:['AI与开源','产品与创业'],md:'线下',rg:'南山',v:'南山区 · 科技园',fee:'免费',src:'活动行',d:'几支出海团队分享如何用 AI 做内容和获客，含现场交流。'},
+{id:3,t:'开源硬件创客夜',s:'2026-10-09',e:'2026-10-09',tm:'19:00 – 21:30',ty:'工作坊',tp:['创客与硬件'],md:'线下',rg:'南山',v:'南山区 · 创客空间',fee:'免费',src:'科创社区',d:'自带板子和项目，边做边聊，新手也欢迎。'},
+{id:4,t:'具身智能入门：机器人开发者沙龙',s:'2026-10-10',e:'2026-10-10',tm:'14:00 – 17:00',ty:'沙龙',tp:['机器人','AI与开源'],md:'线下',rg:'福田',v:'福田区 · 香蜜湖',fee:'¥30',src:'豆瓣同城',d:'从仿真到真机的入门路线，现场演示机械臂。'},
+{id:5,t:'大湾区 FDE 实战工作坊 第一期',s:'2026-10-11',e:'2026-10-11',tm:'09:30 – 18:00',ty:'工作坊',tp:['AI与开源'],md:'线下',rg:'南山',v:'南山区 · 前海',fee:'¥199',src:'活动行',d:'一天跑通一个企业 AI 落地案例，含项目复盘。'},
+{id:6,t:'360 纳米 WORK 闭门实战会',s:'2026-10-10',e:'2026-10-10',tm:'14:00 – 18:00',ty:'商务活动',tp:['产品与创业'],md:'线下',rg:'福田',v:'福田区 · 车公庙',fee:'免费',src:'活动行',d:'小范围闭门交流，围绕产品增长与团队协作。'},
+{id:7,t:'Community Day 2026 · 深圳',s:'2026-10-17',e:'2026-10-17',tm:'全天',ty:'会议 / 大会',tp:['AI与开源'],md:'线下',rg:'南山',v:'南山区 · 深圳湾',fee:'免费',src:'Meetup',d:'开源社区年度聚会，多场技术分享与展台。'},
+{id:8,t:'Rust 高校师资研讨会',s:'2026-10-17',e:'2026-10-17',tm:'09:30 – 18:30',ty:'会议 / 大会',tp:['AI与开源'],md:'线下',rg:'南山',v:'南山区 · 大学城',fee:'免费',src:'官方公众号',d:'面向高校老师的 Rust 教学与科研交流，可申请差旅资助。'},
+{id:9,t:'AI OPC 百人交流会',s:'2026-10-17',e:'2026-10-17',tm:'14:00 – 17:30',ty:'社交交流',tp:['产品与创业','AI与开源'],md:'线下',rg:'宝安',v:'宝安区 · 西乡',fee:'¥20',src:'联谱',d:'一人公司与 AI 创业者的线下茶话会。'},
+{id:10,t:'深圳国际 AI+AR 智能眼镜产业展',s:'2026-10-27',e:'2026-10-29',tm:'连续 3 天',ty:'展览 / 博览',tp:['创客与硬件'],md:'线下',rg:'宝安',v:'宝安区 · 国际会展中心',fee:'¥50',src:'展会官网',d:'智能眼镜整机、光学模组与交互方案的行业展会。'},
+{id:11,t:'NEPCON ASIA 2026 电子制造展',s:'2026-10-27',e:'2026-10-29',tm:'连续 3 天',ty:'展览 / 博览',tp:['创客与硬件'],md:'线下',rg:'福田',v:'福田区 · 会展中心',fee:'免费',src:'展会官网',d:'电子生产设备与微电子工业的亚洲大型展会。'},
+{id:12,t:'AI 算力与液冷产业生态展',s:'2026-10-28',e:'2026-10-30',tm:'连续 3 天',ty:'展览 / 博览',tp:['AI与开源'],md:'线下',rg:'宝安',v:'宝安区 · 国际会展中心',fee:'¥50',src:'展会官网',d:'算力中心、液冷技术与上下游生态展示。'},
+{id:13,t:'流动的博物馆 · 自然科普巡展',s:'2026-09-30',e:'2026-10-07',tm:'每日 10:00 – 17:00',ty:'展览 / 博览',tp:['亲子科普'],md:'线下',rg:'福田',v:'福田区 · 商场中庭',fee:'免费',src:'公众号',d:'自然科普主题巡展第 32 站，适合带孩子参观。'},
+{id:14,t:'一人公司 · 交流分享会',s:'2026-10-06',e:'2026-10-27',rep:1,tm:'每周二 19:30',ty:'社交交流',tp:['产品与创业'],md:'线下',rg:'南山',v:'南山区 · 茶室',fee:'¥40',src:'联谱',d:'用个人技能开启自由生活，每周分享一次经验。'}
+];
+var TABS=[['find','为你发现'],['week','本周'],['wkend','本周末'],['all','全部'],['fav','我的收藏'],['seen','最近浏览']],VIEWS=[['cards','卡片'],['list','列表'],['cal','日历']],GN={rg:'地区',ty:'类型',tp:'主题',md:'方式'};
+var S={tab:'find',view:'cards',q:'',g:{rg:{},ty:{},tp:{},md:{}},free:0,hrep:0,from:'',to:'',fav:{},seen:[],cmp:[],cy:2026,cm:9,open:0};
+var $=function(i){return document.getElementById(i)},D=function(s){return new Date(s+'T00:00:00')},p2=function(n){return('0'+n).slice(-2)},fm=function(d){return(d.getMonth()+1)+'/'+d.getDate()};
+var span=function(e){return Math.round((D(e.e)-D(e.s))/864e5)+1},ov=function(e,a,b){return D(e.s)<=D(b)&&D(e.e)>=D(a)},byId=function(i){return E.filter(function(e){return e.id===i})[0]};
+function tabOk(e,t){
+  if(t==='find')return e.tp.some(function(x){return INTEREST.indexOf(x)>-1})&&D(e.e)>=TODAY;
+  if(t==='week')return !e.rep&&ov(e,'2026-10-05','2026-10-11');
+  if(t==='wkend')return !e.rep&&ov(e,'2026-10-10','2026-10-11');
+  if(t==='fav')return S.fav[e.id];if(t==='seen')return S.seen.indexOf(e.id)>-1;return true}
+function ok(e){
+  if(!tabOk(e,S.tab))return 0;
+  if(S.q&&(e.t+e.v+e.src+e.d+e.ty+e.tp.join()).toLowerCase().indexOf(S.q.toLowerCase())<0)return 0;
+  for(var k in S.g){var sel=Object.keys(S.g[k]);if(sel.length&&!sel.some(function(x){return[].concat(e[k]).indexOf(x)>-1}))return 0}
+  if(S.free&&e.fee!=='免费')return 0;if(S.hrep&&e.rep)return 0;
+  if(S.from&&D(e.e)<D(S.from))return 0;if(S.to&&D(e.s)>D(S.to))return 0;return 1}
+function when(e){return span(e)>1?fm(D(e.s))+' — '+fm(D(e.e))+' · '+(e.rep?e.tm:'跨 '+span(e)+' 天'):e.tm}
+function tags(e){var now=span(e)>1&&D(e.s)<=TODAY&&D(e.e)>=TODAY;
+  return '<div class="tags"><span class="tg a">'+e.ty+'</span>'+e.tp.map(function(x){return'<span class="tg">'+x+'</span>'}).join('')+'<span class="tg">'+e.md+'</span>'+(e.rep?'<span class="tg">长期/重复</span>':'')+(now?'<span class="tg live">进行中</span>':'')+'</div>'}
+function card(e){var d=D(e.s),f=S.fav[e.id];
+  return '<article class="card" data-id="'+e.id+'"><div class="ch"><div class="dt"><b>'+p2(d.getDate())+'</b><span>'+(d.getMonth()+1)+'月 · 周'+WK[d.getDay()]+'</span></div><button class="star'+(f?' on':'')+'" data-a="fav" data-id="'+e.id+'" aria-label="收藏">'+(f?'★':'☆')+'</button></div>'+tags(e)+'<h3>'+e.t+'</h3><p class="when">'+when(e)+'</p><p class="desc">'+e.d+'</p><div class="loc">'+e.v+'</div><div class="cf"><span>来源 · '+e.src+'</span><label class="cb"><input type="checkbox"'+(S.cmp.indexOf(e.id)>-1?' checked':'')+' data-id="'+e.id+'">加入对比</label></div></article>'}
+function list(L){var h='',last='';
+  L.forEach(function(e){var d=D(e.s),k=(d.getMonth()+1)+'月'+d.getDate()+'日 周'+WK[d.getDay()];if(k!==last){h+='<div class="lg">'+k+'</div>';last=k}
+    h+='<div class="row" data-id="'+e.id+'"><span class="tm">'+(span(e)>1?fm(d)+'—'+fm(D(e.e)):e.tm)+'</span><b>'+e.t+'</b><span class="v">'+e.rg+'</span><button class="star'+(S.fav[e.id]?' on':'')+'" data-a="fav" data-id="'+e.id+'">'+(S.fav[e.id]?'★':'☆')+'</button></div>'});return h}
+function cal(L){var y=S.cy,m=S.cm,lead=(new Date(y,m,1).getDay()+6)%7,dim=new Date(y,m+1,0).getDate(),h='<div class="cal"><div class="ch2"><button data-a="prev">‹</button><button data-a="next">›</button><button data-a="today">今天</button><h3>'+y+'年'+(m+1)+'月</h3></div><div class="cg">';
+  '一二三四五六日'.split('').forEach(function(w){h+='<div class="w">周'+w+'</div>'});
+  for(var i=0;i<lead;i++)h+='<div class="o"></div>';
+  for(var d=1;d<=dim;d++){var dt=new Date(y,m,d),isT=+dt===+TODAY,ev=L.filter(function(e){return !e.rep&&D(e.s)<=dt&&D(e.e)>=dt});
+    h+='<div class="'+(isT?'t':'')+'"><span class="n">'+d+'</span>'+ev.slice(0,3).map(function(e){return'<button class="ev'+(span(e)>1?' m':'')+'" data-id="'+e.id+'" title="'+e.t+'">'+e.t+'</button>'}).join('')+(ev.length>3?'<button class="more" data-a="day" data-v="'+y+'-'+p2(m+1)+'-'+p2(d)+'">+'+(ev.length-3)+' 项</button>':'')+'</div>'}
+  h+='</div><div class="leg"><span>■ 单日活动</span><span style="color:var(--acc-t)">■ 跨天活动</span><span>长期/重复活动列在下方</span></div>';
+  var lg=L.filter(function(e){return e.rep});if(lg.length)h+='<div class="long"><b>长期 / 重复</b>'+lg.map(function(e){return'<button class="chip" data-id="'+e.id+'" style="color:var(--text)">'+e.t+'</button>'}).join('')+'</div>';
+  return h+'</div>'}
+
+function render(){
+  var wk=E.filter(function(e){return tabOk(e,'wkend')}).length;
+  $('h1').innerHTML='这个周末，深圳有 <em>'+wk+'</em> 场活动';
+  $('stats').innerHTML=[[E.filter(function(e){return tabOk(e,'find')}).length,'符合你的兴趣'],[wk,'本周末'],[E.length,'近期收录']].map(function(x){return'<div><b>'+x[0]+'</b><span>'+x[1]+'</span></div>'}).join('');
+  $('tabs').innerHTML=TABS.map(function(t){return'<button class="tab" data-a="tab" data-v="'+t[0]+'" aria-pressed="'+(S.tab===t[0])+'">'+t[1]+'<i>'+E.filter(function(e){return tabOk(e,t[0])}).length+'</i></button>'}).join('');
+  $('seg').innerHTML=VIEWS.map(function(v){return'<button data-a="view" data-v="'+v[0]+'" aria-pressed="'+(S.view===v[0])+'">'+v[1]+'</button>'}).join('');
+  var ch='',act='',n=0;
+  for(var k in GN){var cnt={};E.forEach(function(e){[].concat(e[k]).forEach(function(x){cnt[x]=(cnt[x]||0)+1})});
+    ch+='<div class="grp"><h4>'+GN[k]+'</h4><div class="chips">'+Object.keys(cnt).map(function(x){return'<button class="chip" data-a="chip" data-k="'+k+'" data-v="'+x+'" aria-pressed="'+!!S.g[k][x]+'">'+x+'<i>'+cnt[x]+'</i></button>'}).join('')+'</div></div>';
+    Object.keys(S.g[k]).forEach(function(x){n++;act+='<button class="ac" data-a="chip" data-k="'+k+'" data-v="'+x+'">'+x+' ×</button>'})}
+  if(S.free){n++;act+='<button class="ac" data-a="free">只看免费 ×</button>'}if(S.hrep){n++;act+='<button class="ac" data-a="hrep">隐藏长期/重复 ×</button>'}
+  if(S.from||S.to){n++;act+='<button class="ac" data-a="dates">'+(S.from||'…')+' 至 '+(S.to||'…')+' ×</button>'}
+  $('chips').innerHTML=ch;$('active').innerHTML=act;$('fcnt').innerHTML=n?' <i>'+n+'</i>':'';
+  var L=E.filter(ok).sort(function(a,b){return D(a.s)-D(b.s)});
+  $('rh').innerHTML='<span><b>'+L.length+' 个活动</b>'+(S.q?' · 搜索“'+S.q+'”':'')+'</span><span>按开始时间排序</span>';
+  $('main').innerHTML=!L.length&&S.view!=='cal'?'<div class="empty"><b>没有符合条件的活动</b>试试放宽筛选，或<button class="lnk" data-a="reset">重置全部</button></div>':S.view==='cards'?'<div class="grid">'+L.map(card).join('')+'</div>':S.view==='list'?list(L):cal(L);
+  var c=S.cmp.length;$('tray').className='tray'+(c?' on':'');$('tray').innerHTML='<span>已选 '+c+'/3 项对比</span><button class="go" data-a="docmp"'+(c<2?' disabled':'')+'>开始对比</button><button class="cl" data-a="clrcmp">清空</button>';
+  if(S.open)fillDr(S.open)}
+
+function showDr(h){$('dr').innerHTML=h;$('dr').classList.add('on');$('ov').classList.add('on')}
+function closeDr(){S.open=0;$('dr').classList.remove('on');$('ov').classList.remove('on')}
+function fillDr(id){var e=byId(id),f=S.fav[id],c=S.cmp.indexOf(id)>-1;
+  $('dr').innerHTML='<button class="x" data-a="close" aria-label="关闭">✕</button>'+tags(e)+'<h2>'+e.t+'</h2><dl class="dl"><dt>时间</dt><dd>'+when(e)+'</dd><dt>地点</dt><dd>'+e.v+'</dd><dt>费用</dt><dd>'+e.fee+'</dd><dt>方式</dt><dd>'+e.md+'</dd><dt>来源</dt><dd>'+e.src+'</dd></dl><p>'+e.d+'</p><div class="acts"><button class="b p" data-a="fav" data-id="'+id+'">'+(f?'★ 已收藏':'☆ 收藏')+'</button><button class="b" data-a="cmpb" data-id="'+id+'">'+(c?'移出对比':'加入对比')+'</button><a class="b" href="#">查看原文 ↗</a></div>'}
+function openEv(id){S.open=id;if(S.seen.indexOf(id)<0)S.seen.unshift(id);fillDr(id);$('dr').classList.add('on');$('ov').classList.add('on');var t=document.querySelector('[data-a=tab][data-v=seen] i');if(t)t.textContent=S.seen.length}
+function togCmp(id){var i=S.cmp.indexOf(id);if(i>-1)S.cmp.splice(i,1);else if(S.cmp.length<3)S.cmp.push(id);render()}
+
+document.addEventListener('click',function(e){
+  var cb=e.target.closest('.cb');if(cb){if(e.target.tagName==='INPUT')togCmp(+e.target.dataset.id);return}
+  var t=e.target.closest('[data-a]'),id=t&&+t.dataset.id,a=t&&t.dataset.a,v=t&&t.dataset.v,k=t&&t.dataset.k;
+  if(!t){var c=e.target.closest('[data-id]');if(c)openEv(+c.dataset.id);return}
+  if(a==='tab')S.tab=v;else if(a==='view')S.view=v;
+  else if(a==='fav'){if(S.fav[id])delete S.fav[id];else S.fav[id]=1}
+  else if(a==='cmpb')togCmp(id);
+  else if(a==='chip'){if(S.g[k][v])delete S.g[k][v];else S.g[k][v]=1}
+  else if(a==='free'){S.free=0;$('free').checked=false}else if(a==='hrep'){S.hrep=0;$('hrep').checked=false}
+  else if(a==='dates'){S.from=S.to='';$('from').value=$('to').value=''}
+  else if(a==='reset'){S.q='';$('q').value='';S.g={rg:{},ty:{},tp:{},md:{}};S.free=S.hrep=0;S.from=S.to='';$('free').checked=$('hrep').checked=false;$('from').value=$('to').value=''}
+  else if(a==='panel'){var o=$('panel').classList.toggle('open');t.setAttribute('aria-pressed',o);return}
+  else if(a==='prev'){S.cm--;if(S.cm<0){S.cm=11;S.cy--}}else if(a==='next'){S.cm++;if(S.cm>11){S.cm=0;S.cy++}}else if(a==='today'){S.cy=2026;S.cm=9}
+  else if(a==='close'){closeDr();return}
+  else if(a==='clrcmp')S.cmp=[];
+  else if(a==='day'){var dd=D(v);showDr('<button class="x" data-a="close">✕</button><h2>'+(dd.getMonth()+1)+'月'+dd.getDate()+'日</h2>'+list(E.filter(function(x){return ok(x)&&!x.rep&&D(x.s)<=dd&&D(x.e)>=dd})));return}
+  else if(a==='docmp'){var L=S.cmp.map(byId);showDr('<button class="x" data-a="close">✕</button><h2>活动对比</h2><table class="cmpt"><tr><th></th>'+L.map(function(x){return'<td><b>'+x.t+'</b></td>'}).join('')+'</tr>'+[['时间',when],['地点',function(x){return x.v}],['费用',function(x){return x.fee}],['方式',function(x){return x.md}],['类型',function(x){return x.ty}]].map(function(r){return'<tr><th>'+r[0]+'</th>'+L.map(function(x){return'<td>'+r[1](x)+'</td>'}).join('')+'</tr>'}).join('')+'</table>');return}
+  render()});
+$('q').addEventListener('input',function(){S.q=this.value.trim();render()});
+$('from').onchange=function(){S.from=this.value;render()};$('to').onchange=function(){S.to=this.value;render()};
+$('free').onchange=function(){S.free=this.checked?1:0;render()};$('hrep').onchange=function(){S.hrep=this.checked?1:0;render()};
+document.addEventListener('keydown',function(e){if(e.key==='/'&&document.activeElement!==$('q')&&!/INPUT|SELECT/.test(document.activeElement.tagName)){e.preventDefault();$('q').focus()}else if(e.key==='Escape'){closeDr();$('q').blur()}});
+document.addEventListener('pointermove',function(e){var c=e.target.closest('.card');if(c){var r=c.getBoundingClientRect();c.style.setProperty('--mx',e.clientX-r.left+'px');c.style.setProperty('--my',e.clientY-r.top+'px')}});
+var root=document.documentElement;$('theme').onclick=function(){var d=root.dataset.theme?root.dataset.theme==='dark':matchMedia('(prefers-color-scheme:dark)').matches;root.dataset.theme=d?'light':'dark'};
+render();
+</script>
+</body>
+</html>
