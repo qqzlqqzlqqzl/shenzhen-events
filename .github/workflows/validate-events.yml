@@ -40,7 +40,7 @@ jobs:
           result = subprocess.run(['git', 'diff', '--name-only', os.environ['BASE_SHA'], 'HEAD'],
                                   capture_output=True, text=True, check=True, timeout=15)
           paths = result.stdout.splitlines()
-          allowed_tests = {'tests/filter_state_dom.cjs', 'tests/redesign_browser.py', 'tests/storage_resilience_dom.cjs'}
+          allowed_tests = {'tests/filter_state_dom.cjs', 'tests/redesign_browser.py', 'tests/storage_resilience_dom.cjs', 'tests/content_boundaries_dom.cjs', 'tests/calendar_facets_dom.cjs'}
           allowed_workflow = '.github/workflows/validate-events.yml'
           ui_only = bool(paths) and all(p.startswith('static/') or p in allowed_tests or
                                         p == 'docs/design/events-reference.html' or p == allowed_workflow for p in paths)
