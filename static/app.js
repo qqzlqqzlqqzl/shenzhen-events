@@ -504,6 +504,8 @@ function beginFilterDraft(){if(!authenticated||filterDraft)return;clearTimeout(d
 function finishFilterDraft(apply){if(!filterDraft)return;clearTimeout(debounce);if(apply){if(!validateDateInputs())return}else{for(const s of filterDraft){s.el.value=s.value;if(s.checked!==undefined)s.el.checked=s.checked}dateLoadError=filterDraft.dateLoadError}
   filterDraft=null;$('#filter-dialog').close();$('#search-home').after($('#search').closest('.search'));$('#filter-home').after($('#filter-panel'));$('#open-filters').setAttribute('aria-expanded','false');updateFacetSummary('type');updateFacetSummary('topic');updateFacetSummary('district');if(authenticated)$('#open-filters').focus();syncFilterControls();if(apply)applyFilters();else{$('#date-error').textContent=dateLoadError;renderActiveFilters();}}
 $('#open-filters').onclick=beginFilterDraft;$('#cancel-filter-draft').onclick=()=>finishFilterDraft(false);$('#apply-filter-draft').onclick=()=>finishFilterDraft(true);$('#reset-filter-draft').onclick=()=>clearFilters();$('#filter-dialog').addEventListener('cancel',e=>{e.preventDefault();finishFilterDraft(false)});
+// Handle Escape before input[type=search] consumes it to clear its value.
+$('#filter-dialog').addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.isComposing){e.preventDefault();finishFilterDraft(false)}},true);
 $('#apply-dates').onclick=()=>applyFilters();$('#clear-dates').onclick=()=>{$('#date-from').value='';$('#date-until').value='';dateLoadError='';applyFilters()};RadarPlanner.init();
 
 RadarEventWorkflows.init();

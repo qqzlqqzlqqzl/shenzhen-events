@@ -56,13 +56,20 @@ test('individual applied chips remove their own condition while retaining other 
 });
 
 test('collapsed filter dialog returns the same search control and cancels without a request',async()=>{
- const r=await ready();try{
+ for(const action of ['button','escape']){const r=await ready();try{
   const input=r.$('#search'),n=r.calls.length;assert.ok(input.closest('.toolbar-search'));
   r.$('#open-filters').click();assert.ok(input.closest('#filter-dialog'));assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'true');
   input.value='未应用的搜索';input.dispatchEvent(new r.w.Event('input',{bubbles:true}));
-  r.$('#cancel-filter-draft').click();await wait();assert.equal(r.$('#search'),input);assert.ok(input.closest('.toolbar-search'));
-  assert.equal(input.value,'');assert.equal(r.calls.length,n);assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'false');
- }finally{r.close()}
+  if(action==='escape'){
+   const ime=new r.w.KeyboardEvent('keydown',{key:'Escape',isComposing:true,bubbles:true,cancelable:true});
+   input.dispatchEvent(ime);assert.equal(ime.defaultPrevented,false);assert.equal(r.$('#filter-dialog').open,true);
+   const escape=new r.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true});
+   input.dispatchEvent(escape);assert.equal(escape.defaultPrevented,true);
+  }else r.$('#cancel-filter-draft').click();
+  await wait();assert.equal(r.$('#search'),input);assert.ok(input.closest('.toolbar-search'));
+  assert.equal(input.value,'');assert.equal(r.calls.length,n);assert.equal(r.$('#filter-dialog').open,false);
+  assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'false');assert.equal(r.w.document.activeElement,r.$('#open-filters'));
+ }finally{r.close()}}
 });
 
 test('invalid date edits cannot navigate, poison storage, or leak into detail URLs',async()=>{
