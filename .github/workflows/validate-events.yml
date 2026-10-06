@@ -43,7 +43,7 @@ jobs:
           allowed_tests = {'tests/filter_state_dom.cjs', 'tests/redesign_browser.py'}
           allowed_workflow = '.github/workflows/validate-events.yml'
           ui_only = bool(paths) and all(p.startswith('static/') or p in allowed_tests or
-                                        p == allowed_workflow for p in paths)
+                                        p == 'docs/design/events-reference.html' or p == allowed_workflow for p in paths)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write('ui_only=' + str(ui_only).lower() + chr(10))
           print('UI-only scoped checks' if ui_only else 'Full checks for backend/shared changes')
