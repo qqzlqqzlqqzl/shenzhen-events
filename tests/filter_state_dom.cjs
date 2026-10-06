@@ -9,12 +9,13 @@ const scripts=['vendor/fullcalendar.js','ui-state.js','render.js','planner.js','
 const key='radar.filters.v1:fixture';
 const wait=()=>new Promise(resolve=>setTimeout(resolve,15));
 const rows=['2026-10-05','2026-11-05'].map((day,i)=>({id:String(i),title:'收藏 '+day,start_at:day+'T10:00:00+08:00',end_at:day+'T12:00:00+08:00',status:'scheduled',favorite:true,event_type:'MusicEvent',event_type_label:'音乐',topics:['文化艺术'],attendance:'offline',district:i?'福田':'南山',sources:[],url:'https://example.com/'+i}));
-async function ready(query='?view=all',saved=null,profiles=null){
+async function ready(query='?view=all',saved=null,profiles=null,preferences={}){
  const errors=[],calls=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
  const dom=new JSDOM(fs.readFileSync(path.join(root,'static/index.html'),'utf8'),{url:'https://fixture.test/events/'+query,runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc});
  const w=dom.window,$=s=>w.document.querySelector(s);w.matchMedia=()=>({matches:false,addEventListener(){}});w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
  if(saved!==null)w.localStorage.setItem(key,saved);if(profiles)w.localStorage.setItem('radar.saved.v1:fixture',JSON.stringify(profiles));
+ for(const [name,value] of Object.entries(preferences))w.localStorage.setItem(name,value);
  w.fetch=async url=>{const u=new URL(url,w.location.href),p=u.searchParams;let data={};
   if(u.pathname.endsWith('/session'))data={username:'fixture'};
   else if(u.pathname.endsWith('/stats'))data={recommended:2,upcoming:2,weekend:2,districts:['南山','福田'],event_types:[{value:'MusicEvent',label:'音乐'},{value:'ConferenceEvent',label:'会议'}],topics:[{value:'文化艺术',label:'文化艺术'}]};
@@ -28,6 +29,48 @@ async function ready(query='?view=all',saved=null,profiles=null){
 }
 const saved=r=>r.w.localStorage.getItem(key);
 const applied='from=2026-10-01&until=2026-10-31';
+
+test('display grouping and theme preferences change presentation without another query',async()=>{
+ const r=await ready();try{
+  const n=r.calls.length,ids=[...r.w.document.querySelectorAll('.event-card')].map(e=>e.dataset.event);
+  r.$('[data-display-mode="list"]').click();
+  assert.equal(r.calls.length,n);assert.equal(r.w.document.querySelectorAll('.date-group').length,2);
+  assert.deepEqual([...r.w.document.querySelectorAll('.event-card')].map(e=>e.dataset.event),ids);
+  assert.equal(r.w.localStorage.getItem('radar.display.v1'),'list');
+  r.$('#theme-toggle').click();assert.equal(r.w.document.documentElement.dataset.theme,'dark');
+  assert.equal(r.w.localStorage.getItem('radar.theme.v1'),'dark');assert.equal(r.calls.length,n);
+ }finally{r.close()}
+ const r2=await ready('?view=all',null,null,{'radar.display.v1':'list','radar.theme.v1':'dark'});
+ try{assert.equal(r2.w.document.documentElement.dataset.theme,'dark');assert.equal(r2.w.document.querySelectorAll('.date-group').length,2)}finally{r2.close()}
+});
+
+test('individual applied chips remove their own condition while retaining other filters',async()=>{
+ const r=await ready('?view=all&'+applied+'&q=关键词&free=true&attendance=online');
+ try{
+  const n=r.calls.length;r.$('[data-filter-remove="search"]').click();await wait();
+  assert.equal(r.calls.length,n+1);assert.equal(r.calls.at(-1).has('q'),false);
+  assert.equal(r.calls.at(-1).get('free'),'true');assert.equal(r.calls.at(-1).get('attendance'),'online');assert.equal(r.calls.at(-1).get('start'),'2026-10-01');
+  r.$('[data-filter-remove="dates"]').click();await wait();
+  assert.equal(r.calls.at(-1).has('start'),false);assert.equal(r.calls.at(-1).get('free'),'true');assert.equal(r.calls.at(-1).get('attendance'),'online');
+ }finally{r.close()}
+});
+
+test('collapsed filter dialog returns the same search control and cancels without a request',async()=>{
+ for(const action of ['button','escape']){const r=await ready();try{
+  const input=r.$('#search'),n=r.calls.length;assert.ok(input.closest('.toolbar-search'));
+  r.$('#open-filters').click();assert.ok(input.closest('#filter-dialog'));assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'true');
+  input.value='未应用的搜索';input.dispatchEvent(new r.w.Event('input',{bubbles:true}));
+  if(action==='escape'){
+   const ime=new r.w.KeyboardEvent('keydown',{key:'Escape',isComposing:true,bubbles:true,cancelable:true});
+   input.dispatchEvent(ime);assert.equal(ime.defaultPrevented,false);assert.equal(r.$('#filter-dialog').open,true);
+   const escape=new r.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true});
+   input.dispatchEvent(escape);assert.equal(escape.defaultPrevented,true);
+  }else r.$('#cancel-filter-draft').click();
+  await wait();assert.equal(r.$('#search'),input);assert.ok(input.closest('.toolbar-search'));
+  assert.equal(input.value,'');assert.equal(r.calls.length,n);assert.equal(r.$('#filter-dialog').open,false);
+  assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'false');assert.equal(r.w.document.activeElement,r.$('#open-filters'));
+ }finally{r.close()}}
+});
 
 test('invalid date edits cannot navigate, poison storage, or leak into detail URLs',async()=>{
  for(const [from,until] of [['2026-10-02',''],['','2026-10-02'],['2026-10-31','2026-10-01'],['2026-01-01','2026-10-31']]){

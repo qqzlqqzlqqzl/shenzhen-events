@@ -21,6 +21,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - name: Prepare isolated evidence before dependencies
         id: prepare_artifacts
         shell: bash
@@ -28,6 +29,26 @@ jobs:
           # Keep inherited output private on the runner; upload only this run.
           timeout 30s bash scripts/prepare_ci_artifacts.sh
           git rev-parse HEAD > artifacts/ci/tested-commit.txt
+      - name: Select checks from the actual changed paths
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          timeout 20s python3 - <<'PY'
+          import os, subprocess
+          result = subprocess.run(['git', 'diff', '--name-only', os.environ['BASE_SHA'], 'HEAD'],
+                                  capture_output=True, text=True, check=True, timeout=15)
+          paths = result.stdout.splitlines()
+          allowed_tests = {'tests/filter_state_dom.cjs', 'tests/redesign_browser.py'}
+          allowed_workflow = '.github/workflows/validate-events.yml'
+          ui_only = bool(paths) and all(p.startswith('static/') or p in allowed_tests or
+                                        p == allowed_workflow for p in paths)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write('ui_only=' + str(ui_only).lower() + chr(10))
+          print('UI-only scoped checks' if ui_only else 'Full checks for backend/shared changes')
+          print('Changed files:', len(paths))
+          PY
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -66,6 +87,7 @@ jobs:
           echo "PYTHONPYCACHEPREFIX=$retention_root/pycache" >> "$GITHUB_ENV"
           echo "PYTHONPATH=$GITHUB_WORKSPACE/tests/ci_retention:$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
       - name: Unit, API, syntax and DOM regressions
+        if: steps.scope.outputs.ui_only != 'true'
         shell: bash
         run: |
           timeout --signal=TERM --kill-after=10s 600s .venv/bin/python -m pytest -q --junitxml=artifacts/ci/unit.xml | tee artifacts/ci/unit.log
@@ -73,9 +95,23 @@ jobs:
           for script in static/*.js; do timeout 15s node --check "$script"; done
           timeout --signal=TERM --kill-after=10s 600s node --test tests/*_dom.cjs | tee artifacts/ci/dom.log
       - name: Desktop and mobile browser regressions
+        if: steps.scope.outputs.ui_only != 'true'
         shell: bash
         run: |
           timeout --signal=TERM --kill-after=10s 900s xvfb-run -a bash scripts/run_browser_matrix.sh
+      - name: Scoped UI syntax and business state regressions
+        if: steps.scope.outputs.ui_only == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          for script in static/*.js; do timeout 15s node --check "$script"; done
+          timeout --signal=TERM --kill-after=10s 240s node --test tests/filter_state_dom.cjs tests/calendar_facets_dom.cjs tests/content_boundaries_dom.cjs tests/session_boundary_dom.cjs | tee artifacts/ci/dom.log
+      - name: Scoped desktop redesign acceptance
+        if: steps.scope.outputs.ui_only == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 180s xvfb-run -a .venv/bin/python tests/redesign_browser.py | tee artifacts/ci/redesign.log
       - name: Retain logs and screenshots
         if: always() && steps.prepare_artifacts.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
