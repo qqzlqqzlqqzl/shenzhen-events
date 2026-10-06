@@ -55,21 +55,36 @@ test('individual applied chips remove their own condition while retaining other 
  }finally{r.close()}
 });
 
-test('collapsed filter dialog returns the same search control and cancels without a request',async()=>{
+test('inline filter panel retains the toolbar search and cancels without a request',async()=>{
  for(const action of ['button','escape']){const r=await ready();try{
   const input=r.$('#search'),n=r.calls.length;assert.ok(input.closest('.toolbar-search'));
-  r.$('#open-filters').click();assert.ok(input.closest('#filter-dialog'));assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'true');
+  r.$('#open-filters').click();assert.ok(input.closest('.toolbar-search'));assert.notEqual(r.$('#filter-dialog').tagName,'DIALOG');assert.equal(r.$('#filter-dialog').hidden,false);assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'true');
   input.value='未应用的搜索';input.dispatchEvent(new r.w.Event('input',{bubbles:true}));
   if(action==='escape'){
    const ime=new r.w.KeyboardEvent('keydown',{key:'Escape',isComposing:true,bubbles:true,cancelable:true});
-   input.dispatchEvent(ime);assert.equal(ime.defaultPrevented,false);assert.equal(r.$('#filter-dialog').open,true);
+   input.dispatchEvent(ime);assert.equal(ime.defaultPrevented,false);assert.equal(r.$('#filter-dialog').hidden,false);
    const escape=new r.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true});
    input.dispatchEvent(escape);assert.equal(escape.defaultPrevented,true);
   }else r.$('#cancel-filter-draft').click();
   await wait();assert.equal(r.$('#search'),input);assert.ok(input.closest('.toolbar-search'));
-  assert.equal(input.value,'');assert.equal(r.calls.length,n);assert.equal(r.$('#filter-dialog').open,false);
+  assert.equal(input.value,'');assert.equal(r.calls.length,n);assert.equal(r.$('#filter-dialog').hidden,true);
   assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'false');assert.equal(r.w.document.activeElement,r.$('#open-filters'));
  }finally{r.close()}}
+});
+
+test('filter toggle preserves unapplied selections without querying or changing applied chips',async()=>{
+ const r=await ready('?view=all&free=true');try{
+  const n=r.calls.length,url=r.w.location.href,stored=saved(r),chips=r.$('#active-filters').textContent;
+  r.$('#open-filters').click();r.change('#attendance','online');
+  r.$('#search').value='保留的草稿';r.$('#search').dispatchEvent(new r.w.Event('input',{bubbles:true}));
+  r.$('#open-filters').click();assert.equal(r.$('#filter-dialog').hidden,true);
+  assert.equal(r.$('#open-filters').getAttribute('aria-expanded'),'false');
+  r.$('#open-filters').click();assert.equal(r.$('#filter-dialog').hidden,false);
+  assert.equal(r.$('#attendance').value,'online');assert.equal(r.$('#search').value,'保留的草稿');assert.equal(r.$('#free').checked,true);
+  await wait();assert.equal(r.calls.length,n);assert.equal(r.w.location.href,url);assert.equal(saved(r),stored);assert.equal(r.$('#active-filters').textContent,chips);
+  r.$('#cancel-filter-draft').click();assert.equal(r.$('#attendance').value,'all');assert.equal(r.$('#search').value,'');assert.equal(r.$('#free').checked,true);
+  assert.equal(r.$('#filter-dialog').hidden,true);assert.equal(r.calls.length,n);assert.equal(r.w.location.href,url);
+ }finally{r.close()}
 });
 
 test('invalid date edits cannot navigate, poison storage, or leak into detail URLs',async()=>{

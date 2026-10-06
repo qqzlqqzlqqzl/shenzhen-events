@@ -22,7 +22,7 @@ function acceptSafety(data){
   if(safetyEpoch!==null&&next!==safetyEpoch)invalidatePlanning(true,true);
   safetyEpoch=next;
 }
-let filterDraft=null;
+let filterDraft=null,detailFocusSequence=0;
 let displayMode='cards';
 try{if(localStorage.getItem('radar.display.v1')==='list')displayMode='list'}catch{}
 function syncDisplayMode(){
@@ -41,7 +41,7 @@ function setDisplayMode(mode){
   }
 }
 function setTheme(theme,persist=false){
-  document.documentElement.dataset.theme=theme;$('#theme-toggle').textContent=theme==='dark'?'浅色':'深色';
+  document.documentElement.dataset.theme=theme;$('#theme-toggle').textContent='◐';
   $('#theme-toggle').setAttribute('aria-label',theme==='dark'?'切换浅色主题':'切换深色主题');
   document.querySelector('meta[name="theme-color"]').content=theme==='dark'?'#0c0d11':'#f3f4f7';
   if(persist)try{localStorage.setItem('radar.theme.v1',theme)}catch{}
@@ -106,6 +106,7 @@ function renderActiveFilters(){
   if(view!=='calendar'&&!dateLoadError&&appliedDates.from&&appliedDates.until)chip('dates',appliedDates.from+' 至 '+appliedDates.until);
   for(const [key,id] of [['feedback','feedback-filter'],['feedback_tag','feedback-tag-filter'],['viewed','viewed-filter']]){const value=p.get(key);if(value&&value!=='all')chip(id,Array.from($('#'+id).options).find(x=>x.value===value)?.textContent||value);}
 
+  const count=box.querySelectorAll('button').length,badge=$('#filter-count');badge.textContent=String(count);badge.hidden=!count;
 }
 async function api(path,options={}) {
   const epoch=authEpoch,generation=connectivityGeneration,c=new AbortController(),abort=()=>c.abort();
@@ -141,8 +142,8 @@ function showLogin(message='') {
 async function stats() {
   const epoch=authEpoch,ticket=++statsTicket;
   try {const s=await api('stats');if(!authenticated||epoch!==authEpoch||ticket!==statsTicket)return;
-    $('#count-recommended').textContent=s.recommended;$('#count-upcoming').textContent=s.upcoming;$('#count-weekend').textContent=s.weekend;
-    $('#update-note').textContent=s.last_updated?'全站统计 · 最近更新：'+timeText(s.last_updated):'活动正在整理中';
+    $('#count-recommended').textContent=s.recommended;$('#count-upcoming').textContent=s.upcoming;$('#count-weekend').textContent=s.weekend;$('#hero-weekend').textContent=s.weekend;for(const count of $$('[data-tab-count]'))count.textContent=Number.isFinite(s[count.dataset.tabCount])?String(s[count.dataset.tabCount]):'';
+    $('#update-note').textContent=s.last_updated?'更新于 '+timeText(s.last_updated):'活动正在整理中';
     if(!$('#district-options input'))renderFacetOptions('district',[...(s.districts||[]).map(v=>({value:v,label:v})),{value:'待确认',label:'地区待确认'}]);
     if(!$('#type-options input'))renderFacetOptions('type',s.event_types||[],s.type_pending||0);if(!$('#topic-options input'))renderFacetOptions('topic',s.topics||[]);
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===statsTicket)$('#update-note').textContent=e.message}
@@ -408,7 +409,7 @@ function renderDetail(e){
   mountFeedback(e);RadarEventWorkflows.mountDetail(e);
 }
 async function openDetail(id,push=true){
-  if(!authenticated)return;if(push||!detailId)RadarEventWorkflows.beginDetail(id);const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
+  if(!authenticated)return;detailFocusSequence++;if(push||!detailId)RadarEventWorkflows.beginDetail(id);const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
   try{invalidatePlanning();const e=await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
     reconcilePersonalRead(e);
     records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
@@ -416,10 +417,18 @@ async function openDetail(id,push=true){
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===detailTicket){toast(e.message);writeURL('replace');detailId=null}}
 }
 function closeDetail(updateHistory=true){
-  detailTicket++;const had=detailId;detailId=null;if($('#detail').open)$('#detail').close();positionFeedbackUndo();document.body.classList.remove('modal-open');
+  detailTicket++;const focusSequence=detailFocusSequence,epoch=authEpoch,returnView=view,returnQuery=urlParams().toString(),had=detailId,returnTarget=opener,returnId=returnTarget?.closest('.event-card')?.dataset.event||had,scroll={x:window.scrollX,y:window.scrollY};
+  detailId=null;if($('#detail').open)$('#detail').close();positionFeedbackUndo();document.body.classList.remove('modal-open');
   if(updateHistory&&had){if(history.state?.radarModal)history.back();else writeURL('replace')}
-  if(authenticated&&opener?.isConnected)opener.focus({preventScroll:true});if(authenticated)RadarEventWorkflows.restoreFocus();opener=null;if(updateHistory&&authenticated&&personalQueryDirty)load();
+  const restore=()=>{
+    if(!authenticated||authEpoch!==epoch||detailId||detailFocusSequence!==focusSequence||view!==returnView||urlParams().toString()!==returnQuery)return;
+    const target=returnTarget?.isConnected?returnTarget:$$('.event-card .title-button').find(button=>button.dataset.open===returnId);
+    target?.focus({preventScroll:true});window.scrollTo(scroll.x,scroll.y);
+  };
+  if(authenticated&&opener?.isConnected)opener.focus({preventScroll:true});if(authenticated)RadarEventWorkflows.restoreFocus();opener=null;
+  if(updateHistory&&authenticated&&personalQueryDirty){load().then(restore)}else if(updateHistory)restore();
 }
+
 function paintFavorite(id){const e=records.get(id);if(!e)return;for(const b of $$('[data-save]'))if(b.dataset.save===id){b.disabled=saving.has(id)||feedbackSaving.has(id);b.setAttribute('aria-pressed',String(!!e.favorite));if(b.classList.contains('bookmark')){b.classList.toggle('saved',!!e.favorite);b.textContent=e.favorite?'★':'☆';b.setAttribute('aria-label',e.favorite?'取消收藏':'收藏活动')}else b.textContent=e.favorite?'取消收藏':'☆ 收藏活动'}
   if(view==='calendar'&&calendar){const ce=calendar.getEventById(id);if(ce){const payload=RadarUI.calendarEvent(e);ce.setExtendedProp('favorite',!!e.favorite);ce.setExtendedProp('favoriteRank',e.favorite?0:1);ce.setProp('classNames',payload.classNames)}if(e.long_running)renderLongCalendar([...records.values()].filter(x=>x.long_running))}
 }
@@ -447,6 +456,7 @@ $('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit'
 $('#logout').onclick=async()=>{const b=$('#logout');b.disabled=true;try{await api('logout',{method:'POST'});showLogin()}catch(e){if(e.name!=='AbortError')toast(e.message)}finally{b.disabled=false}};
 document.addEventListener('click',e=>{
   const b=e.target.closest('button,[data-open]');if(!b||b.disabled)return;
+  if(filterDraft&&b.matches('[data-filter-remove],[data-facet-remove],[data-facet-reset]'))finishFilterDraft(false,false);
   if(b.dataset.displayMode){setDisplayMode(b.dataset.displayMode);return}
   if(b.dataset.facetReset){const kind=b.dataset.facetReset;$$('#'+kind+'-options input').forEach(x=>x.checked=true);updateFacetSummary(kind);applyFilters();return}
   if(b.dataset.filterRemove){
@@ -500,12 +510,42 @@ addEventListener('pagehide',e=>{if(e.persisted)showLogin()});
 $('#dismiss-undo').onclick=()=>{undoFeedback=null;$('#undo-bar').hidden=true};
 $('#undo-feedback').onclick=()=>{const u=undoFeedback;if(!u||Date.now()>u.expires){toast('撤销已过期，请在详情修改。');$('#dismiss-undo').click();return}const e=records.get(u.id)||u.record;if(!e||e.revision!==u.revision){toast('活动已更新，请重新核对。');$('#dismiss-undo').click();return}if(!records.has(u.id))records.set(u.id,e);updateFeedback(u.id,u.before,'已撤销上次反馈。',true)};
 
-function beginFilterDraft(){if(!authenticated||filterDraft)return;clearTimeout(debounce);$('#filter-panel').prepend($('#search').closest('.search'));filterDraft=$$('#filter-panel input,#filter-panel select,#calendar-saved-only').map(el=>({el,value:el.value,checked:el.checked}));filterDraft.dateLoadError=dateLoadError;syncFilterControls();$('#filter-draft-body').append($('#filter-panel'));$('#filter-dialog').showModal();$('#open-filters').setAttribute('aria-expanded','true');$('#cancel-filter-draft').focus()}
-function finishFilterDraft(apply){if(!filterDraft)return;clearTimeout(debounce);if(apply){if(!validateDateInputs())return}else{for(const s of filterDraft){s.el.value=s.value;if(s.checked!==undefined)s.el.checked=s.checked}dateLoadError=filterDraft.dateLoadError}
-  filterDraft=null;$('#filter-dialog').close();$('#search-home').after($('#search').closest('.search'));$('#filter-home').after($('#filter-panel'));$('#open-filters').setAttribute('aria-expanded','false');updateFacetSummary('type');updateFacetSummary('topic');updateFacetSummary('district');if(authenticated)$('#open-filters').focus();syncFilterControls();if(apply)applyFilters();else{$('#date-error').textContent=dateLoadError;renderActiveFilters();}}
-$('#open-filters').onclick=beginFilterDraft;$('#cancel-filter-draft').onclick=()=>finishFilterDraft(false);$('#apply-filter-draft').onclick=()=>finishFilterDraft(true);$('#reset-filter-draft').onclick=()=>clearFilters();$('#filter-dialog').addEventListener('cancel',e=>{e.preventDefault();finishFilterDraft(false)});
-// Handle Escape before input[type=search] consumes it to clear its value.
-$('#filter-dialog').addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.isComposing){e.preventDefault();finishFilterDraft(false)}},true);
+function setFilterPanelOpen(open){
+  $('#filter-dialog').hidden=!open;
+  $('#open-filters').setAttribute('aria-expanded',String(open));
+  $('#open-filters').setAttribute('aria-pressed',String(open));
+  $('#open-filters').classList.toggle('has-draft',!!filterDraft);
+  if(!open)$$('.multi-filter[open]').forEach(x=>x.open=false);
+}
+function beginFilterDraft(){
+  if(!authenticated)return;
+  if(!filterDraft){
+    clearTimeout(debounce);
+    filterDraft=$$('#search,#filter-panel input,#filter-panel select,#calendar-saved-only').map(el=>({el,value:el.value,checked:el.checked}));
+    filterDraft.dateLoadError=dateLoadError;
+  }
+  syncFilterControls();setFilterPanelOpen(true);
+}
+function finishFilterDraft(apply,focus=true){
+  if(!filterDraft)return;clearTimeout(debounce);
+  if(apply){if(!validateDateInputs())return}
+  else{for(const snapshot of filterDraft){snapshot.el.value=snapshot.value;if(snapshot.checked!==undefined)snapshot.el.checked=snapshot.checked}dateLoadError=filterDraft.dateLoadError}
+  filterDraft=null;setFilterPanelOpen(false);
+  for(const kind of ['type','topic','district'])updateFacetSummary(kind);
+  if(authenticated&&focus)$('#open-filters').focus({preventScroll:true});syncFilterControls();
+  if(apply)applyFilters();else{$('#date-error').textContent=dateLoadError;renderActiveFilters()}
+}
+$('#open-filters').onclick=()=>{if(!$('#filter-dialog').hidden)setFilterPanelOpen(false);else beginFilterDraft()};
+$('#cancel-filter-draft').onclick=()=>finishFilterDraft(false);
+$('#apply-filter-draft').onclick=()=>finishFilterDraft(true);
+$('#reset-filter-draft').onclick=()=>clearFilters();
+// The search stays in the toolbar. Escape explicitly cancels; simply folding
+// the panel preserves the draft until Apply/Cancel or an intentional navigation.
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&!event.isComposing&&!composing&&filterDraft&&!document.querySelector('dialog[open]')){
+    event.preventDefault();finishFilterDraft(false);
+  }
+},true);
 $('#apply-dates').onclick=()=>applyFilters();$('#clear-dates').onclick=()=>{$('#date-from').value='';$('#date-until').value='';dateLoadError='';applyFilters()};RadarPlanner.init();
 
 RadarEventWorkflows.init();
@@ -527,3 +567,32 @@ document.addEventListener('click',async event=>{
   if(!id)return;const epoch=authEpoch;invalidatePlanning();
   try{const current=await api('event/'+decodeURIComponent(id));if(!authenticated||epoch!==authEpoch)return;if(current.planning_eligible!==true)throw new Error(current.safety?.warning||'当前活动不可安排');records.set(current.id,current);location.assign(href);}catch(error){if(authenticated&&epoch===authEpoch)toast(error.message);}
 },true);
+
+
+document.addEventListener('click',event=>{
+  const card=event.target.closest('.event-card[data-event]');
+  if(!card||event.target.closest('button,a,input,select,textarea,label')||String(getSelection()))return;
+  card.querySelector('.title-button')?.focus({preventScroll:true});openDetail(card.dataset.event);
+});
+document.addEventListener('pointermove',event=>{
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const card=event.target.closest('.event-card:not(.event-row)');if(!card)return;
+  const rect=card.getBoundingClientRect();card.style.setProperty('--mx',event.clientX-rect.left+'px');card.style.setProperty('--my',event.clientY-rect.top+'px');
+});
+// Reuse the verified comparison's existing nodes and callbacks in the reference
+// table layout. This presentation step never changes selection or fetches data.
+function formatComparisonTable(){
+  const box=$('#compare-body'),items=[...box.querySelectorAll(':scope > .compare-item')];if(!items.length)return;
+  const table=document.createElement('table');table.className='compare-table';
+  const head=table.createTHead().insertRow();const corner=document.createElement('th');corner.scope='col';corner.textContent='项目';head.append(corner);
+  const values=items.map(item=>{
+    const title=document.createElement('th');title.scope='col';title.append(item.querySelector('h3'));head.append(title);
+    const cells=new Map();for(const p of item.querySelectorAll('p')){const label=p.querySelector('b');cells.set(label?label.textContent.replace(/：$/,''):'提示',label?p.querySelector('span'):p)}return cells;
+  });
+  const labels=[...new Set(values.flatMap(value=>[...value.keys()]))],body=table.createTBody();
+  for(const label of labels){const row=body.insertRow(),heading=document.createElement('th');heading.scope='row';heading.textContent=label;row.append(heading);for(const value of values){const cell=row.insertCell(),node=value.get(label);if(node)cell.append(node);else cell.textContent='未注明'}}
+  const actions=body.insertRow(),heading=document.createElement('th');heading.scope='row';heading.textContent='查看';actions.append(heading);
+  for(const item of items){const cell=actions.insertCell();for(const node of [...item.children])if(node.matches('a,button'))cell.append(node)}
+  for(const item of items)item.remove();box.prepend(table);
+}
+new MutationObserver(()=>{if($('#compare-dialog').open)formatComparisonTable()}).observe($('#compare-dialog'),{attributes:true,attributeFilter:['open']});
