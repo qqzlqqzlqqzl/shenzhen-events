@@ -11,23 +11,28 @@ const scripts=['vendor/fullcalendar.js','ui-state.js','render.js','planner.js','
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(check,label){for(let i=0;i<160;i++){if(check())return;await sleep(5)}throw Error('Fixture did not settle: '+label)}
 const clone=x=>JSON.parse(JSON.stringify(x));
-async function fixture({signedIn=true,query='?view=all'}={}){
+async function fixture({signedIn=true,query='?view=all',pageSize=0}={}){
  const errors=[],calls=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
  const dom=new JSDOM(html,{url:'https://fixture.test/events/'+query,runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc});
  const w=dom.window,$=s=>w.document.querySelector(s);
  w.matchMedia=()=>({matches:false,addEventListener(){}});w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
- const state={signedIn,owner:'alice',deferPreference:null,deferEvent:null};
- const rows=new Map(Array.from({length:4},(_,i)=>[String(i),{id:String(i),title:'合成长标题候选 '+i+' / '.repeat(25)+' bounded fixture',start_at:'2026-10-10T10:00:00+08:00',end_at:'2026-10-10T12:00:00+08:00',status:'scheduled',favorite:i===0,feedback:'',feedback_tags:[],revision:0,event_type:'ConferenceEvent',event_type_label:'会议',topics:['科技'],attendance:'offline',location:'合成地点',district:'南山',sources:[],url:'https://example.com/'+i}]));
+ const state={signedIn,owner:'alice',deferPreference:null,deferEvent:null,deferPage:null};
+ const rows=new Map(Array.from({length:pageSize?6:4},(_,i)=>[String(i),{id:String(i),title:'合成长标题候选 '+i+' / '.repeat(25)+' bounded fixture',start_at:'2026-10-10T10:00:00+08:00',end_at:'2026-10-10T12:00:00+08:00',status:'scheduled',favorite:i===0,feedback:'',feedback_tags:[],revision:0,event_type:'ConferenceEvent',event_type_label:'会议',topics:['科技'],attendance:'offline',location:'合成地点',district:'南山',sources:[],url:'https://example.com/'+i}]));
  const reply=(data,status=200)=>({ok:status>=200&&status<300,status,json:async()=>clone(data)});
  w.fetch=async(url,options={})=>{
-  const u=new URL(url,w.location.href),p=u.pathname,body=options.body?JSON.parse(options.body):null;calls.push({path:p,method:options.method||'GET',body});
+  const u=new URL(url,w.location.href),p=u.pathname,body=options.body?JSON.parse(options.body):null;calls.push({path:p,search:u.search,method:options.method||'GET',body});
   if(!state.signedIn)return reply({detail:'synthetic session expired'},401);
   if(p.endsWith('/session')||p.endsWith('/login'))return reply({username:state.owner});
   if(p.endsWith('/logout'))return reply({ok:true});
-  if(p.endsWith('/stats'))return reply({recommended:4,upcoming:4,weekend:4,districts:['南山'],event_types:[{value:'ConferenceEvent',label:'会议'}],topics:[{value:'科技',label:'科技'}]});
+  if(p.endsWith('/stats'))return reply({recommended:rows.size,upcoming:rows.size,weekend:rows.size,districts:['南山'],event_types:[{value:'ConferenceEvent',label:'会议'}],topics:[{value:'科技',label:'科技'}]});
   if(p.endsWith('/status'))return reply({sources:[{id:'current',name:'Synthetic current source',url:'https://example.com/source',status:'ok',retry:null,coverage:{version:1,visible:1,extracted:1,unique:1,shenzhen_candidates:1,admitted:1,stored_events:1}}],candidates:[],runs:[],budget:{calls:0,tokens:0},limits:{daily_calls:1,daily_tokens:1},db_bytes:0,retention_days:45,ics_url:'/events/calendar.ics'});
-  if(p.endsWith('/events'))return reply({items:[...rows.values()],total:4,has_more:false,facets:{},excluded_long:{items:[],total:0}});
+  if(p.endsWith('/events')){
+   const all=[...rows.values()],offset=Number(u.searchParams.get('offset')||0),items=pageSize?all.slice(offset,offset+pageSize):all;
+   const data={items,total:all.length,has_more:!!pageSize&&offset+items.length<all.length,facets:{},excluded_long:{items:[],total:0}};
+   if(state.deferPage){const pending=state.deferPage({offset,data});if(pending)return await pending;}
+   return reply(data);
+  }
   if(p.includes('/event/')){const id=p.split('/').at(-1),data=clone(rows.get(id));if(state.deferEvent){const pending=state.deferEvent({id,data});if(pending)return await pending;}return reply(data);}
   if(p.includes('/viewed/'))return reply({viewed_at:'2026-10-03T10:00:00Z'});
   if(p.includes('/preferences/')){
@@ -37,14 +42,18 @@ async function fixture({signedIn=true,query='?view=all'}={}){
   }
   throw Error('Unexpected fixture request: '+p);
  };
- w.eval(scripts+'\n;window.probe={api,enter,showLogin,openDetail,closeDetail,restoreNavigation,loadStatus,updateFeedback,setFeedbackSignal,get authenticated(){return authenticated},get busy(){return busy},get undo(){return undoFeedback},get records(){return records},get feedbackSaving(){return feedbackSaving}};');
+ w.eval(scripts+'\n;window.probe={api,enter,load,showLogin,openDetail,closeDetail,restoreNavigation,loadStatus,updateFeedback,setFeedbackSignal,get authenticated(){return authenticated},get busy(){return busy},get undo(){return undoFeedback},get records(){return records},get feedbackSaving(){return feedbackSaving}};');
  try {
-  if(signedIn)await until(()=>w.probe.authenticated&&!w.probe.busy&&(query.includes('view=status')?!!$('[data-source="current"]'):w.probe.records.size===4),'signed-in view');
+  if(signedIn)await until(()=>w.probe.authenticated&&!w.probe.busy&&(query.includes('view=status')?!!$('[data-source="current"]'):w.probe.records.size===(pageSize?Math.min(pageSize,rows.size):rows.size)),'signed-in view');
   else await until(()=>!$('#login-panel').hidden,'login form');
  } catch(error) {w.probe.showLogin();await sleep(15);dom.window.close();throw error}
  const choose=(n=2)=>{for(let i=0;i<n;i++)$('[data-compare="'+i+'"]').click()};
  const mutate=async(id='0',signal='interested')=>{await w.probe.openDetail(id);$('[data-feedback-signal="'+signal+'"]').click();await until(()=>!w.probe.feedbackSaving.size&&!!w.probe.undo,'feedback settlement')};
- return {w,$,errors,calls,state,rows,choose,mutate,holdNextEvent(){let release,reject;state.deferEvent=({id,data})=>{state.deferEvent=null;return new Promise((resolve,fail)=>{release=()=>resolve(reply(data));reject=fail})};return {get pending(){return !!release},release(){release()},fail(){reject(new Error('synthetic older point read failed'))}}},async settle(){await until(()=>!w.probe.busy&&!w.probe.feedbackSaving.size,'idle');await sleep(15)},async close(){w.probe.showLogin();await sleep(15);assert.deepEqual(errors,[]);dom.window.close()}};
+ return {w,$,errors,calls,state,rows,choose,mutate,holdNextPage(){
+  let release,reject,offset;
+  state.deferPage=page=>{state.deferPage=null;offset=page.offset;return new Promise((resolve,fail)=>{release=()=>resolve(reply(page.data));reject=fail})};
+  return {get pending(){return !!release},get offset(){return offset},release(){release()},fail(){reject(new Error('synthetic page failure'))}};
+ },holdNextEvent(){let release,reject;state.deferEvent=({id,data})=>{state.deferEvent=null;return new Promise((resolve,fail)=>{release=()=>resolve(reply(data));reject=fail})};return {get pending(){return !!release},release(){release()},fail(){reject(new Error('synthetic older point read failed'))}}},async settle(){await until(()=>!w.probe.busy&&!w.probe.feedbackSaving.size,'idle');await sleep(15)},async close(){w.probe.showLogin();await sleep(15);assert.deepEqual(errors,[]);dom.window.close()}};
 }
 test('older async comparison cannot reopen a dialog after a newer comparison was closed',async()=>{
  const r=await fixture();try{
@@ -150,3 +159,48 @@ test('a different navigation intent does not reuse a pending same-event history 
   assert.equal(r.$('#detail').open,true);
  }finally{await r.close()}
 });
+
+test('append keeps its loading button visible and disabled until pagination settles',async()=>{
+ const r=await fixture({pageSize:2});try{
+  assert.equal(r.$('#more').hidden,false);
+  const held=r.holdNextPage(),before=r.calls.length,pending=r.w.probe.load(true);
+  await until(()=>held.pending,'append response held');
+  assert.equal(r.$('#more').hidden,false);assert.equal(r.$('#more').disabled,true);assert.equal(r.$('#more').textContent,'正在加载…');
+  r.$('#more').click();await r.w.probe.load(true);
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/events')).length,1,'overlapping append must not request twice');
+  assert.equal(r.$('#event-list').querySelectorAll('.event-card').length,2);
+  held.release();await pending;await r.settle();
+  assert.equal(r.$('#event-list').querySelectorAll('.event-card').length,4);
+  assert.equal(r.$('#more').hidden,false);assert.equal(r.$('#more').disabled,false);assert.equal(r.$('#more').textContent,'再看看更多 ↓');
+  await r.w.probe.load(true);await r.settle();
+  assert.equal(r.$('#event-list').querySelectorAll('.event-card').length,6);
+  assert.equal(r.$('#more').hidden,true);assert.equal(r.$('#more').disabled,false);
+ }finally{await r.close()}
+});
+test('failed append keeps its button usable and retry exposes the loading state',async()=>{
+ const r=await fixture({pageSize:2});try{
+  const failed=r.holdNextPage(),pending=r.w.probe.load(true);await until(()=>failed.pending,'failed append held');failed.fail();await pending;
+  assert.equal(r.$('#event-list').querySelectorAll('.event-card').length,2);
+  assert.equal(r.$('#more').hidden,false);assert.equal(r.$('#more').disabled,false);assert.equal(r.$('#more').textContent,'再看看更多 ↓');
+  assert.equal(r.$('#notice').hidden,false);
+  const retried=r.holdNextPage();r.$('[data-action="retry"]').click();await until(()=>retried.pending,'append retry held');
+  assert.equal(retried.offset,failed.offset,'retry must request the failed page again');
+  assert.equal(r.$('#more').hidden,false);assert.equal(r.$('#more').disabled,true);assert.equal(r.$('#more').textContent,'正在加载…');
+  retried.release();await r.settle();
+  assert.equal(r.$('#event-list').querySelectorAll('.event-card').length,4);
+  assert.equal(r.$('#more').hidden,false);assert.equal(r.$('#more').disabled,false);assert.equal(r.$('#notice').hidden,true);
+ }finally{await r.close()}
+});
+for(const outcome of ['success','failure']){
+ test('late append '+outcome+' cannot restore pagination after navigating to status',async()=>{
+  const r=await fixture({pageSize:2});try{
+   const held=r.holdNextPage(),pending=r.w.probe.load(true);await until(()=>held.pending,'obsolete append held');
+   r.$('#manage-sources').click();await until(()=>!!r.$('[data-source="current"]'),'new status view');await r.settle();
+   const before={hidden:r.$('#more').hidden,disabled:r.$('#more').disabled,text:r.$('#more').textContent,notice:r.$('#notice').hidden};
+   assert.equal(before.hidden,true);assert.equal(r.$('#more').parentElement.hidden,true);assert.equal(r.$('#status-panel').hidden,false);
+   if(outcome==='success')held.release();else held.fail();await pending;await r.settle();
+   assert.deepEqual({hidden:r.$('#more').hidden,disabled:r.$('#more').disabled,text:r.$('#more').textContent,notice:r.$('#notice').hidden},before);
+   assert.equal(r.$('#more').parentElement.hidden,true);assert.equal(r.$('#status-panel').hidden,false);
+  }finally{await r.close()}
+ });
+}
