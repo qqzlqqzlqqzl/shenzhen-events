@@ -22,7 +22,7 @@ function acceptSafety(data){
   if(safetyEpoch!==null&&next!==safetyEpoch)invalidatePlanning(true,true);
   safetyEpoch=next;
 }
-let filterDraft=null,detailFocusSequence=0;
+let filterDraft=null,detailFocusSequence=0,pendingDetail=null;
 let displayMode='cards';
 try{if(localStorage.getItem('radar.display.v1')==='list')displayMode='list'}catch{}
 function syncDisplayMode(){
@@ -409,15 +409,23 @@ function renderDetail(e){
   mountFeedback(e);RadarEventWorkflows.mountDetail(e);
 }
 async function openDetail(id,push=true){
-  if(!authenticated)return;detailFocusSequence++;if(push||!detailId)RadarEventWorkflows.beginDetail(id);const epoch=authEpoch,ticket=++detailTicket;opener=document.activeElement;
-  try{invalidatePlanning();const e=await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
-    reconcilePersonalRead(e);
-    records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
-    if(!$('#detail').open)$('#detail').showModal();positionFeedbackUndo();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
-  }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===detailTicket){toast(e.message);writeURL('replace');detailId=null}}
+  if(!authenticated)return;
+  const epoch=authEpoch,generation=connectivityGeneration,snapshot=safetyEpoch;
+  if(pendingDetail&&pendingDetail.id===id&&pendingDetail.push===push&&pendingDetail.epoch===epoch&&pendingDetail.generation===generation&&pendingDetail.snapshot===snapshot&&pendingDetail.ticket===detailTicket)return pendingDetail.promise;
+  detailFocusSequence++;if(push||!detailId)RadarEventWorkflows.beginDetail(id);const ticket=++detailTicket;opener=document.activeElement;
+  const operation={id,push,epoch,generation,snapshot,ticket,promise:null};pendingDetail=operation;
+  operation.promise=(async()=>{
+    try{invalidatePlanning();const e=await api('event/'+encodeURIComponent(id));if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
+      reconcilePersonalRead(e);
+      records.set(id,e);records.set(e.id,e);detailId=e.id;renderDetail(e);paintFavorite(e.id);paintFeedback(e.id);if(push)writeURL('push',e.id);else if(id!==e.id)writeURL('replace',e.id);
+      if(!$('#detail').open)$('#detail').showModal();positionFeedbackUndo();document.body.classList.add('modal-open');$('#close-detail').focus();recordView(e.id);
+    }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===detailTicket){toast(e.message);writeURL('replace');detailId=null}}
+    finally{if(pendingDetail===operation)pendingDetail=null}
+  })();
+  return operation.promise;
 }
 function closeDetail(updateHistory=true){
-  detailTicket++;const focusSequence=detailFocusSequence,epoch=authEpoch,returnView=view,returnQuery=urlParams().toString(),had=detailId,returnTarget=opener,returnId=returnTarget?.closest('.event-card')?.dataset.event||had,scroll={x:window.scrollX,y:window.scrollY};
+  pendingDetail=null;detailTicket++;const focusSequence=detailFocusSequence,epoch=authEpoch,returnView=view,returnQuery=urlParams().toString(),had=detailId,returnTarget=opener,returnId=returnTarget?.closest('.event-card')?.dataset.event||had,scroll={x:window.scrollX,y:window.scrollY};
   detailId=null;if($('#detail').open)$('#detail').close();positionFeedbackUndo();document.body.classList.remove('modal-open');
   if(updateHistory&&had){if(history.state?.radarModal)history.back();else writeURL('replace')}
   const restore=()=>{
