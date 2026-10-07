@@ -273,6 +273,7 @@ async function load(append=false){
   keep=!append&&listSnapshot?.key===requestKey;
   $('#event-list').dataset.hasSnapshot=String(keep||append);
   if(keep){updateFacetCounts(listSnapshot.facets);renderExcluded(listSnapshot.excluded);records.clear();for(const e of listSnapshot.items)records.set(e.id,e);$('#event-list').innerHTML=renderEventItems(listSnapshot.items,displayMode)||emptyState();total=listSnapshot.total;offset=listSnapshot.offset;$('#more').hidden=!listSnapshot.hasMore;$('#result-count').textContent=`${total} 个活动 · 刷新中，保留上次结果`}
+  if(append)$('#more').hidden=false;
   $('#event-list').setAttribute('aria-busy','true');$('#more').disabled=true;$('#more').textContent='正在加载…';
   if(!append&&!keep){updateFacetCounts(null);renderExcluded(null);offset=0;$('#result-count').textContent='正在加载';records.clear();$('#event-list').innerHTML=Array(3).fill('<div class="loading-card" aria-hidden="true"></div>').join('')}
   const p=new URLSearchParams(requestKey);p.set('offset',append?offset:0);p.set('limit',36);if(append&&Number.isInteger(listSnapshot?.safety_epoch))p.set('safety_epoch',listSnapshot.safety_epoch);const res=await api('events?'+p,{signal:controller.signal});if(seq!==sequence||!authenticated)return;
