@@ -106,3 +106,47 @@ test('older detail failure cannot clear the successful newer detail URL',async()
   held.fail();await older;await sleep(20);assert.equal(new URL(r.w.location.href).searchParams.get('event'),'1','obsolete failure must not remove newer detail history');assert.match(r.$('#detail-title').textContent,/候选 1/);
  }finally{await r.close()}
 });
+
+test('ten overlapping same-event opens share one GET, history write and viewed write',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextEvent(),before=r.calls.length;
+  const openings=Array.from({length:10},()=>r.w.probe.openDetail('0'));
+  await until(()=>held.pending,'same-event detail held');
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/event/0')).length,1);
+  held.release();await Promise.all(openings);await sleep(20);
+  assert.equal(r.$('#detail').open,true);
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/viewed/0')).length,1);
+  assert.equal(new URL(r.w.location.href).searchParams.get('event'),'0');
+  r.w.probe.closeDetail(false);await r.w.probe.openDetail('0');
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/event/0')).length,2,'settled detail is always revalidated');
+ }finally{await r.close()}
+});
+test('closing and reopening the same event starts a fresh operation and retires the old callback',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextEvent(),older=r.w.probe.openDetail('0');
+  await until(()=>held.pending,'older same-event detail held');
+  r.w.probe.closeDetail(false);r.rows.get('0').title='Fresh same-event title';
+  await r.w.probe.openDetail('0');assert.equal(r.$('#detail-title').textContent,'Fresh same-event title');
+  held.release();await older;assert.equal(r.$('#detail-title').textContent,'Fresh same-event title');
+  assert.equal(r.calls.filter(c=>c.path.endsWith('/event/0')).length,2);
+ }finally{await r.close()}
+});
+test('a failed shared detail operation permits an immediate fresh retry',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextEvent(),first=r.w.probe.openDetail('0'),second=r.w.probe.openDetail('0');
+  await until(()=>held.pending,'failed shared detail held');held.fail();await Promise.all([first,second]);
+  assert.equal(r.$('#detail').open,false);
+  await r.w.probe.openDetail('0');assert.equal(r.$('#detail').open,true);
+  assert.equal(r.calls.filter(c=>c.path.endsWith('/event/0')).length,2);
+ }finally{await r.close()}
+});
+test('a different navigation intent does not reuse a pending same-event history operation',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextEvent(),older=r.w.probe.openDetail('0',true);
+  await until(()=>held.pending,'push detail held');
+  await r.w.probe.openDetail('0',false);held.release();await older;
+  assert.equal(r.calls.filter(c=>c.path.endsWith('/event/0')).length,2);
+  assert.equal(new URL(r.w.location.href).searchParams.has('event'),false);
+  assert.equal(r.$('#detail').open,true);
+ }finally{await r.close()}
+});
