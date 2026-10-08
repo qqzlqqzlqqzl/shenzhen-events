@@ -40,7 +40,7 @@ jobs:
           result = subprocess.run(['git', 'diff', '--name-only', os.environ['BASE_SHA'], 'HEAD'],
                                   capture_output=True, text=True, check=True, timeout=15)
           paths = result.stdout.splitlines()
-          allowed_tests = {'tests/filter_state_dom.cjs', 'tests/redesign_browser.py', 'tests/storage_resilience_dom.cjs', 'tests/content_boundaries_dom.cjs', 'tests/calendar_facets_dom.cjs', 'tests/composition_races_dom.cjs'}
+          allowed_tests = {'tests/filter_state_dom.cjs', 'tests/redesign_browser.py', 'tests/storage_resilience_dom.cjs', 'tests/content_boundaries_dom.cjs', 'tests/calendar_facets_dom.cjs', 'tests/composition_races_dom.cjs', 'tests/refresh_races_dom.cjs', 'tests/session_boundary_dom.cjs'}
           allowed_workflow = '.github/workflows/validate-events.yml'
           ui_only = bool(paths) and all(p.startswith('static/') or p in allowed_tests or
                                         p == 'docs/design/events-reference.html' or p == allowed_workflow for p in paths)
@@ -105,7 +105,7 @@ jobs:
         run: |
           set -o pipefail
           for script in static/*.js; do timeout 15s node --check "$script"; done
-          timeout --signal=TERM --kill-after=10s 240s node --test tests/composition_races_dom.cjs tests/filter_state_dom.cjs tests/calendar_facets_dom.cjs tests/content_boundaries_dom.cjs tests/session_boundary_dom.cjs tests/storage_resilience_dom.cjs | tee artifacts/ci/dom.log
+          timeout --signal=TERM --kill-after=10s 240s node --test tests/refresh_races_dom.cjs tests/composition_races_dom.cjs tests/filter_state_dom.cjs tests/calendar_facets_dom.cjs tests/content_boundaries_dom.cjs tests/session_boundary_dom.cjs tests/storage_resilience_dom.cjs | tee artifacts/ci/dom.log
       - name: Scoped desktop redesign acceptance
         if: steps.scope.outputs.ui_only == 'true'
         shell: bash
