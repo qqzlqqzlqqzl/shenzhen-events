@@ -464,9 +464,9 @@ function restoreNavigation(){
  if(filterDraft)finishFilterDraft(false);const before=urlParams().toString();closeDetail(false);readURL();rememberFilters();
  const after=urlParams().toString(),id=new URLSearchParams(location.search).get('event');
  if(before!==after||personalQueryDirty){
-  const epoch=authEpoch,ticket=detailTicket,pending=load(),seq=sequence;
+  const epoch=authEpoch,ticket=detailTicket,pending=load(),targetURL=location.href;
   pending.then(()=>{
-   if(id&&authenticated&&epoch===authEpoch&&seq===sequence&&ticket===detailTicket&&new URLSearchParams(location.search).get('event')===id)openDetail(id,false);
+   if(id&&authenticated&&epoch===authEpoch&&ticket===detailTicket&&location.href===targetURL)openDetail(id,false);
   });
  }else if(id)openDetail(id,false);
 }

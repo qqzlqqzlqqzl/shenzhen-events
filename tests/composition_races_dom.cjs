@@ -42,7 +42,7 @@ async function fixture({signedIn=true,query='?view=all',pageSize=0}={}){
   }
   throw Error('Unexpected fixture request: '+p);
  };
- w.eval(scripts+'\n;window.probe={api,enter,load,showLogin,openDetail,closeDetail,restoreNavigation,loadStatus,updateFeedback,setFeedbackSignal,get authenticated(){return authenticated},get busy(){return busy},get undo(){return undoFeedback},get records(){return records},get feedbackSaving(){return feedbackSaving}};');
+ w.eval(scripts+'\n;window.probe={api,enter,load,showLogin,openDetail,closeDetail,restoreNavigation,loadStatus,updateFeedback,setFeedbackSignal,recordView,get authenticated(){return authenticated},get busy(){return busy},get undo(){return undoFeedback},get records(){return records},get feedbackSaving(){return feedbackSaving}};');
  try {
   if(signedIn)await until(()=>w.probe.authenticated&&!w.probe.busy&&(query.includes('view=status')?!!$('[data-source="current"]'):w.probe.records.size===(pageSize?Math.min(pageSize,rows.size):rows.size)),'signed-in view');
   else await until(()=>!$('#login-panel').hidden,'login form');
@@ -78,6 +78,27 @@ test('current restore opens its event after the matching list settles',async()=>
   held.release();await until(()=>r.$('#detail').open,'current restored detail opened');
   assert.equal(new URL(r.w.location.href).searchParams.get('event'),'0');
   assert.equal(r.calls.filter(c=>c.path.endsWith('/event/0')).length,1);
+ }finally{await r.close()}
+});
+test('current restore survives a legitimate list re-read after a personal revision',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextPage(),before=r.calls.length;
+  r.w.history.replaceState({},'','/events/?view=all&q=current&event=0');
+  r.w.probe.restoreNavigation();await until(()=>held.pending,'restore before personal revision');
+  await r.w.probe.recordView('1');held.release();await until(()=>r.$('#detail').open,'restored detail after list re-read');
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/events')).length,2);
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/event/0')).length,1);
+ }finally{await r.close()}
+});
+test('same-URL history restoration supersedes its pending predecessor',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextPage(),before=r.calls.length;
+  r.w.history.replaceState({},'','/events/?view=all&q=same-url&event=0');
+  r.w.probe.restoreNavigation();await until(()=>held.pending,'same-URL old restoration held');
+  r.w.probe.restoreNavigation();await until(()=>r.$('#detail').open,'same-URL newer detail opened');
+  held.release();await r.settle();
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/event/0')).length,1);
+  assert.equal(new URL(r.w.location.href).searchParams.get('event'),'0');
  }finally{await r.close()}
 });
 test('a newer detail retires a pending history restore even in the same list view',async()=>{
