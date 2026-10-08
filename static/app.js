@@ -447,7 +447,7 @@ async function save(id){
     Object.assign(e,personalFields(result));syncPersonal(id,result);
     toast(result.favorite?'已收藏，其他设备登录后也能看到。':'已取消收藏。');
     if(view==='calendar'&&urlParams().get('saved_only')==='true'){personalQueryDirty=true;if(!detailId)load()}
-    if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){card.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=resultCountText(total,listSnapshot?.excluded);if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
+    if(view==='favorites'&&!result.favorite){const card=$$('[data-event]').find(c=>c.dataset.event===id);if(card){const group=card.closest('.date-group');card.remove();if(group&&!group.querySelector('.event-card'))group.remove();offset=Math.max(0,offset-1);total=Math.max(0,total-1);$('#result-count').textContent=resultCountText(total,listSnapshot?.excluded);if(!$('#event-list').children.length){if(total)await load();else $('#event-list').innerHTML=emptyState()}}}
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}finally{saving.delete(id);if(authenticated&&epoch===authEpoch){paintFavorite(id);paintFeedback(id)}}
 }
 function validateDateInputs(){
