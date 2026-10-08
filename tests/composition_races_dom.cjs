@@ -323,3 +323,25 @@ test('failed next-detail request keeps the current detail and next target',async
   assert.equal(retry.path,'/events/api/event/1');
  }finally{await r.close()}
 });
+
+test('collapsed unapplied filter draft does not disable applied-list pagination',async()=>{
+ const r=await fixture({query:'?view=all&q=applied',pageSize:2});
+ try{
+  r.$('#open-filters').click();
+  r.$('#search').value='unapplied draft';
+  r.$('#search').dispatchEvent(new r.w.Event('input',{bubbles:true}));
+  r.$('#open-filters').click();
+  assert.equal(r.$('#filter-dialog').hidden,true);
+  const before=r.calls.length;
+  r.$('#more').click();await r.settle();
+  const calls=r.calls.slice(before).filter(c=>c.path.endsWith('/events'));
+  assert.equal(calls.length,1,'visible load-more must request the applied next page');
+  const params=new URLSearchParams(calls[0].search);
+  assert.equal(params.get('q'),'applied');
+  assert.equal(params.get('offset'),'2');
+  assert.equal(r.w.document.querySelectorAll('.event-card').length,4);
+  assert.equal(r.$('#search').value,'unapplied draft');
+  r.$('#open-filters').click();
+  assert.equal(r.$('#search').value,'unapplied draft');
+ }finally{await r.close()}
+});
