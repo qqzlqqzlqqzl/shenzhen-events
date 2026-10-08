@@ -301,3 +301,25 @@ test('a late viewed write does not reload the current data-source view',async()=
   assert.equal(r.$('#detail').open,false);
  }finally{await r.close()}
 });
+
+test('failed next-detail request keeps the current detail and next target',async()=>{
+ const r=await fixture();
+ try{
+  await r.w.probe.openDetail('0');
+  const url=r.w.location.href,title=r.$('#detail-title').textContent;
+  const held=r.holdNextEvent();
+  r.$('[data-detail-step="1"]').click();
+  await until(()=>held.pending,'next detail held');
+  held.fail();
+  await until(()=>r.$('#toast').textContent.includes('synthetic older point read failed'),'failure surfaced');
+  const failedURL=r.w.location.href;
+  assert.equal(r.$('#detail').open,true);
+  assert.equal(r.$('#detail-title').textContent,title);
+  const n=r.calls.length;
+  r.$('[data-detail-step="1"]').click();
+  await until(()=>r.calls.slice(n).some(c=>c.path.includes('/event/')),'retry issued');
+  const retry=r.calls.slice(n).find(c=>c.path.includes('/event/'));
+  assert.equal(failedURL,url);
+  assert.equal(retry.path,'/events/api/event/1');
+ }finally{await r.close()}
+});
