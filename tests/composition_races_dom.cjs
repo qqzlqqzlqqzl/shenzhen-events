@@ -345,3 +345,50 @@ test('collapsed unapplied filter draft does not disable applied-list pagination'
   assert.equal(r.$('#search').value,'unapplied draft');
  }finally{await r.close()}
 });
+
+for(const failFirstStats of [false,true]){
+ test('cold facet filters survive '+(failFirstStats?'one stats 503 and recovery':'successful stats')+' without widening',async()=>{
+  const query='?view=all&districts='+encodeURIComponent('南山')+'&type=ConferenceEvent&topic='+encodeURIComponent('科技')+'&from=2026-10-01&until=2026-10-31';
+  const r=await fixture({signedIn:false,query});let statsReads=0;
+  try{
+   const originalFetch=r.w.fetch;
+   r.w.fetch=async(url,options={})=>{
+    const response=await originalFetch(url,options);
+    if(!new r.w.URL(url,r.w.location.href).pathname.endsWith('/stats'))return response;
+    if(++statsReads===1&&failFirstStats)return {ok:false,status:503,json:async()=>({detail:'synthetic stats unavailable'})};
+    const data=await response.json();
+    data.event_types.push({value:'MusicEvent',label:'音乐'});
+    data.topics.push({value:'文化艺术',label:'文化艺术'});
+    return {...response,json:async()=>data};
+   };
+   const assertScope=()=>{
+    const read=r.calls.filter(c=>c.path.endsWith('/events')).at(-1);
+    assert.ok(read,'the applied filtered list must be requested');
+    const request=new URLSearchParams(read.search),saved=new URLSearchParams(JSON.parse(r.w.localStorage.getItem('radar.filters.v1:alice')).query);
+    for(const p of [request,saved]){
+     assert.deepEqual(p.getAll('districts'),['南山']);
+     assert.deepEqual(p.getAll('type'),['ConferenceEvent']);
+     assert.deepEqual(p.getAll('topic'),['科技']);
+    }
+    assert.equal(request.get('start'),'2026-10-01');assert.equal(request.get('end'),'2026-11-01');
+   };
+   r.state.signedIn=true;await r.w.probe.enter({username:'alice'});assertScope();
+   if(failFirstStats){
+    assert.equal(r.$('#district-options input'),null);
+    r.$('#open-filters').click();r.$('#reset-filter-draft').click();
+    r.$('#refresh-data').click();
+    await until(()=>!!r.$('#type-options input[value="MusicEvent"]'),'facet metadata recovered');
+    r.$('#cancel-filter-draft').click();
+    await r.w.probe.load();assertScope();assert.equal(statsReads,2);
+   }else assert.equal(statsReads,1);
+   for(const [kind,value] of [['district','南山'],['type','ConferenceEvent'],['topic','科技']]){
+    const selected=[...r.w.document.querySelectorAll('#'+kind+'-options input:checked')].map(x=>x.value);
+    assert.deepEqual(selected,[value]);
+   }
+   r.$('#open-filters').click();r.$('#free').checked=true;r.$('#apply-filter-draft').click();await r.settle();assertScope();
+   r.$('#open-filters').click();r.$('#reset-filter-draft').click();r.$('#apply-filter-draft').click();await r.settle();
+   const cleared=new URLSearchParams(r.calls.filter(c=>c.path.endsWith('/events')).at(-1).search);
+   for(const key of ['districts','district_none','type','type_none','topic','topic_none','start','end'])assert.equal(cleared.has(key),false,'explicit clear removes '+key);
+  }finally{await r.close()}
+ });
+}

@@ -64,12 +64,14 @@ let appliedDates={from:'',until:''},appliedFilterQuery=null,dateLoadError='',dat
 let undoFeedback=null,personalQueryDirty=false;
 const records=new Map(),inflight=new Set(),saving=new Set(),feedbackSaving=new Set();
 const facetCatalog={type:new Map(),topic:new Map(),district:new Map()};
+let restoredFacetFilters={};
+function restoredFacetChecked(kind,value){const saved=restoredFacetFilters[kind],values=saved?.values||[];return !saved?.none&&(!values.length||values.includes(value))}
 function checkedFacet(kind){return $$(`#${kind}-options input[type="checkbox"]:checked`).map(x=>x.value)}
 function updateFacetSummary(kind){const n=checkedFacet(kind).length,total=$$(`#${kind}-options input[type="checkbox"]`).length,unit={type:'类',topic:'个主题',district:'区'}[kind];$(`#${kind}-summary`).textContent=n===total?'全部':!n?'未选择':n>total/2?`未选 ${total-n} ${unit}`:`已选 ${n} ${unit}`}
 function renderFacetOptions(kind,items,pending=0){
   const box=$(`#${kind}-options`),hadOptions=!!box.querySelector('input'),selected=new Set(checkedFacet(kind)),wasAll=hadOptions&&selected.size===box.querySelectorAll('input').length;facetCatalog[kind]=new Map((items||[]).map(x=>[x.value,x.label]));box.replaceChildren();
   if(kind==='type'&&pending){const note=document.createElement('p');note.className='facet-progress';note.textContent='类型未明确的活动，在选择“全部”时仍会显示。';box.append(note)}
-  for(const item of items||[]){const label=document.createElement('label');label.className='facet-option';const input=document.createElement('input');input.type='checkbox';input.value=item.value;input.checked=!hadOptions||wasAll||selected.has(item.value);input.setAttribute('aria-label',item.label);const text=document.createElement('span');text.textContent=item.label;label.append(input,text);if(kind!=='district'){const count=document.createElement('small');count.dataset.facetCount='';count.textContent='—';count.title='数量按其他已应用筛选条件统计；—表示当前统计尚未取得。';label.append(count)}box.append(label)}
+  for(const item of items||[]){const label=document.createElement('label');label.className='facet-option';const input=document.createElement('input');input.type='checkbox';input.value=item.value;input.checked=!hadOptions?restoredFacetChecked(kind,item.value):wasAll||selected.has(item.value);input.setAttribute('aria-label',item.label);const text=document.createElement('span');text.textContent=item.label;label.append(input,text);if(kind!=='district'){const count=document.createElement('small');count.dataset.facetCount='';count.textContent='—';count.title='数量按其他已应用筛选条件统计；—表示当前统计尚未取得。';label.append(count)}box.append(label)}
   if(!(items||[]).length){const empty=document.createElement('p');empty.className='facet-empty';empty.textContent='暂无可用选项。';box.append(empty)}
   for(const label of box.querySelectorAll('.facet-option')){const input=label.querySelector('input');const only=document.createElement('button');only.type='button';only.className='quiet facet-only';only.dataset.facetOnly=kind;only.dataset.facetValue=input.value;only.textContent='仅选';only.setAttribute('aria-label','仅选'+input.getAttribute('aria-label'));label.append(only)}
   updateFacetSummary(kind);
@@ -132,7 +134,7 @@ async function api(path,options={}) {
 function showLogin(message='') {
   // Invalidate session callbacks before closing dialogs or restoring any focus.
   authenticated=false;authEpoch++;
-  resetStatusRecovery();safetyEpoch=null;personalReadRevision++;personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;sequence++;detailTicket++;statusTicket++;busy=false;
+  resetStatusRecovery();safetyEpoch=null;personalReadRevision++;personalQueryDirty=false;listSnapshot=null;calendarSnapshot=null;renderExcluded(null);updateFacetCounts(null);$('#network-banner').hidden=true;if(filterDraft)finishFilterDraft(false);restoredFacetFilters={};RadarEventWorkflows.clear();undoFeedback=null;$('#undo-bar').hidden=true;sequence++;detailTicket++;statusTicket++;busy=false;
   clearTimeout(debounce);for(const c of inflight)c.abort();inflight.clear();controller?.abort();
   closeDetail(false);records.clear();saving.clear();feedbackSaving.clear();calendar?.destroy();calendar=null;calendarRange=null;
   for(const s of ['#event-list','#status-panel','#calendar','#calendar-long','#detail-body'])$(s).replaceChildren();
@@ -182,6 +184,7 @@ function readURL() {
   const selectedTypes=new Set(p.getAll('type')),selectedTopics=new Set(p.getAll('topic').map(topicAlias));const legacy=p.get('tag');if(legacy)selectedTopics.add(topicAlias(legacy));
   $$('#type-options input[type="checkbox"]').forEach(x=>x.checked=p.get('type_none')!=='true'&&(!selectedTypes.size||selectedTypes.has(x.value)));$$('#topic-options input[type="checkbox"]').forEach(x=>x.checked=p.get('topic_none')!=='true'&&(!selectedTopics.size||selectedTopics.has(x.value)));updateFacetSummary('type');updateFacetSummary('topic');
   const districts=new Set([...p.getAll('districts'),...p.getAll('district')].filter(Boolean));
+  restoredFacetFilters={type:{none:p.get('type_none')==='true',values:[...selectedTypes]},topic:{none:p.get('topic_none')==='true',values:[...selectedTopics]},district:{none:p.get('district_none')==='true',values:[...districts]}};
   $$('#district-options input[type="checkbox"]').forEach(x=>x.checked=p.get('district_none')!=='true'&&(!districts.size||districts.has(x.value)));updateFacetSummary('district');
   $('#calendar-saved-only').checked=p.get('saved_only')==='true';
   const month=p.get('month')||'';calendarDate=/^\d{4}-\d{2}-\d{2}$/.test(month)&&Number.isFinite(Date.parse(month))?month:RadarUI.dayKey(new Date());
@@ -190,7 +193,11 @@ function readURL() {
 function draftParams() {
   const p=new URLSearchParams();if(view!=='discover')p.set('view',view);
   for(const [k,id] of [['q','search']]){const v=$('#'+id).value.trim();if(v)p.set(k,v)}
-  for(const kind of ['type','topic','district']){const selected=checkedFacet(kind),total=$$(`#${kind}-options input`).length;if(total&&!selected.length)p.set(kind+'_none','true');else if(selected.length<total)for(const v of selected)p.append(kind==='district'?'districts':kind,v)}
+  for(const kind of ['type','topic','district']){
+    const selected=checkedFacet(kind),total=$$(`#${kind}-options input`).length,key=kind==='district'?'districts':kind;
+    if(!total){const restored=restoredFacetFilters[kind];if(restored?.none)p.set(kind+'_none','true');else for(const value of restored?.values||[])p.append(key,value)}
+    else if(!selected.length)p.set(kind+'_none','true');else if(selected.length<total)for(const value of selected)p.append(key,value);
+  }
   for(const [key,id] of [['feedback','feedback-filter'],['feedback_tag','feedback-tag-filter'],['viewed','viewed-filter']]){const v=$('#'+id).value;if(v&&v!=='all')p.set(key,v)}
   if($('#calendar-saved-only').checked)p.set('saved_only','true');
   if(appliedDates.from)p.set('from',appliedDates.from);if(appliedDates.until)p.set('until',appliedDates.until);
@@ -215,7 +222,7 @@ function writeURL(mode='push',event=null) {
   const p=urlParams();if(event)p.set('event',event);const u=location.pathname+(p.size?'?'+p:'');
   if(u!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({radar:true,radarModal:!!event&&mode==='push'},'',u);generatedFilterURL=location.pathname+location.search;
 }
-function clearFilters(){clearTimeout(debounce);dateLoadError='';$('#calendar-saved-only').checked=false;$('#date-from').value='';$('#date-until').value='';$('#date-error').textContent='';$('#feedback-filter').value='';$('#feedback-tag-filter').value='';$('#viewed-filter').value='all';$('#attendance').value='all';$('#search').value='';$$('#type-options input,#topic-options input,#district-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');updateFacetSummary('district');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc';syncFilterControls()}
+function clearFilters(){restoredFacetFilters={};clearTimeout(debounce);dateLoadError='';$('#calendar-saved-only').checked=false;$('#date-from').value='';$('#date-until').value='';$('#date-error').textContent='';$('#feedback-filter').value='';$('#feedback-tag-filter').value='';$('#viewed-filter').value='all';$('#attendance').value='all';$('#search').value='';$$('#type-options input,#topic-options input,#district-options input').forEach(x=>x.checked=true);updateFacetSummary('type');updateFacetSummary('topic');updateFacetSummary('district');$('#free').checked=false;$('#hide-long').checked=true;$('#sort').value='asc';syncFilterControls()}
 async function enter(user={}) {
   restoreCalendarDisclosure(user);
   const owner=typeof user.username==='string'&&user.username?user.username:null;
@@ -478,7 +485,7 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('button,[data-open]');if(!b||b.disabled)return;
   if(filterDraft&&b.matches('[data-filter-remove],[data-facet-remove],[data-facet-reset]'))finishFilterDraft(false,false);
   if(b.dataset.displayMode){setDisplayMode(b.dataset.displayMode);return}
-  if(b.dataset.facetReset){const kind=b.dataset.facetReset;$$('#'+kind+'-options input').forEach(x=>x.checked=true);updateFacetSummary(kind);applyFilters();return}
+  if(b.dataset.facetReset){const kind=b.dataset.facetReset;restoredFacetFilters={...restoredFacetFilters,[kind]:{none:false,values:[]}};$$('#'+kind+'-options input').forEach(x=>x.checked=true);updateFacetSummary(kind);applyFilters();return}
   if(b.dataset.filterRemove){
     const key=b.dataset.filterRemove;if(key==='dates'){$('#clear-dates').click();return}
     if(key==='long')$('#hide-long').checked=!$('#hide-long').checked;
@@ -488,7 +495,7 @@ document.addEventListener('click',e=>{
   }
   if(b.hasAttribute('data-calendar-long-toggle')){calendarLongExpanded=!calendarLongExpanded;paintCalendarDisclosure();try{localStorage.setItem(calendarLongStorageKey,calendarLongExpanded?'expanded':'collapsed')}catch{}return}
   if(b.dataset.facetOnly){e.preventDefault();const kind=b.dataset.facetOnly;$$(`#${kind}-options input`).forEach(x=>x.checked=x.value===b.dataset.facetValue);updateFacetSummary(kind);applyFilters();return}
-  if(b.dataset.facetAction){const kind=b.dataset.facetKind;$$(`#${kind}-options input`).forEach(x=>x.checked=b.dataset.facetAction==='all'?true:b.dataset.facetAction==='none'?false:!x.checked);updateFacetSummary(kind);applyFilters();return}
+  if(b.dataset.facetAction){const kind=b.dataset.facetKind,inputs=$$(`#${kind}-options input`);if(!inputs.length){if(b.dataset.facetAction==='invert'){toast('筛选选项尚未加载，请刷新后再反选。');return}restoredFacetFilters={...restoredFacetFilters,[kind]:{none:b.dataset.facetAction==='none',values:[]}}}inputs.forEach(x=>x.checked=b.dataset.facetAction==='all'?true:b.dataset.facetAction==='none'?false:!x.checked);updateFacetSummary(kind);applyFilters();return}
   if(b.dataset.facetRemove){const kind=b.dataset.facetRemove,value=b.dataset.facetValue;$$(`#${kind}-options input[type="checkbox"]`).forEach(x=>{if(x.value===value)x.checked=b.dataset.facetExcluded==='true'});updateFacetSummary(kind);applyFilters();return}
   if(b.dataset.compare){RadarEventWorkflows.toggle(b.dataset.compare);return}
   if(b.dataset.retrySource){retrySource(b.dataset.retrySource,b);return}
@@ -542,14 +549,15 @@ function beginFilterDraft(){
   if(!filterDraft){
     clearTimeout(debounce);
     filterDraft=$$('#search,#filter-panel input,#filter-panel select,#calendar-saved-only').map(el=>({el,value:el.value,checked:el.checked}));
-    filterDraft.dateLoadError=dateLoadError;
+    filterDraft.dateLoadError=dateLoadError;filterDraft.restoredFacetFilters=restoredFacetFilters;
+    filterDraft.missingFacets=['type','topic','district'].filter(kind=>!$(`#${kind}-options input`));
   }
   syncFilterControls();setFilterPanelOpen(true);
 }
 function finishFilterDraft(apply,focus=true){
   if(!filterDraft)return;clearTimeout(debounce);
   if(apply){if(!validateDateInputs())return}
-  else{for(const snapshot of filterDraft){snapshot.el.value=snapshot.value;if(snapshot.checked!==undefined)snapshot.el.checked=snapshot.checked}dateLoadError=filterDraft.dateLoadError}
+  else{for(const snapshot of filterDraft){snapshot.el.value=snapshot.value;if(snapshot.checked!==undefined)snapshot.el.checked=snapshot.checked}dateLoadError=filterDraft.dateLoadError;restoredFacetFilters=filterDraft.restoredFacetFilters;for(const kind of filterDraft.missingFacets)for(const input of $$(`#${kind}-options input`))input.checked=restoredFacetChecked(kind,input.value)}
   filterDraft=null;setFilterPanelOpen(false);
   for(const kind of ['type','topic','district'])updateFacetSummary(kind);
   if(authenticated&&focus)$('#open-filters').focus({preventScroll:true});syncFilterControls();
