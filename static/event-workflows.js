@@ -64,7 +64,22 @@ globalThis.RadarEventWorkflows=(()=>{
   for(const [delta,label] of [[-1,'上一条'],[1,'下一条']]){const b=node('button',label);b.type='button';b.dataset.detailStep=String(delta);b.disabled=index<0||index+delta<0||index+delta>=detailOrder.length;b.onclick=()=>{if(authenticated&&epoch===authEpoch)step(delta)};nav.append(b);if(delta===-1)nav.append(node('span',index>=0?`${index+1} / ${detailOrder.length} · 当前已加载结果`:'单条活动'))}
   title.before(nav);
  }
- async function step(delta){if(!authenticated)return;const epoch=authEpoch,index=detailOrder.indexOf(detailId),id=detailOrder[index+delta];if(!id)return;const had=history.state?.radarModal,pending=openDetail(id,false),ticket=detailTicket;await pending;if(!authenticated||epoch!==authEpoch||ticket!==detailTicket||detailId!==id)return;writeURL('replace',id);history.replaceState({...history.state,radarModal:!!had},'',location.href);opener=returnElement;document.querySelector('#detail').scrollTop=0;}
+ async function step(delta){
+  if(!authenticated)return;
+  const epoch=authEpoch,previousId=detailId,index=detailOrder.indexOf(previousId),id=detailOrder[index+delta];if(!id)return;
+  const dialog=document.querySelector('#detail'),previousTitle=document.querySelector('#detail-title');
+  const previousURL=location.href,previousHistory=history.state,had=previousHistory?.radarModal;
+  const pending=openDetail(id,false),ticket=detailTicket;await pending;
+  if(!authenticated||epoch!==authEpoch||ticket!==detailTicket)return;
+  if(detailId!==id){
+   // Keep the still-visible prior detail; do not restore its revoked safety state.
+   if(detailId===null&&previousId!=null&&dialog.open&&previousTitle&&document.querySelector('#detail-title')===previousTitle){
+    detailId=previousId;history.replaceState(previousHistory,'',previousURL);
+   }
+   return;
+  }
+  writeURL('replace',id);history.replaceState({...history.state,radarModal:!!had},'',location.href);opener=returnElement;dialog.scrollTop=0;
+ }
  function restoreFocus(){if(authenticated&&returnElement?.isConnected){returnElement.focus({preventScroll:true});returnElement=null}}
  async function copyText(value,label,epoch){if(!authenticated||epoch!==authEpoch)return;if(!value){toast('没有可复制的公开链接。');return}try{await navigator.clipboard.writeText(value);if(!authenticated||epoch!==authEpoch)return;toast(label+'已复制；未包含私人日历订阅链接。')}catch{if(!authenticated||epoch!==authEpoch)return;const box=document.querySelector('#copy-text');box.value=value;document.querySelector('#copy-dialog').showModal();box.focus();box.select()}}
  async function unplanned(){if(!authenticated)return;const epoch=authEpoch;try{const result=await api('calendar-summary');if(!authenticated||epoch!==authEpoch||view!=='calendar')return;const unknown=Number(result.unscheduled)||0,long=Number(result.long_running)||0;const box=document.querySelector('#calendar-unscheduled');box.replaceChildren();box.hidden=!(unknown||long);if(unknown||long){const scope=node('span','全部收藏的补充提示（不随当前筛选变化）：');box.append(scope)}if(unknown){const b=node('button',`${unknown} 项收藏尚不能排入日历 · 查看收藏`);b.onclick=()=>{if(authenticated&&epoch===authEpoch)navigate('favorites',true)};box.append(b)}if(long){const b=node('button',`${long} 项长期收藏 · 显示长期活动`);b.onclick=()=>{if(!authenticated||epoch!==authEpoch)return;document.querySelector('#hide-long').checked=false;applyFilters()};box.append(b)}}catch{if(authenticated&&epoch===authEpoch&&view==='calendar'){const box=document.querySelector('#calendar-unscheduled');box.hidden=false;box.textContent='收藏日程提示暂不可用；仍可打开“我的收藏”。'}}}
