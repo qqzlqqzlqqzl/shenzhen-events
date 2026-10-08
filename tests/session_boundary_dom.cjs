@@ -259,3 +259,28 @@ test('clearing selection during epoch revalidation still retires the whole compa
   assert.equal(r.$('#compare-dialog').open,false);assert.equal(r.$('#compare-body').textContent,'');assert.equal(pointReads,2);
  }finally{r.close()}
 });
+
+for(const phase of ['fetch','json']){
+ test('older next-detail continuation cannot reset reopened same-ID detail: '+phase,async()=>{
+  const r=await ready();try{
+   await r.w.probe.openDetail('0');
+   const held=holdResponse(r,url=>url.includes('/event/1'),phase);
+   r.$('[data-detail-step="1"]').click();await held.started;held.restore();
+   r.w.probe.closeDetail(false);await r.w.probe.openDetail('1');
+   r.w.history.replaceState({radar:true,radarModal:false,marker:'reopened'},'',r.w.location.href);
+   r.$('#detail').scrollTop=57;const focused=r.w.document.activeElement,query=r.w.location.search,state={...r.w.history.state};
+   held.release();await wait();await wait();
+   assert.equal(r.w.document.activeElement,focused);assert.equal(r.w.location.search,query);
+   assert.deepEqual({...r.w.history.state},state);assert.equal(r.$('#detail').scrollTop,57);
+  }finally{r.close()}
+ });
+}
+test('current next-detail continuation preserves modal history and resets its own scroll',async()=>{
+ const r=await ready();try{
+  await r.w.probe.openDetail('0');r.$('#detail').scrollTop=57;
+  r.$('[data-detail-step="1"]').click();await wait();await wait();
+  assert.equal(r.$('#detail-title').textContent,'A selected event 1');
+  assert.equal(new URL(r.w.location.href).searchParams.get('event'),'1');
+  assert.equal(r.w.history.state.radarModal,true);assert.equal(r.$('#detail').scrollTop,0);
+ }finally{r.close()}
+});
