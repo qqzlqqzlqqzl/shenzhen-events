@@ -262,7 +262,7 @@ function showView(){
 }
 function emptyState(){const p=urlParams(),filtered=['feedback','feedback_tag','viewed','from','q','attendance','free','type','topic','districts','type_none','topic_none','district_none'].some(key=>p.has(key));return `<div class="empty"><b>${filtered?'当前筛选条件下没有活动':view==='favorites'?'还没有收藏活动':'这里暂时没有活动'}</b><p>${filtered?'试试重置筛选；其他收藏或活动不会被删除。':view==='favorites'?'点击活动卡片的星号即可收藏，过期后仍会保留。':'可以查看其他日期，或去全部活动探索。'}</p><button class="secondary" data-action="${filtered?'reset':'browse-all'}">${filtered?'重置筛选':'查看全部活动 →'}</button></div>`}
 async function load(append=false){
-  if(!authenticated||filterDraft||(append&&busy))return;personalQueryDirty=false;const seq=++sequence,personalRevision=personalReadRevision;controller?.abort();controller=new AbortController();busy=true;showView();
+  if(!authenticated||(filterDraft&&!append)||(append&&busy))return;personalQueryDirty=false;const seq=++sequence,personalRevision=personalReadRevision;controller?.abort();controller=new AbortController();busy=true;showView();
   invalidatePlanning();let requestKey,keep=false;
   try{
   // Validate raw restored values before input[type=date] can normalize them away.
