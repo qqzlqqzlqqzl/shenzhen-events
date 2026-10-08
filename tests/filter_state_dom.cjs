@@ -218,3 +218,49 @@ test('unsupported Gregorian and exclusive-end years fail before persistence and 
  }finally{r.close()}}
  const r=await ready('?view=all&from=9999-12-30&until=9999-12-30');try{assert.equal(r.calls.at(-1).get('start'),'9999-12-30');assert.equal(r.calls.at(-1).get('end'),'9999-12-31')}finally{r.close()}
 });
+
+
+// A valid named view is intentional navigation even if a draft is folded.
+test('valid saved view retires visible or folded unapplied drafts and renders its results',async()=>{
+ for(const folded of [false,true]){
+  const profiles=[{name:'十一月',query:'view=all&from=2026-11-01&until=2026-11-30'}];
+  const r=await ready('?view=all&'+applied,null,profiles);
+  try{
+   const n=r.calls.length;
+   r.$('#open-filters').click();r.$('#search').value='未应用草稿';
+   r.$('#search').dispatchEvent(new r.w.Event('input',{bubbles:true}));
+   if(folded)r.$('#open-filters').click();
+   assert.equal(r.calls.length,n);
+   r.$('#saved-view-choice').value='0';r.$('#apply-saved-view').click();await wait();await wait();
+   assert.equal(r.calls.length,n+1,'saved view must issue its November request');
+   assert.equal(r.calls.at(-1).get('start'),'2026-11-01');
+   assert.equal(r.calls.at(-1).get('end'),'2026-12-01');
+   assert.equal(r.calls.at(-1).has('q'),false);
+   assert.equal(r.$('.title-button').textContent,'收藏 2026-11-05');
+   assert.equal(r.$('#filter-dialog').hidden,true);
+   assert.equal(r.$('#open-filters').classList.contains('has-draft'),false);
+   await r.w.probe.load();await wait();
+   assert.equal(r.calls.length,n+2,'retired draft cannot block later reloads');
+  }finally{r.close()}
+ }
+});
+test('invalid saved view retains visible or folded draft without query or history changes',async()=>{
+ for(const folded of [false,true]){
+  const profiles=[{name:'坏日期',query:'view=all&from=2026-11-01'}];
+  const r=await ready('?view=all&'+applied,null,profiles);
+  try{
+   const url=r.w.location.href,n=r.calls.length,stored=saved(r);
+   r.$('#open-filters').click();r.$('#search').value='保留草稿';
+   r.$('#search').dispatchEvent(new r.w.Event('input',{bubbles:true}));
+   if(folded)r.$('#open-filters').click();
+   r.$('#saved-view-choice').value='0';r.$('#apply-saved-view').click();await wait();
+   assert.equal(r.w.location.href,url);assert.equal(r.calls.length,n);assert.equal(saved(r),stored);
+   assert.equal(r.$('#search').value,'保留草稿');
+   assert.equal(r.$('#filter-dialog').hidden,folded);
+   assert.equal(r.$('#open-filters').classList.contains('has-draft'),true);
+   assert.ok(r.$('#toast').textContent.includes('日期'));
+   r.$('#apply-filter-draft').click();await wait();
+   assert.equal(r.calls.length,n+1);assert.equal(r.calls.at(-1).get('q'),'保留草稿');
+  }finally{r.close()}
+ }
+});
