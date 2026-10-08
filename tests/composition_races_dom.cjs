@@ -30,7 +30,7 @@ async function fixture({signedIn=true,query='?view=all',pageSize=0}={}){
   if(p.endsWith('/events')){
    const all=[...rows.values()],offset=Number(u.searchParams.get('offset')||0),items=pageSize?all.slice(offset,offset+pageSize):all;
    const data={items,total:all.length,has_more:!!pageSize&&offset+items.length<all.length,facets:{},excluded_long:{items:[],total:0}};
-   if(state.deferPage){const pending=state.deferPage({offset,data});if(pending)return await pending;}
+   if(state.deferPage){const pending=state.deferPage({offset,data,signal:options.signal});if(pending)return await pending;}
    return reply(data);
   }
   if(p.includes('/event/')){const id=p.split('/').at(-1),data=clone(rows.get(id));if(state.deferEvent){const pending=state.deferEvent({id,data});if(pending)return await pending;}return reply(data);}
@@ -42,7 +42,7 @@ async function fixture({signedIn=true,query='?view=all',pageSize=0}={}){
   }
   throw Error('Unexpected fixture request: '+p);
  };
- w.eval(scripts+'\n;window.probe={api,enter,load,showLogin,openDetail,closeDetail,restoreNavigation,loadStatus,updateFeedback,setFeedbackSignal,get authenticated(){return authenticated},get busy(){return busy},get undo(){return undoFeedback},get records(){return records},get feedbackSaving(){return feedbackSaving}};');
+ w.eval(scripts+'\n;window.probe={api,enter,load,showLogin,openDetail,closeDetail,restoreNavigation,loadStatus,updateFeedback,setFeedbackSignal,recordView,get authenticated(){return authenticated},get busy(){return busy},get undo(){return undoFeedback},get records(){return records},get feedbackSaving(){return feedbackSaving}};');
  try {
   if(signedIn)await until(()=>w.probe.authenticated&&!w.probe.busy&&(query.includes('view=status')?!!$('[data-source="current"]'):w.probe.records.size===(pageSize?Math.min(pageSize,rows.size):rows.size)),'signed-in view');
   else await until(()=>!$('#login-panel').hidden,'login form');
@@ -50,11 +50,68 @@ async function fixture({signedIn=true,query='?view=all',pageSize=0}={}){
  const choose=(n=2)=>{for(let i=0;i<n;i++)$('[data-compare="'+i+'"]').click()};
  const mutate=async(id='0',signal='interested')=>{await w.probe.openDetail(id);$('[data-feedback-signal="'+signal+'"]').click();await until(()=>!w.probe.feedbackSaving.size&&!!w.probe.undo,'feedback settlement')};
  return {w,$,errors,calls,state,rows,choose,mutate,holdNextPage(){
-  let release,reject,offset;
-  state.deferPage=page=>{state.deferPage=null;offset=page.offset;return new Promise((resolve,fail)=>{release=()=>resolve(reply(page.data));reject=fail})};
-  return {get pending(){return !!release},get offset(){return offset},release(){release()},fail(){reject(new Error('synthetic page failure'))}};
+  let release,reject,offset,signal;
+  state.deferPage=page=>{state.deferPage=null;offset=page.offset;signal=page.signal;return new Promise((resolve,fail)=>{release=()=>resolve(reply(page.data));reject=fail})};
+  return {get pending(){return !!release},get offset(){return offset},get aborted(){return signal?.aborted},release(){release()},fail(){reject(new Error('synthetic page failure'))},abort(){reject(new w.DOMException('Aborted obsolete request','AbortError'))}};
  },holdNextEvent(){let release,reject;state.deferEvent=({id,data})=>{state.deferEvent=null;return new Promise((resolve,fail)=>{release=()=>resolve(reply(data));reject=fail})};return {get pending(){return !!release},release(){release()},fail(){reject(new Error('synthetic older point read failed'))}}},async settle(){await until(()=>!w.probe.busy&&!w.probe.feedbackSaving.size,'idle');await sleep(15)},async close(){w.probe.showLogin();await sleep(15);assert.deepEqual(errors,[]);dom.window.close()}};
 }
+for(const outcome of ['abort','success']){
+ test('obsolete restore cannot reopen event details after status navigation: '+outcome,async()=>{
+  const r=await fixture();try{
+   const held=r.holdNextPage(),before=r.calls.length;
+   r.w.history.replaceState({},'','/events/?view=all&q=older&event=0');
+   r.w.probe.restoreNavigation();await until(()=>held.pending,'restored list held');
+   r.$('#manage-sources').click();await until(()=>!!r.$('[data-source="current"]'),'new status view');
+   assert.equal(held.aborted,true,'new navigation actually cancels the old transport');
+   if(outcome==='abort')held.abort();else held.release();await r.settle();
+   assert.equal(new URL(r.w.location.href).searchParams.get('view'),'status');
+   assert.equal(new URL(r.w.location.href).searchParams.has('event'),false);
+   assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/event/0')).length,0);
+   assert.equal(r.$('#detail').open,false);
+  }finally{await r.close()}
+ });
+}
+test('current restore opens its event after the matching list settles',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextPage();r.w.history.replaceState({},'','/events/?view=all&q=current&event=0');
+  r.w.probe.restoreNavigation();await until(()=>held.pending,'current restored list held');
+  held.release();await until(()=>r.$('#detail').open,'current restored detail opened');
+  assert.equal(new URL(r.w.location.href).searchParams.get('event'),'0');
+  assert.equal(r.calls.filter(c=>c.path.endsWith('/event/0')).length,1);
+ }finally{await r.close()}
+});
+test('current restore survives a legitimate list re-read after a personal revision',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextPage(),before=r.calls.length;
+  r.w.history.replaceState({},'','/events/?view=all&q=current&event=0');
+  r.w.probe.restoreNavigation();await until(()=>held.pending,'restore before personal revision');
+  await r.w.probe.recordView('1');held.release();await until(()=>r.$('#detail').open,'restored detail after list re-read');
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/events')).length,2);
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/event/0')).length,1);
+ }finally{await r.close()}
+});
+test('same-URL history restoration supersedes its pending predecessor',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextPage(),before=r.calls.length;
+  r.w.history.replaceState({},'','/events/?view=all&q=same-url&event=0');
+  r.w.probe.restoreNavigation();await until(()=>held.pending,'same-URL old restoration held');
+  r.w.probe.restoreNavigation();await until(()=>r.$('#detail').open,'same-URL newer detail opened');
+  held.release();await r.settle();
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/event/0')).length,1);
+  assert.equal(new URL(r.w.location.href).searchParams.get('event'),'0');
+ }finally{await r.close()}
+});
+test('a newer detail retires a pending history restore even in the same list view',async()=>{
+ const r=await fixture();try{
+  const held=r.holdNextPage(),before=r.calls.length;
+  r.w.history.replaceState({},'','/events/?view=all&q=older&event=0');
+  r.w.probe.restoreNavigation();await until(()=>held.pending,'older detail restore held');
+  await r.w.probe.openDetail('1');held.release();await r.settle();
+  assert.equal(new URL(r.w.location.href).searchParams.get('event'),'1');
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/event/0')).length,0);
+  assert.equal(r.$('#detail-title').textContent,r.rows.get('1').title);
+ }finally{await r.close()}
+});
 test('older async comparison cannot reopen a dialog after a newer comparison was closed',async()=>{
  const r=await fixture();try{
   r.choose();const held=r.holdNextEvent();r.$('#compare-open').click();await until(()=>held.pending,'first comparison read held');
