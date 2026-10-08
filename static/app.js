@@ -459,7 +459,17 @@ function commitDateInputs(){appliedDates={from:$('#date-from').value,until:$('#d
 function navigate(next,reset=false){if(filterDraft)finishFilterDraft(false);clearTimeout(debounce);if(reset){clearFilters();dateLoadError=''}if(!validateDateInputs())return;commitDateInputs();closeDetail(false);view=Object.hasOwn(views,next)?next:'discover';writeURL();load()}
 function applyFilters(mode='push'){clearTimeout(debounce);syncFilterControls();if(filterDraft)return;if(!validateDateInputs())return;commitDateInputs();rememberFilters(true);closeDetail(false);writeURL(mode);load()}
 // History entries retain whether the app generated the query, including Back while signed out.
-function restoreNavigation(){generatedFilterURL=history.state?.radar?location.pathname+location.search:null;if(!authenticated)return;if(filterDraft)finishFilterDraft(false);const before=urlParams().toString();closeDetail(false);readURL();rememberFilters();const after=urlParams().toString();const id=new URLSearchParams(location.search).get('event');if(before!==after||personalQueryDirty)load().then(()=>{if(id)openDetail(id,false)});else if(id)openDetail(id,false)}
+function restoreNavigation(){
+ generatedFilterURL=history.state?.radar?location.pathname+location.search:null;if(!authenticated)return;
+ if(filterDraft)finishFilterDraft(false);const before=urlParams().toString();closeDetail(false);readURL();rememberFilters();
+ const after=urlParams().toString(),id=new URLSearchParams(location.search).get('event');
+ if(before!==after||personalQueryDirty){
+  const epoch=authEpoch,ticket=detailTicket,pending=load(),seq=sequence;
+  pending.then(()=>{
+   if(id&&authenticated&&epoch===authEpoch&&seq===sequence&&ticket===detailTicket&&new URLSearchParams(location.search).get('event')===id)openDetail(id,false);
+  });
+ }else if(id)openDetail(id,false);
+}
 addEventListener('popstate',restoreNavigation);
 $('#login-form').onsubmit=async e=>{e.preventDefault();const b=$('#login-submit');if(b.disabled)return;b.disabled=true;b.textContent='正在验证…';$('#login-error').textContent='';try{const user=await api('login',{method:'POST',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});$('#password').value='';await enter(user)}catch(err){if(err.name!=='AbortError')$('#login-error').textContent=err.message}finally{b.disabled=false;b.textContent='打开我的雷达 →'}};
 $('#logout').onclick=async()=>{const b=$('#logout');b.disabled=true;try{await api('logout',{method:'POST'});showLogin()}catch(e){if(e.name!=='AbortError')toast(e.message)}finally{b.disabled=false}};
