@@ -115,7 +115,7 @@ test('same-query refresh keeps favorite controls disabled while save remains pen
 
 test('older stats failure preserves the successful newer stats note',async()=>{
  const r=await ready();try{
-  const a=r.defer('stats'),pa=r.w.probe.stats();const b=r.defer('stats'),pb=r.w.probe.stats();b.ok(stat(7));await pb;assert.match(r.$('#update-note').textContent,/最近更新/);a.fail('old stats failed');await pa;assert.equal(r.$('#count-upcoming').textContent,'7');assert.match(r.$('#update-note').textContent,/最近更新/);assert.doesNotMatch(r.$('#update-note').textContent,/old stats failed/);
+  const a=r.defer('stats'),pa=r.w.probe.stats();const b=r.defer('stats'),pb=r.w.probe.stats();b.ok(stat(7));await pb;const latestNote=r.$('#update-note').textContent;assert.match(latestNote,/2026/);a.fail('old stats failed');await pa;assert.equal(r.$('#count-upcoming').textContent,'7');assert.equal(r.$('#update-note').textContent,latestNote);assert.doesNotMatch(r.$('#update-note').textContent,/old stats failed/);
  }finally{r.close()}
 });
 
@@ -198,5 +198,43 @@ test('PASS: already-inflight old month page two cannot append into a later month
   const first=r.defer('events');r.change('#calendar-month-jump','2026-11');const second=r.defer('events');first.ok({...events([row('November page one')]),has_more:true});await tick();assert.equal(second.request.url.searchParams.get('offset'),'1');
   const dec=r.defer('events');r.change('#calendar-month-jump','2026-12');dec.ok(events([row('December final',{start_at:'2026-12-05T10:00:00+08:00',end_at:'2026-12-05T12:00:00+08:00'})]));await tick();second.ok(events([row('November page two',{id:'two'})]));await tick();
   assert.deepEqual(Array.from(r.w.probe.calendar.getEvents(),x=>x.title),['December final']);assert.equal(r.w.probe.calendarSnapshot.items.length,1);assert.equal(r.$('#calendar-month-jump').value,'2026-12');
+ }finally{r.close()}
+});
+
+for(const late of [false,true]){
+ test('saved-only calendar removes an unsaved event after detail closes: '+(late?'late POST':'completed POST'),async()=>{
+  const r=await ready('?view=calendar&month=2026-10-01&saved_only=true&q=preserve');try{
+   r.model.rows=[row('saved calendar event',{favorite:true,revision:1})];
+   await r.w.probe.loadCalendar({startStr:'2026-10-01',endStr:'2026-11-01'});await tick();
+   assert.equal(r.w.probe.calendar.getEvents().length,1);
+   await r.w.probe.openDetail('one',false);await tick();
+   const pending=late?r.defer(c=>c.path==='preferences/one'):null;
+   const before=r.calls.length,saving=r.w.probe.save('one');
+   if(!late)await saving;
+   r.w.probe.closeDetail();
+   if(late){
+    assert.equal(r.w.probe.calendar.getEvents().length,1,'pending save retains current event');
+    r.model.rows[0].favorite=false;r.model.rows[0].revision=2;
+    pending.ok(row('saved calendar event',{favorite:false,revision:2}));await saving;
+   }
+   await tick();await tick();
+   assert.equal(r.w.probe.calendarSnapshot.items.length,0);
+   assert.equal(r.w.probe.calendar.getEvents().length,0,'calendar must agree with saved-only snapshot');
+   assert.match(r.$('#result-count').textContent,/0 个活动/);
+   assert.equal(r.calls.slice(before).filter(c=>c.path==='events').length,1);
+   assert.equal(new URL(r.w.location.href).searchParams.get('saved_only'),'true');
+   assert.equal(new URL(r.w.location.href).searchParams.get('q'),'preserve');
+  }finally{r.close()}
+ });
+}
+test('ordinary calendar retains an unsaved event without a membership reload',async()=>{
+ const r=await ready('?view=calendar&month=2026-10-01');try{
+  r.model.rows=[row('ordinary event',{favorite:true,revision:1})];
+  await r.w.probe.loadCalendar({startStr:'2026-10-01',endStr:'2026-11-01'});await tick();
+  await r.w.probe.openDetail('one',false);await tick();const before=r.calls.length;
+  await r.w.probe.save('one');r.w.probe.closeDetail();await tick();await tick();
+  assert.equal(r.w.probe.calendar.getEvents().length,1);
+  assert.equal(r.w.probe.calendar.getEventById('one').extendedProps.favorite,false);
+  assert.equal(r.calls.slice(before).filter(c=>c.path==='events').length,0);
  }finally{r.close()}
 });
