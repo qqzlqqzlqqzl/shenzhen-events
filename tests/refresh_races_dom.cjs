@@ -238,3 +238,15 @@ test('ordinary calendar retains an unsaved event without a membership reload',as
   assert.equal(r.calls.slice(before).filter(c=>c.path==='events').length,0);
  }finally{r.close()}
 });
+
+
+test('removing the last saved list row clears its empty date group',async()=>{
+ const r=await ready('?view=favorites');try{
+  r.model.rows=[row('only saved row',{favorite:true,revision:1})];await r.w.probe.load();
+  r.$('[data-display-mode="list"]').click();assert.equal(r.w.document.querySelectorAll('.date-group').length,1);
+  r.$('[data-save]').click();await tick();await tick();
+  assert.equal(r.w.document.querySelectorAll('.date-group').length,0);
+  assert.equal(r.$('.event-card'),null);assert.ok(r.$('#event-list .empty'));
+  assert.match(r.$('#result-count').textContent,/0/);assert.equal(r.model.rows[0].favorite,false);
+ }finally{r.close()}
+});
