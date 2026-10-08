@@ -17,7 +17,7 @@ async function fixture({signedIn=true,query='?view=all',pageSize=0}={}){
  const w=dom.window,$=s=>w.document.querySelector(s);
  w.matchMedia=()=>({matches:false,addEventListener(){}});w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
- const state={signedIn,owner:'alice',deferPreference:null,deferEvent:null,deferPage:null};
+ const state={signedIn,owner:'alice',deferPreference:null,deferEvent:null,deferPage:null,deferView:null};
  const rows=new Map(Array.from({length:pageSize?6:4},(_,i)=>[String(i),{id:String(i),title:'合成长标题候选 '+i+' / '.repeat(25)+' bounded fixture',start_at:'2026-10-10T10:00:00+08:00',end_at:'2026-10-10T12:00:00+08:00',status:'scheduled',favorite:i===0,feedback:'',feedback_tags:[],revision:0,event_type:'ConferenceEvent',event_type_label:'会议',topics:['科技'],attendance:'offline',location:'合成地点',district:'南山',sources:[],url:'https://example.com/'+i}]));
  const reply=(data,status=200)=>({ok:status>=200&&status<300,status,json:async()=>clone(data)});
  w.fetch=async(url,options={})=>{
@@ -28,13 +28,18 @@ async function fixture({signedIn=true,query='?view=all',pageSize=0}={}){
   if(p.endsWith('/stats'))return reply({recommended:rows.size,upcoming:rows.size,weekend:rows.size,districts:['南山'],event_types:[{value:'ConferenceEvent',label:'会议'}],topics:[{value:'科技',label:'科技'}]});
   if(p.endsWith('/status'))return reply({sources:[{id:'current',name:'Synthetic current source',url:'https://example.com/source',status:'ok',retry:null,coverage:{version:1,visible:1,extracted:1,unique:1,shenzhen_candidates:1,admitted:1,stored_events:1}}],candidates:[],runs:[],budget:{calls:0,tokens:0},limits:{daily_calls:1,daily_tokens:1},db_bytes:0,retention_days:45,ics_url:'/events/calendar.ics'});
   if(p.endsWith('/events')){
-   const all=[...rows.values()],offset=Number(u.searchParams.get('offset')||0),items=pageSize?all.slice(offset,offset+pageSize):all;
+   const all=[...rows.values()].filter(x=>u.searchParams.get('viewed')!=='unseen'||!x.viewed_at),offset=Number(u.searchParams.get('offset')||0),items=pageSize?all.slice(offset,offset+pageSize):all;
    const data={items,total:all.length,has_more:!!pageSize&&offset+items.length<all.length,facets:{},excluded_long:{items:[],total:0}};
    if(state.deferPage){const pending=state.deferPage({offset,data,signal:options.signal});if(pending)return await pending;}
    return reply(data);
   }
   if(p.includes('/event/')){const id=p.split('/').at(-1),data=clone(rows.get(id));if(state.deferEvent){const pending=state.deferEvent({id,data});if(pending)return await pending;}return reply(data);}
-  if(p.includes('/viewed/'))return reply({viewed_at:'2026-10-03T10:00:00Z'});
+  if(p.includes('/viewed/')){
+   const id=p.split('/').at(-1),result={viewed_at:'2026-10-03T10:00:00Z'};
+   const respond=()=>{rows.get(id).viewed_at=result.viewed_at;return reply(result)};
+   if(state.deferView){const hold=state.deferView;state.deferView=null;return await new Promise(resolve=>hold(()=>resolve(respond())))}
+   return respond();
+  }
   if(p.includes('/preferences/')){
    const id=p.split('/').at(-1),current=rows.get(id),result={...current,...body,revision:current.revision+1};delete result.expected_revision;
    if(state.deferPreference)return await new Promise(resolve=>state.deferPreference({id,result,resolve:()=>{rows.set(id,result);resolve(reply(result))}}));
@@ -53,6 +58,7 @@ async function fixture({signedIn=true,query='?view=all',pageSize=0}={}){
   let release,reject,offset,signal;
   state.deferPage=page=>{state.deferPage=null;offset=page.offset;signal=page.signal;return new Promise((resolve,fail)=>{release=()=>resolve(reply(page.data));reject=fail})};
   return {get pending(){return !!release},get offset(){return offset},get aborted(){return signal?.aborted},release(){release()},fail(){reject(new Error('synthetic page failure'))},abort(){reject(new w.DOMException('Aborted obsolete request','AbortError'))}};
+ },holdNextView(){let release;state.deferView=resolve=>{release=resolve};return {get pending(){return !!release},release(){release()}};
  },holdNextEvent(){let release,reject;state.deferEvent=({id,data})=>{state.deferEvent=null;return new Promise((resolve,fail)=>{release=()=>resolve(reply(data));reject=fail})};return {get pending(){return !!release},release(){release()},fail(){reject(new Error('synthetic older point read failed'))}}},async settle(){await until(()=>!w.probe.busy&&!w.probe.feedbackSaving.size,'idle');await sleep(15)},async close(){w.probe.showLogin();await sleep(15);assert.deepEqual(errors,[]);dom.window.close()}};
 }
 for(const outcome of ['abort','success']){
@@ -261,3 +267,37 @@ for(const outcome of ['success','failure']){
   }finally{await r.close()}
  });
 }
+
+for(const late of [false,true]){
+ test('unseen list removes a viewed event after detail closes: '+(late?'late POST':'completed POST'),async()=>{
+  const r=await fixture({query:'?view=all&viewed=unseen'});try{
+   const held=late?r.holdNextView():null,before=r.calls.length;
+   await r.w.probe.openDetail('0',false);
+   await until(()=>late?held.pending:!!r.rows.get('0').viewed_at,'view write');
+   r.w.probe.closeDetail();
+   if(late){assert.ok(r.$('.event-card[data-event="0"]'),'pending write keeps current list');held.release()}
+   await until(()=>!!r.rows.get('0').viewed_at,'confirmed viewed write');await r.settle();
+   assert.equal(r.$('.event-card[data-event="0"]'),null,'confirmed viewed event must leave unseen list');
+   assert.equal(r.w.probe.records.size,3);
+   assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/events')).length,1);
+   assert.equal(new URL(r.w.location.href).searchParams.get('viewed'),'unseen');
+  }finally{await r.close()}
+ });
+}
+test('unfiltered list does not reload solely because a viewed write completes',async()=>{
+ const r=await fixture();try{
+  const before=r.calls.length;await r.w.probe.openDetail('0',false);
+  await until(()=>!!r.rows.get('0').viewed_at,'view confirmed');r.w.probe.closeDetail();await r.settle();
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/events')).length,0);
+  assert.ok(r.$('.event-card[data-event="0"]'));
+ }finally{await r.close()}
+});
+test('a late viewed write does not reload the current data-source view',async()=>{
+ const r=await fixture({query:'?view=all&viewed=unseen'});try{
+  const held=r.holdNextView();await r.w.probe.openDetail('0',false);await until(()=>held.pending,'late view held');
+  r.$('#manage-sources').click();await until(()=>!!r.$('[data-source="current"]'),'status shown');
+  const before=r.calls.length;held.release();await until(()=>!!r.rows.get('0').viewed_at,'late view confirmed');await r.settle();
+  assert.equal(r.calls.slice(before).filter(c=>c.path.endsWith('/events')||c.path.endsWith('/status')).length,0);
+  assert.equal(r.$('#detail').open,false);
+ }finally{await r.close()}
+});
