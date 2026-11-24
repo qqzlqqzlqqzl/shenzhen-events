@@ -53,8 +53,30 @@ globalThis.RadarUI = (() => {
     if(new Date(e.start_at).getTime()<=current)return valid(e.end_at)?(e.all_day?'活动期内 · 开放日见原文':'进行中'):'已开始 · 结束时间未注明';
     return '';
   }
+  const clock = value => new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(value));
+  // Compact time for a row that already sits under its date heading.
+  function rowTime(e) {
+    if (!valid(e.start_at)) return '时间待确认';
+    const span=dateSpan(e),until=span.days>1?'至 '+span.last.slice(5).replace('-', '/'):'';
+    if (e.all_day) return until||'全天';
+    if (!hasEnd(e)) return clock(e.start_at);
+    return clock(e.start_at)+(until?' '+until:'–'+clock(e.end_at));
+  }
+  // Relative heading for date-ordered lists: 进行中 / 今天 / 明天 / 本周 / 本周末 / 下周 / 更晚.
+  function dayBucket(e, current=Date.now()) {
+    if (!valid(e.start_at)) return '日期待确认';
+    if (new Date(e.start_at).getTime() <= current) return '进行中';
+    const day=dayKey(e.start_at),today=dayKey(current),dayMs=86400000;
+    const diff=Math.round((Date.parse(day)-Date.parse(today))/dayMs);
+    if (diff===0) return '今天';
+    if (diff===1) return '明天';
+    const weekday=(new Date(Date.parse(today)).getUTCDay()+6)%7,toSunday=6-weekday;
+    if (diff<=toSunday) return diff>=toSunday-1?'本周末':'本周';
+    if (diff<=toSunday+7) return '下周';
+    return '更晚';
+  }
   function safeUrl(value) {
     try {const u=new URL(value);return ['https:','http:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'#';} catch{return '#';}
   }
-  return {dayKey,format,fullTime,dateSpan,calendarEvent,lifecycle,safeUrl};
+  return {dayKey,format,fullTime,dateSpan,calendarEvent,lifecycle,safeUrl,rowTime,dayBucket};
 })();

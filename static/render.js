@@ -23,15 +23,23 @@ function cardTags(e){
 function bookmark(e){return `<button class="bookmark ${e.favorite?'saved':''}" data-save="${esc(e.id)}" ${personalPending(e.id)?'disabled':''} aria-label="${e.favorite?'取消收藏':'收藏活动'}" aria-pressed="${!!e.favorite}">${e.favorite?'★':'☆'}</button>`}
 function compareToggle(e){return `<button class="compare-toggle" type="button" data-compare="${esc(e.id)}" aria-pressed="${RadarEventWorkflows.has(e.id)}">${RadarEventWorkflows.has(e.id)?'已加入对比':'加入对比'}</button>`}
 function card(e){const d=dateParts(e);return `<article class="event-card" data-event="${esc(e.id)}"><div class="card-top"><div class="date-chip"><b>${esc(d.day)}</b><span>${esc(d.sub.split('\n')[0])}</span></div>${bookmark(e)}</div><div class="card-main">${cardTags(e)}<h3><button class="title-button" data-open="${esc(e.id)}">${esc(e.title)}</button></h3><p class="card-time">${esc(fullTime(e))}</p>${cardSummary(e)?`<p class="card-summary">${esc(cardSummary(e))}</p>`:''}<div class="event-meta">${esc(e.location||'地点待确认')}</div></div><div class="card-footer"><span class="source-label">来源 · ${esc(e.sources?.[0]?.name||'公开活动来源')}${e.sources?.length>1?' +'+(e.sources.length-1)+' 个来源':''}</span>${compareToggle(e)}</div></article>`}
-function listRow(e){return `<article class="event-card event-row" data-event="${esc(e.id)}"><span class="card-time">${esc(fullTime(e))}</span><div class="list-row-content"><h3><button class="title-button" data-open="${esc(e.id)}">${esc(e.title)}</button></h3><span class="cost-state visually-hidden">${esc(costLabel(e))}</span></div><span class="list-location">${esc(e.district||e.location||'地点待确认')}</span>${compareToggle(e)}${bookmark(e)}</article>`}
+function listRow(e){const where=e.district&&e.district!=='待确认'?e.district:(e.location||'地点待确认');return `<article class="event-card event-row" data-event="${esc(e.id)}"><span class="card-time" title="${esc(fullTime(e))}">${esc(RadarUI.rowTime(e))}</span><div class="list-row-content"><h3><button class="title-button" data-open="${esc(e.id)}">${esc(e.title)}</button></h3><p class="list-row-meta">${esc(RadarUI.rowTime(e))} · ${esc(where)}</p><span class="cost-state visually-hidden">${esc(costLabel(e))}</span></div><span class="list-location">${esc(where)}</span>${compareToggle(e)}${bookmark(e)}</article>`}
 
 const states={ok:'本次读取完成',partial:'部分覆盖',empty:'暂无结果',error:'上次检查失败',blocked:'上次访问受限',pending:'等待采集'};
 function timeText(value,withTime=true){return value?RadarUI.format(value,withTime):'未更新'}
 function fullTime(e){return RadarUI.fullTime(e)}
 
 
+// Relative headings (今天 / 明天 / 本周末 …) only for date-ordered, upcoming lists.
+function bucketedCards(items){
+  const viewName=typeof view==='string'?view:'',descending=typeof urlParams==='function'&&urlParams().get('sort')==='desc';
+  if(!['discover','all','week'].includes(viewName)||descending)return items.map(card).join('');
+  const groups=[];for(const e of items){const label=RadarUI.dayBucket(e);if(groups.at(-1)?.label===label)groups.at(-1).items.push(e);else groups.push({label,items:[e]})}
+  if(groups.length<2)return items.map(card).join('');
+  return groups.map(g=>'<h3 class="bucket-title">'+esc(g.label)+'<small>'+g.items.length+' 场</small></h3>'+g.items.map(card).join('')).join('');
+}
 function renderEventItems(items,mode='cards'){
-  if(mode!=='list')return items.map(card).join('');
+  if(mode!=='list')return bucketedCards(items);
   // Keep the API's date/personal order; group only contiguous dates.
   let key=null,html='';
   for(const e of items){
