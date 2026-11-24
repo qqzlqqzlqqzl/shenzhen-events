@@ -1,108 +1,86 @@
-# Shenzhen Events Radar
+# 深圳活动雷达 · Shenzhen Events Radar
 
-一个部署在私人服务器上的深圳线下活动聚合器。目标不是“收集尽可能多的链接”，而是把公开活动源统一成可搜索、可去重、可收藏、可订阅日历的活动数据，并尽量减少人工筛选。
+把深圳（以及可以在线参加）的公开活动收集到一处：自动去重、分类、按兴趣排序，在一个私人页面里浏览、收藏和导出日历。
 
-## 当前能力
+- 线上地址：<https://lylme.cn/events/>，用个人信息箱的账号登录
+- 运维与部署：[docs/OPERATIONS.md](docs/OPERATIONS.md)
+- 全部文档索引：[docs/README.md](docs/README.md)
 
-- 独立页面：`/events/`，不与个人信息箱、NewAPI、博客前端混合。
-- 公开来源：联谱、TechEvent、本地宝、柴火官网、活动行 RSSHub、豆瓣同城、Meetup、柴火公众号 RSSHub、搜狗微信发现，另补深圳会展中心官方排期和CIOE官网（独立报告可用性）。
-- 证据优先：文章发布时间不会被当成活动日期；AI 不能证明的日期/地点保持“待确认”。
-- 跨源去重：日期 + 标题/地点保守匹配，并支持精确 URL/date 别名处理品牌标题漂移。
-- 个性化筛选：机器人、硬件创客、AI/开源、产品创业、汽车、展览文化、户外生活。
-- 收藏、搜索、免费/区域/类别过滤、周末视图、FullCalendar 月历、私人 ICS。
-- 来源健康、失败退避、模型日预算、日志截断、数据库/日志存储上限。
-- 可选高德 Web 服务辅助补全“有场馆但缺行政区”的活动；只补 district，原始地点保持不变。
-- 短期跨日活动在桌面月历显示连续色条，手机列表按覆盖日期逐日出现；卡片保留完整日期范围，长期/重复活动仍单列。
-- 手机和桌面浏览器验收。
+## 能做什么
 
-## 架构
+| 功能 | 说明 |
+|---|---|
+| 七个视图 | 为你发现、本周、本周末、全部、我的收藏、最近浏览、我的反馈 |
+| 三种展示 | 卡片、列表、月历；卡片和列表按“今天 / 明天 / 本周末 / 下周……”分组 |
+| 筛选 | 地区、活动类型、主题、参加方式（线下 / 线上 / 线上线下）、费用、日期范围、我的反馈；组内任一满足，组间同时满足 |
+| 常用视图 | 把一组筛选条件存起来下次直接打开，只保存在当前浏览器 |
+| 详情 | 时间、地点、费用、主办方、原文与报名链接、海报；上一条 / 下一条连续浏览；复制摘要或链接 |
+| 收藏与反馈 | 收藏跨设备同步；反馈分“感兴趣 / 不感兴趣 / 已参加”，可附原因标签，可撤销，可导出为 JSON |
+| 对比 | 勾选几个候选活动并排比较时间、地点、费用 |
+| 日历 | 单个活动导出 `.ics`；收藏可通过私人 ICS 链接订阅到手机日历 |
+| 数据来源页 | 每个来源的上次抓取时间、状态、条数和失败原因 |
+
+手机和桌面都能用；支持深色模式，桌面有键盘快捷键（按 `?` 查看）。
+
+## 数据从哪来
+
+`sources.json` 里登记了 17 个公开来源，例如联谱、中国科技活动日历、深圳本地宝、柴火创客、活动行、豆瓣同城、Meetup、深圳会展中心、CIOE 光博会、深圳活动网、深圳会展业公共服务平台、dev.events（线上开发者活动）、电子发烧友、开放原子旋武社区、深圳湾。另外用搜狗微信做低频的线索发现，搜到的公众号不会自动当成可信来源。
 
 ```text
-公开网页 / RSS / 搜狗
-        ↓
-RSSHub + bounded source adapters
-        ↓
-normalize → evidence checks → conservative dedupe
-        ↓
-optional AMap district enrichment (cached + bounded)
-        ↓
-SQLite (WAL)
-        ↓
-external review/import (automatic model calls disabled by default)
-        ↓
-FastAPI :8093
-        ↓
-Nginx /events/
-        ↓
-独立 Web UI + FullCalendar + ICS
+公开网页 / RSS / RSSHub / 搜狗微信
+  → 采集：每小时一轮，按来源频率和失败退避
+  → 标准化：时间、地点、费用；从地址推断行政区（例：前海 → 南山）
+  → 保守去重：日期 + 标题 / 地点；已知的跨源别名写在 dedupe_aliases.json
+  → AI 分析：每 15 分钟一批，判断是否深圳线下或可在线参加、活动类型、主题、推荐理由
+  → SQLite → FastAPI（127.0.0.1:8093）→ Nginx /events/ → 浏览器
 ```
 
-## 运行边界
+## 几条原则
 
-- 不绕过登录、验证码或访问限制；遇到限制记录为 `blocked` 并退避。
-- 搜狗搜索只用于发现线索；候选公众号不自动当成可信活动源。
-- 抓取任务为 systemd oneshot timer，不常驻浏览器、Redis 或第二套数据库。
-- 公开来源变更时保留上次可用数据，并在“来源状态”里显示失败。
-- `.private/`、数据库、日志、密钥、环境变量文件均不进入 Git。
+- **证据优先**：文章发布时间不会被当成活动日期；无法证实的时间或地点显示“待确认”，不猜。
+- **不越权采集**：不绕过登录、验证码或访问限制；遇到限制记为“受限”并退避。
+- **AI 有上限**：每天的模型调用次数和 Token 都有上限；某一条模型输出格式出错时，只把这一条标为 `model_error`，不会卡住整个队列。
+- **私人数据不进 Git**：`.private/`、数据库、日志、密钥都只在服务器上。
 
-## 目录
+## 代码结构
 
-- `radar/collectors.py`：公开源适配器。
-- `radar/core.py`：标准化、SQLite、去重与查询。
-- `radar/worker.py`：定时采集、AI 分类、预算、保留策略。
-- `radar/api.py`：私有 API 与静态站点。
-- `radar/calendar.py`：ICS 导出。
-- `radar/geocode.py`：可选高德地理编码/POI 区域补全；私有 Key 从 `.private/amap.key` 读取。
-- `static/`：独立活动雷达前端。
-- `sources.json`：来源与抓取频率。
-- `dedupe_aliases.json`：有官方证据的精确跨源别名。
-- `deploy/install.py`：仅安装本项目服务/路由并提供回滚。
-- `tests/`：单元、接口与生产浏览器验收。
+| 路径 | 作用 |
+|---|---|
+| `radar/api.py` | FastAPI 接口与静态页面；登录走信息箱的 Miniflux 账号验证 |
+| `radar/core.py` | 数据库结构、标准化、去重、查询、行政区推断 |
+| `radar/worker.py` | 定时任务入口：`collect` 采集、`retry` 单源重试、`analyze` AI 分析 |
+| `radar/collectors.py`、`coverage.py`、`aggregates.py`、`recurring_sources.py`、`official_sources.py`、`eefocus.py` | 各类来源的采集适配器 |
+| `radar/details.py`、`source_fields.py` | 从原文中补齐主办方、费用等字段（不调用模型） |
+| `radar/safety.py` | 记录来源观察结果，判断活动能否“安排 / 导出日历”（如已取消、信息冲突时禁止） |
+| `radar/filtering.py`、`personal.py` | 筛选逻辑；收藏、反馈、浏览记录 |
+| `radar/geocode.py` | 行政区补全：先按地名推断，再可选调用高德接口 |
+| `radar/calendar.py` | ICS 日历导出 |
+| `static/` | 前端（原生 JS + FullCalendar），无构建步骤 |
+| `sources.json`、`dedupe_aliases.json` | 来源登记、跨源别名 |
+| `scripts/` | 一次性修复脚本（默认只预览，加 `--apply` 才写入）、CI 辅助脚本 |
+| `deploy/install.py` | 安装 systemd 单元和 Nginx 路由 |
+| `tests/` | 单元、接口、DOM（jsdom）和浏览器（Playwright）测试 |
 
-## 部署
+## 开发与测试
 
-项目运行于 `/home/ubuntu/shenzhen-events`。依赖使用锁定的 `requirements.lock.txt`。部署脚本只操作 `shenzhen-events*` systemd 单元、`/events/` Nginx snippet 和统一门户中的第 4 张卡片；不会重启信息箱、NewAPI 或博客相关服务。
+```bash
+python -m venv .venv && .venv/bin/pip install -r requirements.lock.txt pytest httpx
+.venv/bin/python -m pytest -q
+```
 
-## 开发流程
+DOM 测试需要 jsdom（CI 用 `jsdom@30.1.1`）：
 
-本项目遵循：
+```bash
+npm install --prefix /tmp/radar-dom --ignore-scripts jsdom@30.1.1
+NODE_PATH=/tmp/radar-dom/node_modules node tests/filter_state_dom.cjs
+```
 
-`Issue → feature branch → tests → PR → review → production acceptance → merge`
+浏览器测试见 `tests/*_browser.py`，CI 配置见 `.github/workflows/validate-events.yml`。只改 `static/` 的提交会自动走较快的“仅前端”检查。
 
-生产验收至少覆盖：
+## 上游与许可
 
-- `/`、`/inbox/`、`/newapi`、`/blog`、`/events/` 回归；
-- 未登录 API 拒绝访问；
-- 桌面/手机无横向溢出；
-- 搜索、过滤、收藏、详情来源链接；
-- FullCalendar 与 ICS；
-- 浏览器 console/page error 为零。
+- [Community Calendar](https://github.com/judell/community-calendar)：参考了它的 ICS 导出写法（Apache-2.0）
+- [FullCalendar](https://github.com/fullcalendar/fullcalendar) 6.1.19：月历组件（MIT）
+- [RSSHub](https://github.com/DIYgod/RSSHub)：复用服务器上已有的实例
 
-## 上游与设计来源
-
-本项目优先复用成熟组件而不是重复造轮子：
-
-- RSSHub：已有活动行、微信公众号等采集基础设施。
-- Community Calendar：参考其“来源适配 → ICS/标准化 → 跨源去重 → 来源归因”的成熟设计；本仓库实现针对深圳与现有服务器栈做了独立适配。
-- FullCalendar：前端日历组件，MIT License，许可证保存在 `static/vendor/FullCalendar-LICENSE.md`。
-- 搜狗微信：低频关键词发现；验证码出现时停止，不绕过验证。
-
-详见 `THIRD_PARTY.md`。
-
-## License
-
-Apache-2.0。第三方组件按各自许可证使用。
-
-
-## 2026-09-30 发现与详情更新
-
-- 活动类型/主题默认全选，提供全选、反选和全不选；取消一个勾选即可排除；全不选明确返回零条，不会偷偷恢复全部。URL与历史导航保留选择。
-- 未注明费用不显示占位，也不被视为免费；已知费用继续显示。
-- 日期已知的记录也进入轮转详情队列，补主办方、明确费用字段、海报和原文内容，保留来源。不会自动OCR或宣称主协办已经独立核验。
-- 微信搜索从8组扩为16组关键词，每轮4组，每日轮转；搜索索引不是微信全量订阅，遇到访问限制会退避。
-- 来源按上次检查时间排序，防止靠后的公众号源长期拿不到抓取时间。
-- 文化演出、社交交流与学习成长有明确主题归属，具体标签与其他不并存。
-- 模型调用默认关闭，手动 analyze/all 同样受 analysis_enabled 开关保护；安装脚本不再开启分析timer。采集和retry保持独立。
-- 人工发现的日期矛盾可设置 details.review_hold，后续自动采集不会把它重新放回近期活动。
-
-详情原文/海报中的商家宣传、机构标注均是来源陈述，不等于独立背书。图片和聚合页日期冲突的记录必须保留待确认，不强猜实际日期。
+详见 [THIRD_PARTY.md](THIRD_PARTY.md)。本项目以 Apache-2.0 发布。
