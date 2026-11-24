@@ -144,7 +144,7 @@ function showLogin(message='') {
 async function stats() {
   const epoch=authEpoch,ticket=++statsTicket;
   try {const s=await api('stats');if(!authenticated||epoch!==authEpoch||ticket!==statsTicket)return;
-    $('#count-recommended').textContent=s.recommended;$('#count-upcoming').textContent=s.upcoming;$('#count-weekend').textContent=s.weekend;$('#hero-weekend').textContent=s.weekend;for(const count of $$('[data-tab-count]'))count.textContent=Number.isFinite(s[count.dataset.tabCount])?String(s[count.dataset.tabCount]):'';
+    const statCount=k=>{let shortCount;try{shortCount=urlParams().get('show_long')!=='true'}catch{shortCount=true}const v=shortCount&&Number.isFinite(s[k+'_short'])?s[k+'_short']:s[k];return Number.isFinite(v)?String(v):''};$('#count-recommended').textContent=statCount('recommended');$('#count-upcoming').textContent=statCount('upcoming');$('#count-weekend').textContent=s.weekend;$('#hero-weekend').textContent=s.weekend;for(const count of $$('[data-tab-count]'))count.textContent=statCount(count.dataset.tabCount);
     $('#update-note').textContent=s.last_updated?'更新于 '+timeText(s.last_updated):'活动正在整理中';
     if(!$('#district-options input'))renderFacetOptions('district',[...(s.districts||[]).map(v=>({value:v,label:v})),{value:'待确认',label:'地区待确认'}]);
     if(!$('#type-options input'))renderFacetOptions('type',s.event_types||[],s.type_pending||0);if(!$('#topic-options input'))renderFacetOptions('topic',s.topics||[]);
@@ -266,8 +266,10 @@ function showView(){
   keepActiveTabVisible();
   renderActiveFilters();
   $('.explore-tools').hidden=view==='status';$('.applied-filter-row').hidden=view==='status';
+  // The sources page is a separate task: no weekend hero, no floating compare/undo bars over its controls.
+  $('.workspace-intro').hidden=view==='status';$('#bottom-overlays').hidden=view==='status';
 }
-function emptyState(){const p=urlParams(),filtered=['feedback','feedback_tag','viewed','from','q','attendance','free','type','topic','districts','type_none','topic_none','district_none'].some(key=>p.has(key));return `<div class="empty"><b>${filtered?'当前筛选条件下没有活动':view==='favorites'?'还没有收藏活动':'这里暂时没有活动'}</b><p>${filtered?'试试重置筛选；其他收藏或活动不会被删除。':view==='favorites'?'点击活动卡片的星号即可收藏，过期后仍会保留。':'可以查看其他日期，或去全部活动探索。'}</p><button class="secondary" data-action="${filtered?'reset':'browse-all'}">${filtered?'重置筛选':'查看全部活动 →'}</button></div>`}
+function emptyState(){const p=urlParams(),filtered=['feedback','feedback_tag','viewed','from','q','attendance','free','type','topic','districts','type_none','topic_none','district_none'].some(key=>p.has(key));return `<div class="empty"><b>${filtered?'当前筛选条件下没有活动':view==='favorites'?'还没有收藏活动':'这里暂时没有活动'}</b><p>${filtered?'试试重置筛选；其他收藏或活动不会被删除。':view==='favorites'?'点击活动卡片的星号即可收藏，过期后仍会保留。':'可以查看其他日期，或去全部活动探索。'}</p>${p.get('q')?'<button class="secondary" data-action="clear-query">清除关键词「'+esc(p.get('q'))+'」</button> ':''}<button class="${p.get('q')?'quiet':'secondary'}" data-action="${filtered?'reset':'browse-all'}">${filtered?'重置全部筛选':'查看全部活动 →'}</button></div>`}
 async function load(append=false){
   if(!authenticated||(filterDraft&&!append)||(append&&busy))return;personalQueryDirty=false;const seq=++sequence,personalRevision=personalReadRevision;controller?.abort();controller=new AbortController();busy=true;showView();
   invalidatePlanning();let requestKey,keep=false;
@@ -403,7 +405,7 @@ function positionFeedbackUndo(){
 async function updateFeedback(id,patch,message,undo=false){const e=records.get(id);if(!e||feedbackSaving.has(id)||saving.has(id)||!authenticated)return;
   const before={feedback:e.feedback||'',feedback_tags:[...(e.feedback_tags||[])]},epoch=authEpoch;feedbackSaving.add(id);paintFeedback(id);paintFavorite(id);
   try{const result=await api('preferences/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({...patch,expected_revision:e.revision||0})});if(!authenticated||epoch!==authEpoch)return;
-    syncPersonal(id,result);toast(message);undoFeedback=undo?null:{id,before,record:{...e,feedback_tags:[...(e.feedback_tags||[])]},revision:result.revision,expires:Date.now()+30000};$('#undo-bar').hidden=!undoFeedback;positionFeedbackUndo();personalQueryDirty=true;if(!detailId)load();
+    syncPersonal(id,result);toast(message);undoFeedback=undo?null:{id,before,record:{...e,feedback_tags:[...(e.feedback_tags||[])]},revision:result.revision,expires:Date.now()+30000};$('#undo-bar').hidden=!undoFeedback;positionFeedbackUndo();clearTimeout(positionFeedbackUndo.timer);if(undoFeedback){const pending=undoFeedback;positionFeedbackUndo.timer=setTimeout(()=>{if(undoFeedback===pending){undoFeedback=null;$('#undo-bar').hidden=true}},Math.max(0,pending.expires-Date.now()))}personalQueryDirty=true;if(!detailId)load();
   }catch(err){if(err.name!=='AbortError'&&authenticated&&epoch===authEpoch){if(err.current)syncPersonal(id,err.current);toast(err.message)}}
   finally{feedbackSaving.delete(id);if(authenticated&&epoch===authEpoch){paintFeedback(id);paintFavorite(id)}}
 }
@@ -507,6 +509,7 @@ document.addEventListener('click',e=>{
   const action=b.dataset.action;
   if(action==='include-long'){$('#hide-long').checked=false;applyFilters();return}
   if(action==='browse-all'){navigate('all',true);return}
+  if(action==='clear-query'){const input=$('#search');input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();return}
   if(action==='reset'){clearFilters();dateLoadError='';applyFilters();return}
   if(action==='clear-invalid-dates'){$('#clear-dates').click();return}
   if(action==='retry-status'){loadStatus();return}

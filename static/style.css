@@ -26,3 +26,34 @@ dialog{position:fixed;inset:auto;left:50vw;top:50dvh;transform:translate(-50%,-5
 @media(max-width:1000px){.event-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-intro{gap:20px}.event-row{grid-template-columns:100px minmax(0,1fr) 90px auto auto;gap:10px}.compare-chip{max-width:130px}}
 @media(max-width:640px){.topbar{flex-wrap:wrap;gap:10px}.top-actions{margin-left:auto;gap:2px}.top-actions #shortcut-help{display:none}.top-actions a,.top-actions .quiet{padding:6px 8px;font-size:12px}.top-actions .theme-toggle{font-size:18px}.overview{gap:20px}.intro-copy{min-width:0;flex-basis:100%}.explore-tools{flex-wrap:wrap;gap:8px}.toolbar-search{flex-basis:100%}.display-modes{margin-left:auto}.filter-open{height:40px}.search{height:44px}.event-grid{grid-template-columns:minmax(0,1fr)}.event-row{grid-template-columns:minmax(0,1fr) auto auto;gap:10px;padding:14px 16px}.event-row .card-time,.event-row .list-location{display:none}.event-row .compare-toggle{font-size:0;gap:0;width:24px;height:32px;justify-content:center}.event-row .compare-toggle:before{font-size:10px;width:16px;height:16px}.filter-panel-shell{padding:14px;max-height:60dvh}.filter-panel-heading{flex-wrap:wrap;gap:8px}.filter-panel-heading span{flex-basis:70%;font-size:11px}.filter-popover{padding-left:0}.filter-business{gap:10px}.filter-business select{max-width:100%;flex:1 1 44%;width:0}.filter-panel-actions{flex-wrap:wrap}.filter-panel-actions p{flex-basis:100%}.date-controls label{flex-wrap:wrap}.date-controls input{max-width:150px}.facet-option{font-size:12px;min-height:34px}.facet-only{min-height:26px}.section-heading{flex-wrap:wrap;gap:6px}.result-count{text-align:left}.calendar-tools{gap:8px 12px}.calendar-guide{gap:10px}.calendar-legend{gap:10px}.fc .fc-toolbar-title{font-size:16px}.fc .fc-button{font-size:12px;padding:5px 8px}.fc-list-event-title{font-size:13px}.calendar-long-item{border-radius:12px}.bottom-overlays{bottom:12px}.compare-bar{flex-wrap:wrap;justify-content:center;border-radius:20px;gap:8px;padding:10px 12px}.compare-bar>div{justify-content:center}.compare-chip{max-width:110px}.compare-bar button{font-size:12px;padding:6px 10px}.undo-bar{border-radius:16px;font-size:12px}dialog,#detail,#compare-dialog{width:calc(100% - 24px);max-width:calc(100% - 24px);max-height:calc(100dvh - 24px);padding:22px 18px;border-radius:22px}dialog h2{font-size:22px}.detail-meta p{grid-template-columns:52px 1fr;gap:8px}.detail-actions .primary,.detail-actions .secondary{font-size:13px;padding:8px 12px}.detail-sequence{gap:6px}.detail-sequence span{font-size:10px}.feedback-heading{flex-wrap:wrap}.compare-table{font-size:12px;min-width:460px}.compare-table thead th:not(:first-child){font-size:13px}.compare-table th{width:48px}.login-panel{grid-template-columns:1fr;gap:16px;padding:24px}.source-grid,.analysis-budget{grid-template-columns:1fr}.source-diagnostics{align-items:stretch;flex-direction:column}.source-diagnostics input,.source-diagnostics select{width:100%}.saved-view-controls select{width:100%}.saved-views input{min-width:0;flex:1}.page-footer{font-size:10px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}.event-card:hover{transform:none}.event-card::after{display:none}}
+
+/* ux-review 2026-11-23: mobile density, sticky filter actions, tab overflow hint */
+.filter-panel-actions{position:sticky;bottom:-18px;z-index:2;background:var(--surface);padding-bottom:18px;margin-bottom:-18px}
+@media(max-width:640px){
+.topbar{padding:12px 0 4px}
+.brand small{display:none}
+.hero,.workspace-intro{padding:10px 0 14px}
+.hero h1{font-size:clamp(28px,8.5vw,36px)}
+.intro-copy h1{font-size:clamp(22px,6.6vw,28px);line-height:1.3}
+.intro-copy p{font-size:13px;margin-top:6px}
+.workspace-intro .overview{display:none}
+.tabs{padding-right:28px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
+.explore-tools .search kbd{display:none}
+.filter-panel-heading h2{order:1}
+.filter-panel-heading button{order:2;margin-left:auto}
+.filter-panel-heading span{order:3;flex-basis:100%}
+.filter-panel-actions{bottom:-14px;padding-bottom:14px;margin-bottom:-14px}
+.filter-panel-actions p{display:none}
+}
+/* ux-review 2026-11-24: relative date headings, readable list rows, overlay room */
+.bucket-title{grid-column:1/-1;display:flex;align-items:baseline;gap:10px;margin:14px 0 -4px;font:650 15px var(--font);color:var(--text)}
+.bucket-title:first-child{margin-top:0}
+.bucket-title small{font:500 12px var(--mono);color:var(--dim)}
+.bucket-title:after{content:'';flex:1;height:1px;background:var(--line);align-self:center}
+.list-row-meta{display:none;margin:2px 0 0;font:500 12px var(--mono);color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-row .card-time{white-space:nowrap}
+body:has(#compare-bar:not([hidden])) .page-footer,body:has(#undo-bar:not([hidden])) .page-footer{margin-bottom:88px}
+@media(max-width:640px){
+.list-row-meta{display:block}
+.event-row .compare-toggle{font-size:11px;width:auto;gap:4px;padding:0 6px}
+}
