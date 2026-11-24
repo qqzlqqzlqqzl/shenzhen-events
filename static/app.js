@@ -530,6 +530,28 @@ document.addEventListener('click',e=>{if(!e.target.closest('.multi-filter'))$$('
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$$('.multi-filter[open]').forEach(x=>x.open=false)});
 $('#clear-filters').onclick=()=>{clearFilters();if(!filterDraft)dateLoadError='';applyFilters()};$('#more').onclick=()=>load(true);
 $('#refresh-data').onclick=()=>{stats();load()};
+// Phone: once the toolbar sticks, fold an empty search box behind a 🔍 button so results keep the screen.
+(()=>{
+  const toolbar=$('.explore-toolbar'),box=$('.toolbar-search'),input=$('#search'),jump=$('#search-jump');
+  if(!toolbar||!box||!input||!jump||!('IntersectionObserver' in window))return;
+  const sentinel=document.createElement('div'),spacer=document.createElement('div'),phone=matchMedia('(max-width:640px)');
+  sentinel.className='toolbar-sentinel';spacer.className='toolbar-fold-spacer';sentinel.ariaHidden=spacer.ariaHidden='true';
+  toolbar.before(sentinel);toolbar.after(spacer);
+  let stuck=false,expanded=false;
+  const update=()=>{
+    const compact=phone.matches&&stuck&&!expanded&&!input.value&&!box.contains(document.activeElement);
+    if(compact===toolbar.classList.contains('compact'))return;
+    // Keep the page from jumping: a spacer below the bar takes the folded row's height.
+    if(compact)spacer.style.height=(box.getBoundingClientRect().height+(parseFloat(getComputedStyle(box.parentElement).rowGap)||0))+'px';
+    else spacer.style.height='';
+    toolbar.classList.toggle('compact',compact);jump.hidden=!compact;
+  };
+  phone.addEventListener('change',update);
+  new IntersectionObserver(([entry])=>{stuck=!entry.isIntersecting&&entry.boundingClientRect.top<0;update()}).observe(sentinel);
+  jump.onclick=()=>{expanded=true;update();input.focus({preventScroll:true})};
+  box.addEventListener('focusout',()=>setTimeout(()=>{if(!box.contains(document.activeElement)){expanded=false;update()}}));
+  box.addEventListener('focusin',update);input.addEventListener('input',update);
+})();
 matchMedia('(max-width:619px)').addEventListener('change',e=>{if(calendar&&view==='calendar')calendar.changeView(e.matches?'listMonth':'dayGridMonth');keepActiveTabVisible()});
 addEventListener('resize',keepActiveTabVisible);
 addEventListener('pageshow',e=>{if(e.persisted)(async()=>{try{const user=await api('session');await enter(user)}catch{showLogin()}})()});

@@ -57,3 +57,31 @@ body:has(#compare-bar:not([hidden])) .page-footer,body:has(#undo-bar:not([hidden
 .list-row-meta{display:block}
 .event-row .compare-toggle{font-size:11px;width:auto;gap:4px;padding:0 6px}
 }
+/* ux-review 2026-11-24b: phone first screen and a slimmer sticky bar */
+.toolbar-sentinel{height:1px;margin-bottom:-1px}
+.search-jump{display:none}
+@media(max-width:640px){
+.topbar{flex-wrap:nowrap;gap:8px}
+.brand{gap:9px;min-width:0}
+.brand-mark{width:34px;height:34px;border-radius:11px}
+.brand-mark svg{width:19px;height:19px}
+.top-actions{flex-wrap:nowrap}
+.top-actions a,.top-actions .quiet{padding:6px 7px}
+.hub-word{display:none}
+.explore-toolbar{padding-top:8px;padding-bottom:8px}
+.tabs button{padding:7px 12px}
+.explore-tools{margin-top:8px}
+.explore-toolbar.compact .toolbar-search{display:none}
+.explore-toolbar.compact .search-jump{display:grid;place-items:center;width:40px;height:40px;padding:0;border-radius:13px;border:1px solid var(--line);background:var(--surface)}
+.search-jump svg{width:17px;height:17px;stroke:var(--mute);fill:none;stroke-width:2;stroke-linecap:round}
+.section-heading{margin:18px 0 10px;flex-wrap:nowrap}
+.section-heading p{display:none}
+.section-heading .result-count{text-align:right;flex:none;font-size:12px}
+.event-card{padding:16px;gap:10px;border-radius:18px}
+.date-chip b{font-size:26px}
+.event-card h3{font-size:17px}
+.card-footer{padding-top:10px}
+.detail-primary-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.detail-primary-actions>*{justify-content:center;text-align:center}
+.detail-primary-actions>.primary,.detail-primary-actions>:nth-child(2):last-child{grid-column:1/-1}
+}
