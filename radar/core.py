@@ -131,14 +131,51 @@ def event_attendance(e):
     if loc in ('线上','线上活动','在线','online','virtual','online event'):return 'online'
     return 'offline' if loc and loc not in ('待确认','地点待确认','地点待定') else 'unknown'
 
+# Well-known Shenzhen sub-areas, streets and venues that addresses often use
+# without naming the district. Longer names win over names they contain
+# (东部华侨城 over 华侨城, 深圳国际会展中心 over 深圳会展中心, 沙头角 over 沙头).
+DISTRICT_PLACES={
+    '南山':('前海','蛇口','后海','粤海街道','西丽','桃源街道','华侨城','海岸城','欢乐海岸','大冲','南头','留仙洞','深圳大学城',
+            '太子湾','赤湾','南山科技园','深圳湾科技生态园','深圳湾创业广场','深圳湾体育中心','深圳湾万象城','招商街道','沙河街道','科兴科学园'),
+    '福田':('车公庙','华强北','香蜜湖','梅林','景田','莲花山','市民中心','皇岗','岗厦','购物公园','上沙','下沙','福保','益田','深圳会展中心','华强广场','新洲'),
+    '宝安':('西乡','福永','沙井','松岗','新安街道','石岩','燕罗','航城街道','碧海湾','深圳国际会展中心','宝安中心'),
+    '龙岗':('坂田','布吉','横岗','大运','龙城街道','平湖街道','南湾街道','吉华街道','园山街道','坪地','天安云谷','华为基地'),
+    '龙华':('民治','观澜','大浪','福城街道','观湖','深圳北站'),
+    '罗湖':('国贸大厦','翠竹','笋岗','莲塘','黄贝','清水河','蔡屋围'),
+    '盐田':('沙头角','大梅沙','小梅沙','盐田港','东部华侨城'),
+    '光明':('公明','光明科学城'),
+    '坪山':('坑梓','碧岭'),
+    '大鹏':('南澳','葵涌','较场尾','杨梅坑','西涌'),
+}
+_PLACE_NAMES=sorted(((name,district) for district,names in DISTRICT_PLACES.items() for name in names),key=lambda x:-len(x[0]))
+
+def infer_district(location):
+    """One district when the address points to exactly one; '' when unknown or ambiguous.
+    An explicit district name wins (separators such as 、 inside one address no longer
+    hide it); sub-area names are the fallback; routes must agree end to end."""
+    text=clean(location)
+    if not text:return ''
+    explicit={d for d in DISTRICTS if d in text}
+    places=set();covered=[]
+    for name,district in _PLACE_NAMES:
+        start=text.find(name)
+        while start>=0:
+            end=start+len(name)
+            if not any(a<=start and end<=b for a,b in covered):covered.append((start,end));places.add(district)
+            start=text.find(name,end)
+    if any(sep in text for sep in ('→','↔')):
+        found=explicit|places
+        return next(iter(found)) if len(found)==1 else ''
+    if explicit:return next(iter(explicit)) if len(explicit)==1 else ''
+    return next(iter(places)) if len(places)==1 else ''
+
 def normalize_event(e):
     e=dict(e);e['title']=clean(e.get('title'))[:220];e['url']=canon_url(e.get('url',''))
     if not e['title'] or not e['url']:return None
     e['start_at']=iso(e.get('start_at'));e['end_at']=iso(e.get('end_at'))
     if e['end_at'] and e['start_at'] and e['end_at']<e['start_at']:e['end_at']=None
     e['location']=clean(e.get('location'))[:250];e['summary']=clean(e.get('summary'))[:3500]
-    districts={d for d in DISTRICTS if d in e['location']}
-    e['district']=next(iter(districts)) if len(districts)==1 and not any(x in e['location'] for x in ('、','→','↔')) else '待确认'
+    e['district']=infer_district(e['location']) or '待确认'
     e['organizer']=clean(e.get('organizer'))[:200]
     e['details']=e.get('details') if isinstance(e.get('details'),dict) else {}
     e['cost_text']=clean(e.get('cost_text'))[:100] or '费用未注明';e['cost_free']=e['cost_text'] in ('免费','0元','免费参加')

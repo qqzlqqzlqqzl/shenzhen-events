@@ -39,6 +39,8 @@ def normalize_district(name,adcode=''):
 
 def direct_district(text):
     text=core.clean(text)
+    inferred=core.infer_district(text)
+    if inferred:return inferred
     if any(sep in text for sep in ('、','→','↔')):return ''
     districts={d for a,d in DISTRICT_ALIASES.items() if a in text}
     if len(districts)>1:return ''
