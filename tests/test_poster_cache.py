@@ -61,13 +61,13 @@ def test_images_become_small_local_webp_and_reach_display_details(isolated):
     session = Session({'https://img.test/1.png': Response(body=picture()),
                        'https://img.test/icon.png': Response(body=picture((40, 40)))})
     stats = poster_cache.run(session=session)
-    assert stats['fetched'] == 1 and stats['failed'] == 1
+    assert stats['fetched'] == 1 and stats['icons'] == 1 and stats['failed'] == 0
     assert session.calls[0][1] == 'https://example.com/e'     # the event page is the referer
     state = json.loads((isolated / 'data/poster-cache.json').read_text())
     name = state['images']['https://img.test/1.png']
     with Image.open(isolated / 'static/posters' / name) as im:
         assert im.format == 'WEBP' and im.size[0] <= 960
-    assert 'icon.png' in next(iter(state['failures']))
+    assert state['icons'] == {'https://img.test/icon.png': {'why': 'icon 40x40'}} and state['failures'] == {}
     shown = posters.display_details({'images': ['https://img.test/1.png', 'https://img.test/icon.png']}, isolated)
     assert shown['cached_images'] == {'https://img.test/1.png': '/events/static/posters/' + name}
 
@@ -100,3 +100,19 @@ def test_events_that_ended_long_ago_are_ignored(isolated):
     add_event('old', ['https://img.test/old.png'], days=-60)
     session = Session({})
     assert poster_cache.run(session=session)['events'] == 0 and session.calls == []
+
+
+def test_icons_are_never_downloaded_again_and_old_records_migrate(isolated):
+    add_event('a', ['https://img.test/thin.png', 'https://img.test/old-icon.png'])
+    (isolated / 'data').mkdir(exist_ok=True)
+    (isolated / 'data/poster-cache.json').write_text(json.dumps(
+        {'failures': {'https://img.test/old-icon.png': {'n': 1, 'next': 0, 'why': 'too small'}}}))
+    first = Session({'https://img.test/thin.png': Response(body=picture((1200, 60)))})
+    stats = poster_cache.run(session=first)
+    assert stats['icons'] == 1 and stats['failed'] == 0
+    assert [url for url, _ in first.calls] == ['https://img.test/thin.png']   # the migrated icon is not fetched
+    state = json.loads((isolated / 'data/poster-cache.json').read_text())
+    assert set(state['icons']) == {'https://img.test/thin.png', 'https://img.test/old-icon.png'} and state['failures'] == {}
+    second = Session({})
+    poster_cache.run(session=second)
+    assert second.calls == []

@@ -16,11 +16,15 @@ from .posters import NAME
 PER_EVENT = 4               # the detail view shows a few images; the card uses the first
 MAX_BYTES = 8 * 1024 * 1024
 MAX_SIZE = (960, 2400)      # width, height in pixels after shrinking
-MIN_SIDE = 100              # smaller pictures are icons, not posters
+MIN_SIDE = 100              # narrower or shorter than this is an icon, not a poster
 QUALITY = 78
 KEEP_DAYS = 30              # keep files of events that ended within this window
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
            'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8'}
+
+
+class NotPoster(ValueError):
+    """A real picture, but an icon: remembered once and never downloaded again."""
 
 
 def paths():
@@ -34,7 +38,12 @@ def load_state(path):
         data = {}
     images = data.get('images') if isinstance(data.get('images'), dict) else {}
     failures = data.get('failures') if isinstance(data.get('failures'), dict) else {}
-    return {'images': images, 'failures': failures}
+    icons = data.get('icons') if isinstance(data.get('icons'), dict) else {}
+    # Earlier runs recorded icons as retryable failures; they are simply not posters.
+    for url in [u for u, f in failures.items() if isinstance(f, dict) and str(f.get('why', '')).startswith('too small')]:
+        icons[url] = {'why': 'too small'}
+        failures.pop(url)
+    return {'images': images, 'failures': failures, 'icons': icons}
 
 
 def atomic_write(path, data):
@@ -80,7 +89,7 @@ def encode(data):
         im.draft('RGB', (MAX_SIZE[0] * 2, MAX_SIZE[1] * 2))   # JPEG: decode at a smaller scale
         im = ImageOps.exif_transpose(im)
         if min(im.size) < MIN_SIDE:
-            raise ValueError('too small')
+            raise NotPoster(f'icon {im.size[0]}x{im.size[1]}')
         im.thumbnail(MAX_SIZE, Image.LANCZOS)
         alpha = im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info)
         im = im.convert('RGBA' if alpha else 'RGB')
@@ -109,17 +118,19 @@ def run(limit=40, deadline=240.0, sleep=0.3, session=None):
     folder, state_path = paths()
     folder.mkdir(parents=True, exist_ok=True)
     state = load_state(state_path)
-    images, failures = state['images'], state['failures']
+    images, failures, icons = state['images'], state['failures'], state['icons']
     started, clock = time.monotonic(), time.time()
     since = core._query_datetime(core.now()) - timedelta(days=KEEP_DAYS)
     wanted, session = event_images(since), session or requests.Session()
     current = core._query_datetime(core.now())
-    stats = {'events': len(wanted), 'cached': 0, 'fetched': 0, 'failed': 0, 'skipped': 0, 'removed': 0}
+    stats = {'events': len(wanted), 'cached': 0, 'fetched': 0, 'icons': 0, 'failed': 0, 'skipped': 0, 'removed': 0}
     for _, _, page, urls in wanted:
         for url in urls[:PER_EVENT]:
             name = images.get(url)
             if isinstance(name, str) and NAME.fullmatch(name) and (folder / name).is_file():
                 stats['cached'] += 1
+                continue
+            if url in icons:
                 continue
             failure = failures.get(url) or {}
             if failure.get('next', 0) > clock:
@@ -136,6 +147,10 @@ def run(limit=40, deadline=240.0, sleep=0.3, session=None):
                 images[url] = name
                 failures.pop(url, None)
                 stats['fetched'] += 1
+            except NotPoster as exc:
+                icons[url] = {'why': str(exc)}
+                failures.pop(url, None)
+                stats['icons'] += 1
             except Exception as exc:  # one bad image must not stop the run
                 n = int(failure.get('n', 0)) + 1
                 failures[url] = {'n': n, 'next': clock + min(7 * 86400, 3600 * 2 ** n), 'why': str(exc)[:80] or type(exc).__name__}
@@ -147,8 +162,9 @@ def run(limit=40, deadline=240.0, sleep=0.3, session=None):
     referenced = {u for _, _, _, urls in wanted for u in urls[:PER_EVENT]}
     for url in [u for u in images if u not in referenced]:
         images.pop(url)
-    for url in [u for u in failures if u not in referenced]:
-        failures.pop(url)
+    for table in (failures, icons):
+        for url in [u for u in table if u not in referenced]:
+            table.pop(url)
     try:
         reviewed = set(json.loads((folder / 'manifest.json').read_text()).values())
     except (OSError, ValueError, AttributeError):
@@ -158,7 +174,7 @@ def run(limit=40, deadline=240.0, sleep=0.3, session=None):
         if NAME.fullmatch(path.name) and path.name not in keep and path.is_file():
             path.unlink()
             stats['removed'] += 1
-    atomic_write(state_path, json.dumps({'images': images, 'failures': failures,
+    atomic_write(state_path, json.dumps({'images': images, 'failures': failures, 'icons': icons,
                                          'updated': current.isoformat(timespec='seconds')},
                                         ensure_ascii=False, indent=1, sort_keys=True).encode())
     stats['seconds'] = round(time.monotonic() - started, 1)
