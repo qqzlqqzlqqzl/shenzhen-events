@@ -116,3 +116,23 @@ def test_icons_are_never_downloaded_again_and_old_records_migrate(isolated):
     second = Session({})
     poster_cache.run(session=second)
     assert second.calls == []
+
+
+def test_event_pages_without_pictures_get_one_look_for_a_cover(isolated):
+    page = 'https://m.bendibao.com/show1.html'
+    add_event('a', [], url=page)
+    add_event('b', [], url='https://dev.events/conferences/x')     # not a known cover site
+    html = b'<html><head><meta property="og:image" content="https://img.bendibao.test/cover.png"></head></html>'
+    session = Session({page: Response(body=html, kind='text/html'),
+                       'https://img.bendibao.test/cover.png': Response(body=picture())})
+    stats = poster_cache.run(session=session)
+    assert stats['pages'] == 1 and stats['covers_found'] == 1 and stats['fetched'] == 1
+    assert [url for url, _ in session.calls] == [page, 'https://img.bendibao.test/cover.png']
+    state = json.loads((isolated / 'data/poster-cache.json').read_text())
+    assert state['pages'][page]['image'] == 'https://img.bendibao.test/cover.png'
+    shown = posters.display_details({}, isolated, page)
+    assert shown['images'] == ['https://img.bendibao.test/cover.png']
+    assert shown['cached_images']['https://img.bendibao.test/cover.png'].startswith('/events/static/posters/')
+    again = Session({})
+    poster_cache.run(session=again)
+    assert again.calls == []

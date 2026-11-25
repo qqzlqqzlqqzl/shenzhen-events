@@ -3,15 +3,18 @@
 Cards and details then read /events/static/posters/<sha256>.webp from this server
 instead of waiting on (or being blocked from) the original host. Images are
 decoded and re-encoded with Pillow, so only real pictures are stored, without
-metadata. Run: python -m radar.poster_cache [--limit N]
+metadata. Events whose source listed no picture get one look at their own page
+for an og:image cover (a few known event sites only, a bounded number per run).
+Run: python -m radar.poster_cache [--limit N]
 """
 import argparse, hashlib, io, json, os, tempfile, time
 from datetime import timedelta
+from urllib.parse import urlsplit
 
 import requests
 
 from . import core
-from .posters import NAME
+from .posters import NAME, image_list
 
 PER_EVENT = 4               # the detail view shows a few images; the card uses the first
 MAX_BYTES = 8 * 1024 * 1024
@@ -19,6 +22,11 @@ MAX_SIZE = (960, 2400)      # width, height in pixels after shrinking
 MIN_SIDE = 100              # narrower or shorter than this is an icon, not a poster
 QUALITY = 78
 KEEP_DAYS = 30              # keep files of events that ended within this window
+# Event sites whose pages carry a real cover in og:image (dev.events only renders its title as text).
+DISCOVER_HOSTS = {'m.bendibao.com', 'sz.bendibao.com', 'www.bendibao.com', 'www.meetup.com',
+                  'www.szhuodong.com', 'www.huodongxing.com', 'www.douban.com'}
+DISCOVER_PER_RUN = 20
+PAGE_BYTES = 2 * 1024 * 1024
 HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
            'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8'}
 
@@ -39,11 +47,12 @@ def load_state(path):
     images = data.get('images') if isinstance(data.get('images'), dict) else {}
     failures = data.get('failures') if isinstance(data.get('failures'), dict) else {}
     icons = data.get('icons') if isinstance(data.get('icons'), dict) else {}
+    pages = data.get('pages') if isinstance(data.get('pages'), dict) else {}
     # Earlier runs recorded icons as retryable failures; they are simply not posters.
     for url in [u for u, f in failures.items() if isinstance(f, dict) and str(f.get('why', '')).startswith('too small')]:
         icons[url] = {'why': 'too small'}
         failures.pop(url)
-    return {'images': images, 'failures': failures, 'icons': icons}
+    return {'images': images, 'failures': failures, 'icons': icons, 'pages': pages}
 
 
 def atomic_write(path, data):
@@ -62,8 +71,8 @@ def atomic_write(path, data):
         raise
 
 
-def event_images(since):
-    """(priority rank, start, page url, image urls) for events still worth showing."""
+def event_images(since, pages=None):
+    """(priority rank, start, page url, image urls) for events still worth showing, with or without images."""
     rank = {'high': 0, 'medium': 1}
     with core.db() as c:
         rows = c.execute("SELECT url,start_at,end_at,priority,details FROM events WHERE status='scheduled'").fetchall()
@@ -71,15 +80,37 @@ def event_images(since):
     for url, start, end, priority, details in rows:
         try:
             last = core._query_datetime(end or start) if (end or start) else None
-            images = json.loads(details or '{}').get('images')
-        except (ValueError, TypeError, AttributeError):
+            data = json.loads(details or '{}')
+        except (ValueError, TypeError):
             continue
-        if not last or last < since or not isinstance(images, list):
+        if not last or last < since or not isinstance(data, dict):
             continue
-        images = [u for u in images if isinstance(u, str) and u.startswith('https://')]
-        if images:
-            out.append((rank.get(priority, 2), start or '', url or '', images))
+        found = ((pages or {}).get(url) or {}).get('image')
+        images = [u for u in image_list(data, found) if isinstance(u, str) and u.startswith('https://')]
+        out.append((rank.get(priority, 2), start or '', url or '', images))
     return sorted(out)
+
+
+def discover(page, session):
+    """The og:image (or twitter:image) an event page declares as its cover, or ''."""
+    from bs4 import BeautifulSoup
+    from .details import public_image
+    with session.get(page, headers=HEADERS, timeout=(5, 15), stream=True, allow_redirects=True) as res:
+        if res.status_code != 200:
+            raise ValueError(f'HTTP {res.status_code}')
+        body = bytearray()
+        for chunk in res.iter_content(65536):
+            body += chunk
+            if len(body) > PAGE_BYTES:
+                break
+    soup = BeautifulSoup(bytes(body).decode('utf-8', 'replace'), 'html.parser')
+    for meta in soup.select('meta[property="og:image"],meta[name="og:image"],meta[name="twitter:image"],meta[property="twitter:image"]'):
+        url = public_image(meta.get('content', ''), page)
+        if url.startswith('http://'):
+            url = 'https://' + url[len('http://'):]
+        if url.startswith('https://'):
+            return url
+    return ''
 
 
 def encode(data):
@@ -118,12 +149,31 @@ def run(limit=40, deadline=240.0, sleep=0.3, session=None):
     folder, state_path = paths()
     folder.mkdir(parents=True, exist_ok=True)
     state = load_state(state_path)
-    images, failures, icons = state['images'], state['failures'], state['icons']
+    images, failures, icons, pages = state['images'], state['failures'], state['icons'], state['pages']
     started, clock = time.monotonic(), time.time()
     since = core._query_datetime(core.now()) - timedelta(days=KEEP_DAYS)
-    wanted, session = event_images(since), session or requests.Session()
+    session = session or requests.Session()
     current = core._query_datetime(core.now())
-    stats = {'events': len(wanted), 'cached': 0, 'fetched': 0, 'icons': 0, 'failed': 0, 'skipped': 0, 'removed': 0}
+    stats = {'events': 0, 'cached': 0, 'fetched': 0, 'icons': 0, 'failed': 0, 'skipped': 0, 'removed': 0,
+             'pages': 0, 'covers_found': 0}
+    # Look once at the page of events that listed no picture (recheck a miss after a week).
+    for _, _, page, urls in event_images(since, pages):
+        if urls or not page or urlsplit(page).hostname not in DISCOVER_HOSTS:
+            continue
+        if (pages.get(page) or {}).get('next', 0) > clock:
+            continue
+        if stats['pages'] >= DISCOVER_PER_RUN or time.monotonic() - started > deadline / 2:
+            break
+        try:
+            found = discover(page, session)
+            pages[page] = {'image': found, 'next': clock + (30 if found else 7) * 86400}
+            stats['covers_found'] += bool(found)
+        except Exception as exc:
+            pages[page] = {'image': '', 'next': clock + 86400, 'why': str(exc)[:80] or type(exc).__name__}
+        stats['pages'] += 1
+        time.sleep(sleep)
+    wanted = [row for row in event_images(since, pages) if row[3]]
+    stats['events'] = len(wanted)
     for _, _, page, urls in wanted:
         for url in urls[:PER_EVENT]:
             name = images.get(url)
@@ -160,6 +210,9 @@ def run(limit=40, deadline=240.0, sleep=0.3, session=None):
             break
     # Forget images no event needs any more and delete their files (never the reviewed ones).
     referenced = {u for _, _, _, urls in wanted for u in urls[:PER_EVENT]}
+    live_pages = {page for _, _, page, _ in event_images(since)}
+    for page in [p for p in pages if p not in live_pages]:
+        pages.pop(page)
     for url in [u for u in images if u not in referenced]:
         images.pop(url)
     for table in (failures, icons):
@@ -174,7 +227,7 @@ def run(limit=40, deadline=240.0, sleep=0.3, session=None):
         if NAME.fullmatch(path.name) and path.name not in keep and path.is_file():
             path.unlink()
             stats['removed'] += 1
-    atomic_write(state_path, json.dumps({'images': images, 'failures': failures, 'icons': icons,
+    atomic_write(state_path, json.dumps({'images': images, 'failures': failures, 'icons': icons, 'pages': pages,
                                          'updated': current.isoformat(timespec='seconds')},
                                         ensure_ascii=False, indent=1, sort_keys=True).encode())
     stats['seconds'] = round(time.monotonic() - started, 1)

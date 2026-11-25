@@ -107,6 +107,15 @@ def hdx(soup,url):
     return out
 
 
+def douban_cover(card):
+    """The poster a Douban list card already shows (lazy-loaded), as the large size."""
+    from .posters import DOUBAN_POSTER, canonical_image
+    for img in card.select('img'):
+        for value in (img.get('data-lazy'),img.get('data-src'),img.get('src')):
+            if isinstance(value,str) and DOUBAN_POSTER.match(value.strip()):
+                return {'cover':canonical_image(value.strip())}
+    return {}
+
 def douban_all(soup,url):
     out=[]
     for n in soup.select('li.list-entry,.event-item'):
@@ -121,7 +130,7 @@ def douban_all(soup,url):
         typ=source_fields.obvious_type(c.text(title)) or 'Event'
         out.append(c.skeleton(c.text(title),link,c.text(n),c.text(n.select_one('[itemprop="location"],.loc,.address')) or fields.get('location',''),
             start_at=start,end_at=end,city='深圳',cost_text=fields.get('cost_text',''),event_type=typ,
-            details={'publisher':fields.get('publisher',''),'type_evidence':'标题明确演出形式' if typ!='Event' else ''},detail_candidate=not start))
+            details={'publisher':fields.get('publisher',''),'type_evidence':'标题明确演出形式' if typ!='Event' else '',**douban_cover(n)},detail_candidate=not start))
     return out
 
 def microdata_detail(soup,url):

@@ -634,7 +634,7 @@ def events(query='',period='upcoming',district='',tag='',free=False,recommended=
                         e['period_label']='本周末仍开放' if period=='weekend' else ('本周仍开放' if period=='week' else '长期/重复活动')
                 if (range_start or range_end) and not overlaps_range(e,range_start,range_end):continue
                 from .posters import display_details
-                e['details']=display_details(json.loads(e.get('details') or '{}'),ROOT)
+                e['details']=display_details(json.loads(e.get('details') or '{}'),ROOT,e.get('url'))
                 for a in aliases:
                     if a.get('date')==(e.get('start_at') or '')[:10] and any(canon_url(x.get('url','')) in a.get('urls',[]) for x in links.get(e['id'],[])):
                         fix=a.get('canonical',{})

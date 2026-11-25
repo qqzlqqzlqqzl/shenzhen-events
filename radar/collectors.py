@@ -186,7 +186,9 @@ def douban(soup,url):
         title=a.select_one('.title a[href],a[itemprop="url"]');start=a.select_one('[itemprop="startDate"]');end=a.select_one('[itemprop="endDate"]')
         if not title:continue
         def dt(n):return iso(n.get('content') or n.get('datetime')) if n else None
-        out.append(skeleton(text(title),urljoin(url,title['href']),text(a),text(a.select_one('[itemprop="location"],.loc,.address')),start_at=dt(start),end_at=dt(end)))
+        from .coverage import douban_cover
+        e=skeleton(text(title),urljoin(url,title['href']),text(a),text(a.select_one('[itemprop="location"],.loc,.address')),start_at=dt(start),end_at=dt(end))
+        e.setdefault('details',{}).update(douban_cover(a));out.append(e)
     return out
 
 def rss(source,html):
