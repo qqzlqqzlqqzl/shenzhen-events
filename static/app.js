@@ -148,6 +148,8 @@ async function stats() {
     $('#update-note').textContent=s.last_updated?'更新于 '+timeText(s.last_updated):'活动正在整理中';
     if(!$('#district-options input'))renderFacetOptions('district',[...(s.districts||[]).map(v=>({value:v,label:v})),{value:'待确认',label:'地区待确认'}]);
     if(!$('#type-options input'))renderFacetOptions('type',s.event_types||[],s.type_pending||0);if(!$('#topic-options input'))renderFacetOptions('topic',s.topics||[]);
+    // The list may have answered first; give freshly built options its facet counts.
+    const snapshot=view==='calendar'?calendarSnapshot:listSnapshot;if(snapshot?.facets)updateFacetCounts(snapshot.facets);
   }catch(e){if(e.name!=='AbortError'&&authenticated&&epoch===authEpoch&&ticket===statsTicket)$('#update-note').textContent=e.message}
 }
 let filterStorageKey='radar.filters.v1:owner',filterOwner=null,generatedFilterURL=null,filterWriteBlocked=false;
@@ -232,7 +234,8 @@ async function enter(user={}) {
   if(owner)filterOwner=owner;
   const nextStorageKey='radar.filters.v1:'+String(user.username||'owner');if(nextStorageKey!==filterStorageKey)filterWriteBlocked=false;filterStorageKey=nextStorageKey;RadarPlanner.user(user.username);
   authenticated=true;authEpoch++;$('.hero').hidden=true;$('#manage-sources').hidden=false;$('#login-panel').hidden=true;$('#workspace').hidden=false;$('#logout').hidden=false;
-  await stats();if(!authenticated)return;restoreSavedFilters();readURL();rememberFilters();await load();const id=new URLSearchParams(location.search).get('event');if(id&&authenticated)await openDetail(id,false);
+  // Counts and filter options must not hold back the first cards: fetch both at once.
+  const counted=stats();restoreSavedFilters();readURL();rememberFilters();await load();await counted;if(!authenticated)return;const id=new URLSearchParams(location.search).get('event');if(id&&authenticated)await openDetail(id,false);
 }
 function query(period) {const p=urlParams();const r=RadarPlanner.range(p.get('from')||'',p.get('until')||'');p.delete('from');p.delete('until');if(r&&!period&&!['calendar','status'].includes(view)){if(!['favorites','feedback','history','review','past'].includes(view))period='range';p.set('start',r.start);p.set('end',r.end)}if(p.get('attendance')==='online'){p.delete('district');p.delete('districts');p.delete('district_none')}const showLong=p.get('show_long')==='true';p.delete('view');p.delete('month');p.delete('show_long');p.set('hide_long',showLong?'false':'true');if(p.get('saved_only')==='true'&&view==='calendar')p.set('favorites','true');p.delete('saved_only');p.set('period',period||({feedback:'feedback',history:'history',favorites:'saved',calendar:'calendar',week:'week',weekend:'weekend',review:'review',past:'past'}[view]||'upcoming'));if(view==='discover')p.set('recommended','true');if(view==='favorites')p.set('favorites','true');if(['favorites','feedback','history'].includes(view))p.set('hide_long','false');return p}
 let failedAppend=false;
@@ -297,8 +300,15 @@ async function load(append=false){
   }catch(e){if(e.name==='AbortError'||seq!==sequence||!authenticated)return;invalidatePlanning(String(e.code||'').startsWith('safety_'));if(String(e.code||'').startsWith('safety_')){keep=false;append=false;}if(dateLoadError)$('#date-error').textContent=dateLoadError;if(!append&&!keep){$('#event-list').replaceChildren();$('#result-count').textContent='加载失败';if(dateLoadError){records.clear();updateFacetCounts(null);renderExcluded(null);calendar?.removeAllEvents();renderLongCalendar([])}}if(keep){$('#result-count').textContent=`${total} 个活动 · 上次成功结果`;showError(new Error(e.message+' 正在保留此查询的上次结果，请手动重试。'),append)}else showError(e,append);if(append)$('#more').hidden=false}
   finally{if(seq===sequence){busy=false;$('#event-list').setAttribute('aria-busy','false');$('#more').disabled=false;$('#more').textContent='再看看更多 ↓'}}
 }
+// FullCalendar is only fetched when the calendar is first opened.
+let calendarScript=null;
+function loadCalendarScript(){
+  if(window.FullCalendar)return Promise.resolve();
+  if(!calendarScript)calendarScript=new Promise((resolve,reject)=>{const tag=document.createElement('script');tag.src=$('meta[name="radar-calendar-script"]')?.content||'/events/static/vendor/fullcalendar.js';tag.onload=resolve;tag.onerror=()=>{calendarScript=null;tag.remove();reject(new Error('calendar script failed'))};document.head.append(tag)});
+  return calendarScript;
+}
 function renderCalendar(){
-  if(!window.FullCalendar){showError(new Error('日历组件未加载，请刷新页面；活动列表仍可使用。'));return}
+  if(!window.FullCalendar){$('#result-count').textContent='正在加载日历…';loadCalendarScript().then(()=>{if(authenticated&&view==='calendar')renderCalendar()},()=>{if(authenticated&&view==='calendar')showError(new Error('日历组件未加载，请刷新页面；活动列表仍可使用。'))});return}
   if(calendar){if(RadarUI.dayKey(calendar.getDate())!==calendarDate)calendar.gotoDate(calendarDate);else if(calendarRange)loadCalendar(calendarRange);return}
   calendar=new FullCalendar.Calendar($('#calendar'),{
     initialDate:calendarDate,initialView:innerWidth<620?'listMonth':'dayGridMonth',locale:'zh-cn',timeZone:'UTC',now:RadarUI.dayKey(new Date()),firstDay:1,height:'auto',

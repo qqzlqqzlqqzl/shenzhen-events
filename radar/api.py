@@ -1,12 +1,12 @@
 """Private activity UI. Identity verification is delegated, never password storage."""
 from __future__ import annotations
-import base64, hashlib, hmac, json, os, secrets, threading, time
+import base64, hashlib, hmac, json, os, re, secrets, threading, time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from collections import defaultdict, deque, Counter
 import requests
 from fastapi import FastAPI, Request, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse, Response, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
@@ -54,6 +54,32 @@ app.add_middleware(GZipMiddleware,minimum_size=700)
 async def safety_error(request,exc):
     return JSONResponse({'detail':str(exc),'code':exc.code},status_code=exc.status)
 
+# Static assets are public and content-versioned: index.html links each one as
+# ?v=<content hash>, so a matching request may be cached for a year and a
+# deploy changes the URL. Posters are named by their own hash. Everything else,
+# including every API response, stays private and uncached.
+STATIC_PREFIX='/events/static/'
+STATIC_REF=re.compile(r'(/events/static/([A-Za-z0-9_./-]+))\?v=[A-Za-z0-9_.-]+')
+_ASSET_VERSIONS={}
+def asset_version(rel):
+    path=(ROOT/'static'/rel).resolve();base=(ROOT/'static').resolve()
+    if not path.is_relative_to(base) or not path.is_file():return None
+    st=path.stat();key=(str(path),st.st_mtime_ns,st.st_size)
+    if key not in _ASSET_VERSIONS:_ASSET_VERSIONS[key]=hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+    return _ASSET_VERSIONS[key]
+def versioned_index():
+    def pin(m):
+        version=asset_version(m.group(2))
+        return f'{m.group(1)}?v={version}' if version else m.group(0)
+    return STATIC_REF.sub(pin,(ROOT/'static/index.html').read_text())
+def static_cache_control(request,response):
+    path=request.url.path
+    if not path.startswith(STATIC_PREFIX) or response.status_code!=200:return 'private, no-store'
+    rel=path[len(STATIC_PREFIX):];version=request.query_params.get('v')
+    if re.fullmatch(r'posters/[a-f0-9]{64}\.(?:webp|png|jpg)',rel) or (version and version==asset_version(rel)):
+        return 'public, max-age=31536000, immutable'
+    return 'no-cache'
+
 @app.middleware('http')
 async def security(request,call_next):
     if request.method not in ('GET','HEAD','OPTIONS'):
@@ -64,7 +90,7 @@ async def security(request,call_next):
             if int(request.headers.get('content-length','0'))>16384:return JSONResponse({'detail':'请求过大'},status_code=413)
         except ValueError:return JSONResponse({'detail':'无效长度'},status_code=400)
     response=await call_next(request)
-    response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Cache-Control':'private, no-store'})
+    response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Cache-Control':static_cache_control(request,response)})
     response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
     return response
 
@@ -258,5 +284,5 @@ def disassociate_safety_target(body:ReviewedDisassociation,request:Request):
 @app.get('/events')
 def redirect():return RedirectResponse('/events/',status_code=308)
 @app.get('/events/')
-def index():return FileResponse(ROOT/'static/index.html')
+def index():return HTMLResponse(versioned_index())
 app.mount('/events/static',StaticFiles(directory=ROOT/'static'),name='static')

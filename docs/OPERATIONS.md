@@ -22,9 +22,10 @@
 | `shenzhen-events-collect.timer`（系统级） | 每小时 | `radar.worker collect --limit 120`：按来源频率采集、标准化、去重 |
 | `shenzhen-events-retry.timer`（系统级） | 每分钟 | `radar.worker retry`：消费“单源重试”队列（来源页上点“重试”） |
 | `radar-analyze.timer`（用户级） | 每 15 分钟 | `radar.worker analyze --limit 120`：AI 分析待处理条目 |
+| `radar-posters.timer`（用户级） | 每 30 分钟 | `radar.poster_cache --limit 40`：预先下载近期活动的配图 |
 | `shenzhen-events-analyze.timer`（系统级） | **已停用** | 被上面的用户级单元取代；它只读 `settings.json`，拿不到 API Key |
 
-用户级单元在 `~/.config/systemd/user/radar-analyze.{service,timer}`，只加载 `.private/radar-ai.env`。
+用户级单元在 `~/.config/systemd/user/radar-analyze.{service,timer}`（只加载 `.private/radar-ai.env`）和 `radar-posters.{service,timer}`。
 
 ### AI 分析
 
@@ -32,6 +33,12 @@
 - 每日上限写在 `settings.json`：`daily_calls`（当前 200）和 `daily_tokens`（当前 1,500,000），按北京时间日界重置；用量记在数据库 `budget` 表。
 - 关掉分析：把 `analysis_enabled` 改成 `false`。采集和重试不受影响。
 - 模型返回的 JSON 坏了（例如中文引号没转义）：先自动修复；整批仍失败就逐条重试；单条还失败标为 `model_error` 跳过。网络或接口错误则停止本轮，下一轮再来。
+
+### 图片与缓存
+
+- **海报预缓存**：`radar/poster_cache.py` 把近期活动（以及 30 天内结束的）每个最多 4 张配图下载下来，用 Pillow 缩到宽 960 像素以内、转成 webp，存进 `static/posters/<sha256>.webp`，清单写在 `data/poster-cache.json`。卡片封面和详情海报只读这些本机文件，不会去原站加载。下载失败的图片按 1 小时、2 小时……最长 7 天退避重试；活动过期 30 天后，对应文件会自动删除。人工审核过的海报仍写在 `static/posters/manifest.json`，优先级更高，不会被自动删除。
+- **静态资源缓存**：首页里的每个脚本和样式链接都带内容哈希（`?v=<哈希>`），由 `radar/api.py` 在返回首页时计算；哈希对得上的请求缓存一年，海报按文件名哈希同样缓存一年。所以发布新版本后不用手动改版本号，浏览器会自动拿到新文件。接口返回的数据一律不缓存。
+- **月历组件**（FullCalendar，约 280 KB）只在第一次打开月历时才下载。
 
 ## 常用操作
 
@@ -78,7 +85,7 @@ systemctl --user start radar-analyze.service
    git apply --include='static/*' 补丁文件
    ```
 
-4. 改了 `radar/*.py` 要重启：`sudo systemctl restart shenzhen-events`。只改 `static/` 不用重启（所有响应都是 `no-store`，刷新即生效）。
+4. 改了 `radar/*.py` 要重启：`sudo systemctl restart shenzhen-events`。只改 `static/` 不用重启：首页每次都按文件内容重新计算版本号，刷新就能拿到新文件。
 5. 核对线上文件的 sha256 和本地一致后，在临时克隆里 `git am` 同一个补丁，借部署密钥推到 `main`：
 
    ```bash
